@@ -1,0 +1,145 @@
+# CLAUDE.md — Quadra Backend
+
+> This file is loaded automatically by Claude Code in every session.
+> It keeps the project's technical context so no agent has to "remember" decisions.
+
+---
+
+## Project
+
+**Quadra** — backend for a volleyball app with gamification, match organization and community. Current focus: **backend only**. Frontend (React Native) comes later — agents MUST NOT specify screens, components or UI flows.
+
+To understand the product, read in this order:
+1. `docs/PRODUCT.md` — product vision and MVP layers
+2. `docs/SCOPE.md` — **the MVP constitution**. Every scope decision goes through here.
+3. `docs/ARCHITECTURE.md` — technical architecture (modules, AWS infra)
+
+---
+
+## Locked stack
+
+These decisions MUST NOT be questioned or changed by any agent. If a feature requires changing the stack, stop and ask the human.
+
+| Layer | Decision | Version |
+| --- | --- | --- |
+| Runtime | .NET (LTS) | 10.0 |
+| Language | C# | 14 |
+| API | ASP.NET Core with **traditional Controllers** (not Minimal APIs) | 10.0 |
+| ORM | **Entity Framework Core** (no Dapper in MVP) | 10.0 |
+| Database | PostgreSQL with PostGIS extension | 16+ |
+| External auth | AWS Cognito (OIDC/JWT) | — |
+| Real-time | SignalR over WebSocket | 10.0 |
+| SignalR backplane | Redis | 7+ |
+| Messaging | AWS SQS | — |
+| Storage | AWS S3 | — |
+| Workers | Background Worker + Notification Worker on ECS (BackgroundService / Worker SDK) | — |
+| Validation | FluentValidation | latest stable |
+| DTO ↔ Entity mapping | Manual mapping (no AutoMapper) | — |
+| Logs | Serilog structured JSON | latest stable |
+| Unit tests | xUnit + FluentAssertions + NSubstitute | — |
+| Integration tests | xUnit + WebApplicationFactory + Testcontainers (real Postgres) | — |
+
+### Non-negotiable code rules
+
+- **Nullable reference types enabled** in every project (`<Nullable>enable</Nullable>`).
+- **Async/await mandatory** for any I/O. Forbidden: `.Result`, `.Wait()`, `.GetAwaiter().GetResult()`.
+- **CancellationToken** propagated through every public async method.
+- **Records** for immutable DTOs; **classes** for EF entities.
+- No new NuGet package is added without explicit justification in the spec.
+- No use of `dynamic` or reflection without justification.
+
+---
+
+## Modular monolith structure
+
+The backend is ONE deployable project (CORE), internally organized into isolated modules. Each module has clear boundaries.
+
+```
+src/
+  Quadra.Api/                  # ASP.NET host, Program.cs, Controllers
+  Quadra.Modules.Auth/         # Signup, login, JWT, Cognito integration
+  Quadra.Modules.Matches/      # Match lifecycle
+  Quadra.Modules.InGame/       # Teams, live scoreboard
+  Quadra.Modules.Profile/      # Identity, stats, player card
+  Quadra.Modules.Geo/          # Geographic queries (PostGIS)
+  Quadra.Modules.Notifications/# In-app notifications
+  Quadra.Modules.Gamification/ # Points, levels, achievements, ranking
+  Quadra.Modules.Realtime/     # SignalR Hub (internal infra)
+  Quadra.Workers.Background/   # Heavy processing worker
+  Quadra.Workers.Notification/ # Push delivery worker
+  Quadra.Shared/               # Shared contracts (events, abstractions)
+  Quadra.Infrastructure/       # EF DbContext, Redis, SQS, S3
+tests/
+  Quadra.UnitTests/
+  Quadra.IntegrationTests/
+```
+
+### Module boundaries (critical rule)
+
+- A module **never** accesses another module's tables directly.
+- Inter-module communication: through public interfaces exposed by the target module, or through SQS events.
+- If module A needs data from module B, it asks via interface. No cross-module JOINs in the database.
+- This rule is validated by the `scope-guardian` on every spec.
+
+---
+
+## Project commands
+
+```bash
+# Build
+dotnet build
+
+# Run unit tests
+dotnet test tests/Quadra.UnitTests
+
+# Run integration tests (Docker must be running for Testcontainers)
+dotnet test tests/Quadra.IntegrationTests
+
+# Run all
+dotnet test
+
+# Start API locally
+dotnet run --project src/Quadra.Api
+
+# Add EF migration (run from inside the module that owns the entity)
+dotnet ef migrations add <Name> --startup-project ../Quadra.Api
+
+# Apply migrations
+dotnet ef database update --startup-project ../Quadra.Api
+
+# Format / lint
+dotnet format
+```
+
+---
+
+## Development workflow (summary)
+
+Every feature goes through 4 agents in sequence. Use the slash command `/feature`:
+
+1. **spec-writer** → produces technical contract from informal description
+2. **scope-guardian** → approves or rejects based on `docs/SCOPE.md` and module boundaries
+3. **implementer** → writes code following the spec
+4. **test-writer** → writes and runs tests; only delivers diff when all pass
+
+See `docs/WORKFLOW.md` for details.
+
+---
+
+## Anti-patterns to avoid (blacklist)
+
+These patterns show up often in AI-generated code and break this project:
+
+- Service Locator / `IServiceProvider.GetService` outside composition root
+- Generic repositories that become a DbContext facade
+- AutoMapper used on things that deserve explicit mapping
+- Generic `catch (Exception)` without rethrow or specific handling
+- DTOs that turn into disguised EF entities (anemic model)
+- Controllers with 200 lines of business logic (keep them thin)
+- DI configuration scattered around — every module registration goes through `Add<Module>Module(IServiceCollection)`
+
+---
+
+## When context is missing
+
+If an agent is unsure about stack, structure or scope: **stop and ask**. Never invent a new technical decision.

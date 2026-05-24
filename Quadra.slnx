@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Quadra.Api/Quadra.Api.csproj" />
+    <Project Path="src/Quadra.Infrastructure/Quadra.Infrastructure.csproj" />
+    <Project Path="src/Quadra.Modules.Auth/Quadra.Modules.Auth.csproj" />
+    <Project Path="src/Quadra.Modules.Gamification/Quadra.Modules.Gamification.csproj" />
+    <Project Path="src/Quadra.Modules.Geo/Quadra.Modules.Geo.csproj" />
+    <Project Path="src/Quadra.Modules.InGame/Quadra.Modules.InGame.csproj" />
+    <Project Path="src/Quadra.Modules.Matches/Quadra.Modules.Matches.csproj" />
+    <Project Path="src/Quadra.Modules.Notifications/Quadra.Modules.Notifications.csproj" />
+    <Project Path="src/Quadra.Modules.Profile/Quadra.Modules.Profile.csproj" />
+    <Project Path="src/Quadra.Modules.Realtime/Quadra.Modules.Realtime.csproj" />
+    <Project Path="src/Quadra.Shared/Quadra.Shared.csproj" />
+    <Project Path="src/Quadra.Workers.Background/Quadra.Workers.Background.csproj" />
+    <Project Path="src/Quadra.Workers.Notification/Quadra.Workers.Notification.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Quadra.IntegrationTests/Quadra.IntegrationTests.csproj" />
+    <Project Path="tests/Quadra.UnitTests/Quadra.UnitTests.csproj" />
+  </Folder>
+</Solution>

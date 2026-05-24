@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.1" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.6" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.8" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Quadra.Shared\Quadra.Shared.csproj" />
+    <ProjectReference Include="..\Quadra.Infrastructure\Quadra.Infrastructure.csproj" />
+    <ProjectReference Include="..\Quadra.Modules.Auth\Quadra.Modules.Auth.csproj" />
+    <ProjectReference Include="..\Quadra.Modules.Matches\Quadra.Modules.Matches.csproj" />
+    <ProjectReference Include="..\Quadra.Modules.InGame\Quadra.Modules.InGame.csproj" />
+    <ProjectReference Include="..\Quadra.Modules.Profile\Quadra.Modules.Profile.csproj" />
+    <ProjectReference Include="..\Quadra.Modules.Geo\Quadra.Modules.Geo.csproj" />
+    <ProjectReference Include="..\Quadra.Modules.Notifications\Quadra.Modules.Notifications.csproj" />
+    <ProjectReference Include="..\Quadra.Modules.Gamification\Quadra.Modules.Gamification.csproj" />
+    <ProjectReference Include="..\Quadra.Modules.Realtime\Quadra.Modules.Realtime.csproj" />
+  </ItemGroup>
+
+</Project>
