@@ -33,6 +33,16 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
                 ["Auth:Cognito:Region"] = TestRegion,
                 ["Auth:Cognito:Audience"] = TestAudience,
                 ["Auth:Cognito:ClockSkewSeconds"] = "30",
+                // FA.2 added a signup pipeline that fails fast on missing options. These tests
+                // only exercise the FA.1 JWT middleware, but the host still wires the signup
+                // pipeline, so we supply stub values to satisfy ValidateOnStart.
+                ["Auth:Cognito:AppClientId"] = TestAudience,
+                ["Auth:Google:ClientId"] = "test-google-client",
+                ["Auth:Google:Issuer"] = "https://accounts.google.com",
+                ["Auth:Google:JwksUri"] = "https://accounts.google.com/.well-known/openid-configuration",
+                ["Auth:Apple:ClientId"] = "test-apple-client",
+                ["Auth:Apple:Issuer"] = "https://appleid.apple.com",
+                ["Auth:Apple:JwksUri"] = "https://appleid.apple.com/.well-known/openid-configuration",
             });
         });
 

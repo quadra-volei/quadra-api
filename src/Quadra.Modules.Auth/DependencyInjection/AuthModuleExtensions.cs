@@ -1,13 +1,24 @@
+using Amazon;
+using Amazon.CognitoIdentityProvider;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Quadra.Infrastructure.Messaging;
+using Quadra.Modules.Auth.Application;
 using Quadra.Modules.Auth.Authentication;
+using Quadra.Modules.Auth.Cognito;
 using Quadra.Modules.Auth.Configuration;
+using Quadra.Modules.Auth.Contracts;
+using Quadra.Modules.Auth.Oidc;
+using Quadra.Modules.Auth.Persistence;
+using Quadra.Modules.Auth.Validation;
 
 namespace Quadra.Modules.Auth.DependencyInjection;
 
@@ -32,7 +43,7 @@ public static class AuthModuleExtensions
 
         services
             .AddOptions<CognitoJwtOptions>()
-            .Bind(configuration.GetSection(CognitoJwtOptions.SectionName))
+            .BindConfiguration(CognitoJwtOptions.SectionName)
             .Validate(
                 static (CognitoJwtOptions options, IValidator<CognitoJwtOptions> validator) =>
                 {
@@ -46,7 +57,7 @@ public static class AuthModuleExtensions
                     throw new OptionsValidationException(
                         nameof(CognitoJwtOptions),
                         typeof(CognitoJwtOptions),
-                        new[] { errors });
+                        [errors]);
                 })
             .ValidateOnStart();
 
@@ -86,6 +97,8 @@ public static class AuthModuleExtensions
 
         services.AddAuthorization();
 
+        AddSignupPipeline(services);
+
         return services;
     }
 
@@ -101,5 +114,76 @@ public static class AuthModuleExtensions
         app.UseAuthorization();
 
         return app;
+    }
+
+    private static void AddSignupPipeline(IServiceCollection services)
+    {
+        // Options binding + fail-fast validation for the signup pipeline.
+        // We use BindConfiguration (resolved lazily through DI) so that test hosts which
+        // mutate IConfiguration after AddAuthModule has been called still see their values.
+        services
+            .AddOptions<CognitoSignupOptions>()
+            .BindConfiguration(CognitoSignupOptions.SectionName)
+            .Validate(
+                static options =>
+                    !string.IsNullOrWhiteSpace(options.AppClientId)
+                    && !string.IsNullOrWhiteSpace(options.UserPoolId)
+                    && !string.IsNullOrWhiteSpace(options.Region),
+                "Auth:Cognito:AppClientId, UserPoolId and Region are required.")
+            .ValidateOnStart();
+
+        services
+            .AddOptions<OidcProvidersOptions>()
+            .BindConfiguration(OidcProvidersOptions.SectionName)
+            .Validate(
+                static options =>
+                    !string.IsNullOrWhiteSpace(options.Google.ClientId)
+                    && !string.IsNullOrWhiteSpace(options.Apple.ClientId),
+                "Auth:Google:ClientId and Auth:Apple:ClientId are required.")
+            .ValidateOnStart();
+
+        // AWS Cognito client. Region resolved from the bound options.
+        services.AddSingleton<IAmazonCognitoIdentityProvider>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<CognitoSignupOptions>>().Value;
+            var region = RegionEndpoint.GetBySystemName(options.Region);
+            return new AmazonCognitoIdentityProviderClient(region);
+        });
+
+        // EF persistence — connection string comes from the standard ConnectionStrings:Auth slot,
+        // falling back to ConnectionStrings:Default so tests with a single Postgres can share it.
+        // Resolved lazily via IServiceProvider so the test host's configuration overrides
+        // (applied through ConfigureAppConfiguration after AddAuthModule runs) are honoured.
+        services.AddDbContext<AuthDbContext>((sp, builder) =>
+        {
+            var cfg = sp.GetRequiredService<IConfiguration>();
+            var authConnection = cfg.GetConnectionString("Auth")
+                ?? cfg.GetConnectionString("Default")
+                ?? throw new InvalidOperationException(
+                    "ConnectionStrings:Auth (or ConnectionStrings:Default) must be configured.");
+
+            builder.UseNpgsql(authConnection);
+        });
+
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+
+        services.AddSingleton<ICognitoSignupClient, CognitoSignupClient>();
+        services.AddSingleton<ICognitoAuthClient, CognitoAuthClient>();
+        services.AddSingleton<IOidcTokenValidator, GoogleAppleTokenValidator>();
+        services.AddSingleton(TimeProvider.System);
+
+        services.AddScoped<SignupHandler>();
+        services.AddScoped<SmsOtpLoginHandler>();
+        services.AddScoped<OidcLoginHandler>();
+        services.AddScoped<RefreshHandler>();
+
+        services.AddScoped<IValidator<SignupRequest>, SignupRequestValidator>();
+        services.AddScoped<IValidator<SmsOtpLoginRequest>, SmsOtpLoginRequestValidator>();
+        services.AddScoped<IValidator<OidcLoginRequest>, OidcLoginRequestValidator>();
+        services.AddScoped<IValidator<RefreshRequest>, RefreshRequestValidator>();
+
+        // Default IEventPublisher (no-op) — replaced by the SQS publisher when that spec lands.
+        services.TryAddSingleton<IEventPublisher, NoOpEventPublisher>();
     }
 }
