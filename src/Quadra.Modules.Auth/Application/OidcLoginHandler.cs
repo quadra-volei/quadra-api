@@ -62,8 +62,7 @@ public sealed class OidcLoginHandler
         OidcClaims claims;
         try
         {
-            claims = await _oidcValidator.ValidateAsync(idToken, oidcProvider, cancellationToken)
-                ;
+            claims = await _oidcValidator.ValidateAsync(idToken, oidcProvider, cancellationToken);
         }
         catch (OidcTokenInvalidException)
         {
@@ -78,8 +77,7 @@ public sealed class OidcLoginHandler
         try
         {
             tokens = await _cognitoAuthClient
-                .BrokerExternalSessionAsync(provider, claims.Subject, cancellationToken)
-                ;
+                .BrokerExternalSessionAsync(provider, claims.Subject, cancellationToken);
         }
         catch (UserNotFoundForLoginException)
         {
@@ -90,8 +88,7 @@ public sealed class OidcLoginHandler
             throw;
         }
 
-        var user = await _userRepository.FindByCognitoSubAsync(tokens.CognitoSub, cancellationToken)
-            ;
+        var user = await _userRepository.FindByCognitoSubAsync(tokens.CognitoSub, cancellationToken);
         if (user is null)
         {
             _logger.LogInformation(

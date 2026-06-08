@@ -52,8 +52,7 @@ public sealed class SmsOtpLoginHandler
 
         var user = await _dbContext.Users
             .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.PhoneNumber == phoneNumber, cancellationToken)
-            ;
+            .FirstOrDefaultAsync(u => u.PhoneNumber == phoneNumber, cancellationToken);
         if (user is null)
         {
             _logger.LogInformation(
@@ -64,8 +63,7 @@ public sealed class SmsOtpLoginHandler
             throw new UserNotFoundForLoginException("No user is registered for the supplied phone number.");
         }
 
-        var challenge = await _cognitoAuthClient.InitiateSmsOtpAsync(phoneNumber, cancellationToken)
-            ;
+        var challenge = await _cognitoAuthClient.InitiateSmsOtpAsync(phoneNumber, cancellationToken);
 
         _logger.LogInformation(
             "Login OTP initiated. {Provider} {Step} {OutcomeCategory}",
@@ -90,8 +88,7 @@ public sealed class SmsOtpLoginHandler
         ArgumentException.ThrowIfNullOrWhiteSpace(code);
 
         var user = await _dbContext.Users
-            .FirstOrDefaultAsync(u => u.PhoneNumber == phoneNumber, cancellationToken)
-            ;
+            .FirstOrDefaultAsync(u => u.PhoneNumber == phoneNumber, cancellationToken);
         if (user is null)
         {
             _logger.LogInformation(
@@ -106,8 +103,7 @@ public sealed class SmsOtpLoginHandler
         try
         {
             tokens = await _cognitoAuthClient
-                .RespondToSmsOtpAsync(phoneNumber, session, code, cancellationToken)
-                ;
+                .RespondToSmsOtpAsync(phoneNumber, session, code, cancellationToken);
         }
         catch (InvalidOtpException)
         {

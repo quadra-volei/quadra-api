@@ -75,8 +75,7 @@ public sealed class GoogleAppleTokenValidator : IOidcTokenValidator
         };
 
         var validationResult = await _tokenHandler
-            .ValidateTokenAsync(idToken, validationParameters)
-            ;
+            .ValidateTokenAsync(idToken, validationParameters);
 
         if (!validationResult.IsValid)
         {
