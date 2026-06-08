@@ -407,6 +407,9 @@ public sealed class SignupEndpointTests : IClassFixture<SignupEndpointTests.Fixt
                             ["Auth:Apple:JwksUri"] = "https://appleid.apple.com/.well-known/openid-configuration",
                             ["ConnectionStrings:Auth"] = _postgres.GetConnectionString(),
                             ["ConnectionStrings:Default"] = _postgres.GetConnectionString(),
+                            // Matches module fail-fast: SQS queue URLs required at startup.
+                            ["Aws:Sqs:MatchCreatedQueueUrl"] = "http://test-stub/match-created",
+                            ["Aws:Sqs:MatchStatusChangedQueueUrl"] = "http://test-stub/match-status-changed",
                         });
                     });
 

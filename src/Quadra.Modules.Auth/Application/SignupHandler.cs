@@ -51,8 +51,8 @@ public sealed class SignupHandler
 
         return command switch
         {
-            SignupCommand.Phone phone => await HandlePhoneAsync(phone, cancellationToken).ConfigureAwait(false),
-            SignupCommand.External external => await HandleExternalAsync(external, cancellationToken).ConfigureAwait(false),
+            SignupCommand.Phone phone => await HandlePhoneAsync(phone, cancellationToken),
+            SignupCommand.External external => await HandleExternalAsync(external, cancellationToken),
             _ => throw new InvalidOperationException($"Unsupported signup command type: {command.GetType().Name}"),
         };
     }
@@ -62,7 +62,7 @@ public sealed class SignupHandler
         CancellationToken cancellationToken)
     {
         var existing = await _userRepository.FindByPhoneNumberAsync(command.PhoneNumber, cancellationToken)
-            .ConfigureAwait(false);
+            ;
         if (existing is not null)
         {
             _logger.LogInformation(
@@ -73,14 +73,14 @@ public sealed class SignupHandler
         }
 
         var cognitoResult = await _cognitoClient.SignUpPhoneAsync(command.PhoneNumber, cancellationToken)
-            .ConfigureAwait(false);
+            ;
 
         var now = _timeProvider.GetUtcNow();
         var user = User.CreateForPhone(Guid.NewGuid(), cognitoResult.UserSub, command.PhoneNumber, now);
 
-        await PersistUserAsync(user, cancellationToken).ConfigureAwait(false);
+        await PersistUserAsync(user, cancellationToken);
 
-        await PublishUserRegisteredAsync(user, now, cancellationToken).ConfigureAwait(false);
+        await PublishUserRegisteredAsync(user, now, cancellationToken);
 
         _logger.LogInformation(
             "Signup succeeded. {Provider} {OutcomeCategory} {UserId}",
@@ -114,7 +114,7 @@ public sealed class SignupHandler
         try
         {
             claims = await _oidcValidator.ValidateAsync(command.IdToken, oidcProvider, cancellationToken)
-                .ConfigureAwait(false);
+                ;
         }
         catch (OidcTokenInvalidException)
         {
@@ -128,7 +128,7 @@ public sealed class SignupHandler
         var existingSub = await _cognitoClient.FindExternalUserSubAsync(
             command.ExternalProvider,
             claims.Subject,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken);
         if (existingSub is not null)
         {
             _logger.LogInformation(
@@ -147,7 +147,7 @@ public sealed class SignupHandler
             claims.Subject,
             normalizedEmail,
             claims.EmailVerified,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken);
 
         try
         {
@@ -155,7 +155,7 @@ public sealed class SignupHandler
                 command.ExternalProvider,
                 cognitoResult.UserSub,
                 claims.Subject,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken);
         }
         catch (ExternalIdentityAlreadyLinkedException)
         {
@@ -174,9 +174,9 @@ public sealed class SignupHandler
             normalizedEmail,
             now);
 
-        await PersistUserAsync(user, cancellationToken).ConfigureAwait(false);
+        await PersistUserAsync(user, cancellationToken);
 
-        await PublishUserRegisteredAsync(user, now, cancellationToken).ConfigureAwait(false);
+        await PublishUserRegisteredAsync(user, now, cancellationToken);
 
         _logger.LogInformation(
             "Signup succeeded. {Provider} {OutcomeCategory} {UserId}",
@@ -196,7 +196,7 @@ public sealed class SignupHandler
     {
         try
         {
-            await _userRepository.AddAsync(user, cancellationToken).ConfigureAwait(false);
+            await _userRepository.AddAsync(user, cancellationToken);
         }
         catch (DbUpdateException ex) when (IsUniqueViolation(ex))
         {
@@ -228,7 +228,7 @@ public sealed class SignupHandler
 
         try
         {
-            await _eventPublisher.PublishAsync(@event, cancellationToken).ConfigureAwait(false);
+            await _eventPublisher.PublishAsync(@event, cancellationToken);
         }
         catch (Exception ex)
         {

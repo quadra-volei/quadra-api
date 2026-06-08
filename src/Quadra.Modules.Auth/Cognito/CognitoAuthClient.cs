@@ -53,7 +53,7 @@ public sealed class CognitoAuthClient : ICognitoAuthClient
         try
         {
             var response = await _cognito.AdminInitiateAuthAsync(request, cancellationToken)
-                .ConfigureAwait(false);
+                ;
 
             var medium = ReadChallengeParameter(response.ChallengeParameters, "CODE_DELIVERY_DELIVERY_MEDIUM")
                 ?? "SMS";
@@ -106,7 +106,7 @@ public sealed class CognitoAuthClient : ICognitoAuthClient
         try
         {
             var response = await _cognito.AdminRespondToAuthChallengeAsync(request, cancellationToken)
-                .ConfigureAwait(false);
+                ;
 
             if (response.AuthenticationResult is null)
             {
@@ -152,7 +152,7 @@ public sealed class CognitoAuthClient : ICognitoAuthClient
         // no-redirect stance and with the SMS OTP path above, which also uses CUSTOM_AUTH).
         // The pool must be configured for admin-initiated custom auth; this mirrors the SMS path.
         var username = await ResolveLinkedUsernameAsync(provider, externalSub, cancellationToken)
-            .ConfigureAwait(false);
+            ;
         if (username is null)
         {
             throw new UserNotFoundForLoginException(
@@ -170,7 +170,7 @@ public sealed class CognitoAuthClient : ICognitoAuthClient
         try
         {
             var response = await _cognito.AdminInitiateAuthAsync(request, cancellationToken)
-                .ConfigureAwait(false);
+                ;
 
             if (response.AuthenticationResult is null)
             {
@@ -226,7 +226,7 @@ public sealed class CognitoAuthClient : ICognitoAuthClient
         try
         {
             var response = await _cognito.AdminInitiateAuthAsync(request, cancellationToken)
-                .ConfigureAwait(false);
+                ;
 
             if (response.AuthenticationResult is null)
             {
@@ -268,7 +268,7 @@ public sealed class CognitoAuthClient : ICognitoAuthClient
         try
         {
             var response = await _cognito.ListUsersAsync(request, cancellationToken)
-                .ConfigureAwait(false);
+                ;
             return response.Users?.FirstOrDefault()?.Username;
         }
         catch (AmazonCognitoIdentityProviderException ex)

@@ -13,7 +13,7 @@ public sealed class AuthDbContextDesignTimeFactory : IDesignTimeDbContextFactory
     public AuthDbContext CreateDbContext(string[] args)
     {
         var builder = new DbContextOptionsBuilder<AuthDbContext>();
-        builder.UseNpgsql("Host=localhost;Database=quadra_design;Username=postgres;Password=postgres");
+        builder.UseNpgsql("Host=localhost;Port=5432;Database=quadra;Username=quadra;Password=quadra");
         return new AuthDbContext(builder.Options);
     }
 }

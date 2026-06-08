@@ -69,7 +69,7 @@ public sealed class AuthController : ControllerBase
                 title: "Request body is required.");
         }
 
-        var validation = await _validator.ValidateAsync(request, cancellationToken).ConfigureAwait(false);
+        var validation = await _validator.ValidateAsync(request, cancellationToken);
         if (!validation.IsValid)
         {
             foreach (var failure in validation.Errors)
@@ -84,7 +84,7 @@ public sealed class AuthController : ControllerBase
 
         try
         {
-            var response = await _signupHandler.HandleAsync(command, cancellationToken).ConfigureAwait(false);
+            var response = await _signupHandler.HandleAsync(command, cancellationToken);
             return CreatedAtAction(
                 actionName: nameof(Signup),
                 routeValues: new { id = response.UserId },
@@ -134,7 +134,7 @@ public sealed class AuthController : ControllerBase
         }
 
         var validation = await _smsOtpLoginValidator.ValidateAsync(request, cancellationToken)
-            .ConfigureAwait(false);
+            ;
         if (!validation.IsValid)
         {
             return ToValidationProblem(validation);
@@ -148,13 +148,13 @@ public sealed class AuthController : ControllerBase
             {
                 var initiated = await _smsOtpLoginHandler
                     .InitiateAsync(request.PhoneNumber, cancellationToken)
-                    .ConfigureAwait(false);
+                    ;
                 return Ok(initiated);
             }
 
             var tokens = await _smsOtpLoginHandler
                 .VerifyAsync(request.PhoneNumber, request.Session!, request.Code!, request.DeviceId, cancellationToken)
-                .ConfigureAwait(false);
+                ;
             return Ok(tokens);
         }
         catch (Exception ex) when (TryMapLoginException(ex, out var result))
@@ -212,7 +212,7 @@ public sealed class AuthController : ControllerBase
         }
 
         var validation = await _refreshValidator.ValidateAsync(request, cancellationToken)
-            .ConfigureAwait(false);
+            ;
         if (!validation.IsValid)
         {
             return ToValidationProblem(validation);
@@ -222,7 +222,7 @@ public sealed class AuthController : ControllerBase
         {
             var tokens = await _refreshHandler
                 .HandleAsync(request.RefreshToken, request.DeviceId, cancellationToken)
-                .ConfigureAwait(false);
+                ;
             return Ok(tokens);
         }
         catch (Exception ex) when (TryMapLoginException(ex, out var result))
@@ -242,7 +242,7 @@ public sealed class AuthController : ControllerBase
         }
 
         var validation = await _oidcLoginValidator.ValidateAsync(request, cancellationToken)
-            .ConfigureAwait(false);
+            ;
         if (!validation.IsValid)
         {
             return ToValidationProblem(validation);
@@ -252,7 +252,7 @@ public sealed class AuthController : ControllerBase
         {
             var tokens = await _oidcLoginHandler
                 .HandleAsync(provider, request.IdToken, request.DeviceId, cancellationToken)
-                .ConfigureAwait(false);
+                ;
             return Ok(tokens);
         }
         catch (Exception ex) when (TryMapLoginException(ex, out var result))

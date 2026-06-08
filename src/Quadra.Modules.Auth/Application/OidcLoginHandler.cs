@@ -63,7 +63,7 @@ public sealed class OidcLoginHandler
         try
         {
             claims = await _oidcValidator.ValidateAsync(idToken, oidcProvider, cancellationToken)
-                .ConfigureAwait(false);
+                ;
         }
         catch (OidcTokenInvalidException)
         {
@@ -79,7 +79,7 @@ public sealed class OidcLoginHandler
         {
             tokens = await _cognitoAuthClient
                 .BrokerExternalSessionAsync(provider, claims.Subject, cancellationToken)
-                .ConfigureAwait(false);
+                ;
         }
         catch (UserNotFoundForLoginException)
         {
@@ -91,7 +91,7 @@ public sealed class OidcLoginHandler
         }
 
         var user = await _userRepository.FindByCognitoSubAsync(tokens.CognitoSub, cancellationToken)
-            .ConfigureAwait(false);
+            ;
         if (user is null)
         {
             _logger.LogInformation(
@@ -114,9 +114,9 @@ public sealed class OidcLoginHandler
             now,
             tokens.RefreshTokenExpiresAt);
 
-        await _refreshTokenRepository.AddAsync(refreshToken, cancellationToken).ConfigureAwait(false);
+        await _refreshTokenRepository.AddAsync(refreshToken, cancellationToken);
 
-        await PublishLoggedInAsync(user, providerName, deviceId, now, cancellationToken).ConfigureAwait(false);
+        await PublishLoggedInAsync(user, providerName, deviceId, now, cancellationToken);
 
         _logger.LogInformation(
             "Login succeeded. {Provider} {OutcomeCategory} {UserId}",
@@ -146,7 +146,7 @@ public sealed class OidcLoginHandler
 
         try
         {
-            await _eventPublisher.PublishAsync(@event, cancellationToken).ConfigureAwait(false);
+            await _eventPublisher.PublishAsync(@event, cancellationToken);
         }
         catch (Exception ex)
         {

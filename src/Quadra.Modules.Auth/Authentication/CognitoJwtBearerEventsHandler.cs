@@ -111,6 +111,6 @@ public sealed class CognitoJwtBearerEventsHandler : JwtBearerEvents
 
         var cancellationToken = context.HttpContext.RequestAborted;
         await JsonSerializer.SerializeAsync(response.Body, body, JsonOptions, cancellationToken)
-            .ConfigureAwait(false);
+            ;
     }
 }

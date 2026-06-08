@@ -46,7 +46,7 @@ public sealed class RefreshHandler
         var tokenHash = RefreshTokenHasher.Hash(rawRefreshToken);
 
         var stored = await _refreshTokenRepository.FindByTokenHashAsync(tokenHash, cancellationToken)
-            .ConfigureAwait(false);
+            ;
         if (stored is null || !stored.IsActive(now))
         {
             _logger.LogInformation(
@@ -60,11 +60,11 @@ public sealed class RefreshHandler
         {
             tokens = await _cognitoAuthClient
                 .RefreshAsync(rawRefreshToken, stored.CognitoSub, cancellationToken)
-                .ConfigureAwait(false);
+                ;
         }
         catch (RefreshTokenRejectedException)
         {
-            await _refreshTokenRepository.RevokeAsync(stored, now, cancellationToken).ConfigureAwait(false);
+            await _refreshTokenRepository.RevokeAsync(stored, now, cancellationToken);
             _logger.LogInformation(
                 "Refresh rejected: Cognito rejected the token; local row revoked. {OutcomeCategory}",
                 OutcomeRefreshRejected);
@@ -72,7 +72,7 @@ public sealed class RefreshHandler
         }
 
         var user = await _userRepository.FindByCognitoSubAsync(stored.CognitoSub, cancellationToken)
-            .ConfigureAwait(false);
+            ;
         if (user is null)
         {
             _logger.LogInformation(
@@ -87,7 +87,7 @@ public sealed class RefreshHandler
         if (!string.IsNullOrEmpty(tokens.RefreshToken)
             && !string.Equals(tokens.RefreshToken, rawRefreshToken, StringComparison.Ordinal))
         {
-            await _refreshTokenRepository.RevokeAsync(stored, now, cancellationToken).ConfigureAwait(false);
+            await _refreshTokenRepository.RevokeAsync(stored, now, cancellationToken);
 
             var rotated = RefreshToken.Issue(
                 Guid.NewGuid(),
@@ -98,7 +98,7 @@ public sealed class RefreshHandler
                 now,
                 tokens.RefreshTokenExpiresAt);
 
-            await _refreshTokenRepository.AddAsync(rotated, cancellationToken).ConfigureAwait(false);
+            await _refreshTokenRepository.AddAsync(rotated, cancellationToken);
             returnedRefreshToken = tokens.RefreshToken;
         }
 

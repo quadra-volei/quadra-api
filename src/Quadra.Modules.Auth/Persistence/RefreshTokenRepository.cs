@@ -25,8 +25,8 @@ public sealed class RefreshTokenRepository : IRefreshTokenRepository
     public async Task AddAsync(RefreshToken refreshToken, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(refreshToken);
-        await _dbContext.RefreshTokens.AddAsync(refreshToken, cancellationToken).ConfigureAwait(false);
-        await _dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await _dbContext.RefreshTokens.AddAsync(refreshToken, cancellationToken);
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task RevokeAsync(
@@ -36,6 +36,6 @@ public sealed class RefreshTokenRepository : IRefreshTokenRepository
     {
         ArgumentNullException.ThrowIfNull(refreshToken);
         refreshToken.Revoke(now);
-        await _dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 }

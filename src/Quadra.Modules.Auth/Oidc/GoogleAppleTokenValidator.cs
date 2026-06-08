@@ -52,7 +52,7 @@ public sealed class GoogleAppleTokenValidator : IOidcTokenValidator
         OpenIdConnectConfiguration configuration;
         try
         {
-            configuration = await configManager.GetConfigurationAsync(cancellationToken).ConfigureAwait(false);
+            configuration = await configManager.GetConfigurationAsync(cancellationToken);
         }
         catch (Exception ex)
         {
@@ -76,7 +76,7 @@ public sealed class GoogleAppleTokenValidator : IOidcTokenValidator
 
         var validationResult = await _tokenHandler
             .ValidateTokenAsync(idToken, validationParameters)
-            .ConfigureAwait(false);
+            ;
 
         if (!validationResult.IsValid)
         {

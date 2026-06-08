@@ -53,7 +53,7 @@ public sealed class SmsOtpLoginHandler
         var user = await _dbContext.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.PhoneNumber == phoneNumber, cancellationToken)
-            .ConfigureAwait(false);
+            ;
         if (user is null)
         {
             _logger.LogInformation(
@@ -65,7 +65,7 @@ public sealed class SmsOtpLoginHandler
         }
 
         var challenge = await _cognitoAuthClient.InitiateSmsOtpAsync(phoneNumber, cancellationToken)
-            .ConfigureAwait(false);
+            ;
 
         _logger.LogInformation(
             "Login OTP initiated. {Provider} {Step} {OutcomeCategory}",
@@ -91,7 +91,7 @@ public sealed class SmsOtpLoginHandler
 
         var user = await _dbContext.Users
             .FirstOrDefaultAsync(u => u.PhoneNumber == phoneNumber, cancellationToken)
-            .ConfigureAwait(false);
+            ;
         if (user is null)
         {
             _logger.LogInformation(
@@ -107,7 +107,7 @@ public sealed class SmsOtpLoginHandler
         {
             tokens = await _cognitoAuthClient
                 .RespondToSmsOtpAsync(phoneNumber, session, code, cancellationToken)
-                .ConfigureAwait(false);
+                ;
         }
         catch (InvalidOtpException)
         {
@@ -134,9 +134,9 @@ public sealed class SmsOtpLoginHandler
         user.Confirm(now);
 
         var refreshToken = PersistRefreshToken(user, tokens, deviceId, now);
-        await _dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
-        await PublishLoggedInAsync(user, deviceId, now, cancellationToken).ConfigureAwait(false);
+        await PublishLoggedInAsync(user, deviceId, now, cancellationToken);
 
         _logger.LogInformation(
             "Login succeeded. {Provider} {Step} {OutcomeCategory} {UserId}",
@@ -181,7 +181,7 @@ public sealed class SmsOtpLoginHandler
 
         try
         {
-            await _eventPublisher.PublishAsync(@event, cancellationToken).ConfigureAwait(false);
+            await _eventPublisher.PublishAsync(@event, cancellationToken);
         }
         catch (Exception ex)
         {

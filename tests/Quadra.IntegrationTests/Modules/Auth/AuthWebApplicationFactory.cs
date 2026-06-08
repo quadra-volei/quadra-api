@@ -43,6 +43,11 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
                 ["Auth:Apple:ClientId"] = "test-apple-client",
                 ["Auth:Apple:Issuer"] = "https://appleid.apple.com",
                 ["Auth:Apple:JwksUri"] = "https://appleid.apple.com/.well-known/openid-configuration",
+                // Matches module fail-fast: SQS queue URLs must be present at startup.
+                ["Aws:Sqs:MatchCreatedQueueUrl"] = "http://test-stub/match-created",
+                ["Aws:Sqs:MatchStatusChangedQueueUrl"] = "http://test-stub/match-status-changed",
+                // Database: must be present; use in-memory-safe stub for JWT-only tests.
+                ["ConnectionStrings:Default"] = "Host=localhost;Port=5432;Database=quadra_test_stub;Username=stub;Password=stub",
             });
         });
 
