@@ -133,8 +133,7 @@ public sealed class AuthController : ControllerBase
             return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Request body is required.");
         }
 
-        var validation = await _smsOtpLoginValidator.ValidateAsync(request, cancellationToken)
-            ;
+        var validation = await _smsOtpLoginValidator.ValidateAsync(request, cancellationToken);
         if (!validation.IsValid)
         {
             return ToValidationProblem(validation);
@@ -147,14 +146,12 @@ public sealed class AuthController : ControllerBase
             if (step == SmsOtpLoginHandler.StepInitiate)
             {
                 var initiated = await _smsOtpLoginHandler
-                    .InitiateAsync(request.PhoneNumber, cancellationToken)
-                    ;
+                    .InitiateAsync(request.PhoneNumber, cancellationToken);
                 return Ok(initiated);
             }
 
             var tokens = await _smsOtpLoginHandler
-                .VerifyAsync(request.PhoneNumber, request.Session!, request.Code!, request.DeviceId, cancellationToken)
-                ;
+                .VerifyAsync(request.PhoneNumber, request.Session!, request.Code!, request.DeviceId, cancellationToken);
             return Ok(tokens);
         }
         catch (Exception ex) when (TryMapLoginException(ex, out var result))
@@ -211,8 +208,7 @@ public sealed class AuthController : ControllerBase
             return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Request body is required.");
         }
 
-        var validation = await _refreshValidator.ValidateAsync(request, cancellationToken)
-            ;
+        var validation = await _refreshValidator.ValidateAsync(request, cancellationToken);
         if (!validation.IsValid)
         {
             return ToValidationProblem(validation);
@@ -221,8 +217,7 @@ public sealed class AuthController : ControllerBase
         try
         {
             var tokens = await _refreshHandler
-                .HandleAsync(request.RefreshToken, request.DeviceId, cancellationToken)
-                ;
+                .HandleAsync(request.RefreshToken, request.DeviceId, cancellationToken);
             return Ok(tokens);
         }
         catch (Exception ex) when (TryMapLoginException(ex, out var result))
@@ -241,8 +236,7 @@ public sealed class AuthController : ControllerBase
             return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Request body is required.");
         }
 
-        var validation = await _oidcLoginValidator.ValidateAsync(request, cancellationToken)
-            ;
+        var validation = await _oidcLoginValidator.ValidateAsync(request, cancellationToken);
         if (!validation.IsValid)
         {
             return ToValidationProblem(validation);
@@ -251,8 +245,7 @@ public sealed class AuthController : ControllerBase
         try
         {
             var tokens = await _oidcLoginHandler
-                .HandleAsync(provider, request.IdToken, request.DeviceId, cancellationToken)
-                ;
+                .HandleAsync(provider, request.IdToken, request.DeviceId, cancellationToken);
             return Ok(tokens);
         }
         catch (Exception ex) when (TryMapLoginException(ex, out var result))

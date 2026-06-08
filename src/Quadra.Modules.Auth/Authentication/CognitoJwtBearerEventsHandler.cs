@@ -110,7 +110,6 @@ public sealed class CognitoJwtBearerEventsHandler : JwtBearerEvents
             Message: "A valid bearer token is required.");
 
         var cancellationToken = context.HttpContext.RequestAborted;
-        await JsonSerializer.SerializeAsync(response.Body, body, JsonOptions, cancellationToken)
-            ;
+        await JsonSerializer.SerializeAsync(response.Body, body, JsonOptions, cancellationToken);
     }
 }

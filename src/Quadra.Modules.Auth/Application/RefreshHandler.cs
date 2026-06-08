@@ -45,8 +45,7 @@ public sealed class RefreshHandler
         var now = _timeProvider.GetUtcNow();
         var tokenHash = RefreshTokenHasher.Hash(rawRefreshToken);
 
-        var stored = await _refreshTokenRepository.FindByTokenHashAsync(tokenHash, cancellationToken)
-            ;
+        var stored = await _refreshTokenRepository.FindByTokenHashAsync(tokenHash, cancellationToken);
         if (stored is null || !stored.IsActive(now))
         {
             _logger.LogInformation(
@@ -59,8 +58,7 @@ public sealed class RefreshHandler
         try
         {
             tokens = await _cognitoAuthClient
-                .RefreshAsync(rawRefreshToken, stored.CognitoSub, cancellationToken)
-                ;
+                .RefreshAsync(rawRefreshToken, stored.CognitoSub, cancellationToken);
         }
         catch (RefreshTokenRejectedException)
         {
@@ -71,8 +69,7 @@ public sealed class RefreshHandler
             throw;
         }
 
-        var user = await _userRepository.FindByCognitoSubAsync(stored.CognitoSub, cancellationToken)
-            ;
+        var user = await _userRepository.FindByCognitoSubAsync(stored.CognitoSub, cancellationToken);
         if (user is null)
         {
             _logger.LogInformation(

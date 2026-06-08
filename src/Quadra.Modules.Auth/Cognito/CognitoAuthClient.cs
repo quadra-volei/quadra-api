@@ -52,8 +52,7 @@ public sealed class CognitoAuthClient : ICognitoAuthClient
 
         try
         {
-            var response = await _cognito.AdminInitiateAuthAsync(request, cancellationToken)
-                ;
+            var response = await _cognito.AdminInitiateAuthAsync(request, cancellationToken);
 
             var medium = ReadChallengeParameter(response.ChallengeParameters, "CODE_DELIVERY_DELIVERY_MEDIUM")
                 ?? "SMS";
@@ -105,8 +104,7 @@ public sealed class CognitoAuthClient : ICognitoAuthClient
 
         try
         {
-            var response = await _cognito.AdminRespondToAuthChallengeAsync(request, cancellationToken)
-                ;
+            var response = await _cognito.AdminRespondToAuthChallengeAsync(request, cancellationToken);
 
             if (response.AuthenticationResult is null)
             {
@@ -151,8 +149,7 @@ public sealed class CognitoAuthClient : ICognitoAuthClient
         // admin-initiated CUSTOM_AUTH flow against it (consistent with FA.2's server-side,
         // no-redirect stance and with the SMS OTP path above, which also uses CUSTOM_AUTH).
         // The pool must be configured for admin-initiated custom auth; this mirrors the SMS path.
-        var username = await ResolveLinkedUsernameAsync(provider, externalSub, cancellationToken)
-            ;
+        var username = await ResolveLinkedUsernameAsync(provider, externalSub, cancellationToken);
         if (username is null)
         {
             throw new UserNotFoundForLoginException(
@@ -169,8 +166,7 @@ public sealed class CognitoAuthClient : ICognitoAuthClient
 
         try
         {
-            var response = await _cognito.AdminInitiateAuthAsync(request, cancellationToken)
-                ;
+            var response = await _cognito.AdminInitiateAuthAsync(request, cancellationToken);
 
             if (response.AuthenticationResult is null)
             {
@@ -225,8 +221,7 @@ public sealed class CognitoAuthClient : ICognitoAuthClient
 
         try
         {
-            var response = await _cognito.AdminInitiateAuthAsync(request, cancellationToken)
-                ;
+            var response = await _cognito.AdminInitiateAuthAsync(request, cancellationToken);
 
             if (response.AuthenticationResult is null)
             {
@@ -267,8 +262,7 @@ public sealed class CognitoAuthClient : ICognitoAuthClient
 
         try
         {
-            var response = await _cognito.ListUsersAsync(request, cancellationToken)
-                ;
+            var response = await _cognito.ListUsersAsync(request, cancellationToken);
             return response.Users?.FirstOrDefault()?.Username;
         }
         catch (AmazonCognitoIdentityProviderException ex)

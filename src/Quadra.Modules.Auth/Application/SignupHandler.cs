@@ -61,8 +61,7 @@ public sealed class SignupHandler
         SignupCommand.Phone command,
         CancellationToken cancellationToken)
     {
-        var existing = await _userRepository.FindByPhoneNumberAsync(command.PhoneNumber, cancellationToken)
-            ;
+        var existing = await _userRepository.FindByPhoneNumberAsync(command.PhoneNumber, cancellationToken);
         if (existing is not null)
         {
             _logger.LogInformation(
@@ -72,8 +71,7 @@ public sealed class SignupHandler
             throw new PhoneAlreadyRegisteredException(command.PhoneNumber);
         }
 
-        var cognitoResult = await _cognitoClient.SignUpPhoneAsync(command.PhoneNumber, cancellationToken)
-            ;
+        var cognitoResult = await _cognitoClient.SignUpPhoneAsync(command.PhoneNumber, cancellationToken);
 
         var now = _timeProvider.GetUtcNow();
         var user = User.CreateForPhone(Guid.NewGuid(), cognitoResult.UserSub, command.PhoneNumber, now);
@@ -113,8 +111,7 @@ public sealed class SignupHandler
         OidcClaims claims;
         try
         {
-            claims = await _oidcValidator.ValidateAsync(command.IdToken, oidcProvider, cancellationToken)
-                ;
+            claims = await _oidcValidator.ValidateAsync(command.IdToken, oidcProvider, cancellationToken);
         }
         catch (OidcTokenInvalidException)
         {

@@ -58,8 +58,7 @@ public sealed class CognitoSignupClient : ICognitoSignupClient
 
         try
         {
-            var response = await _cognito.SignUpAsync(request, cancellationToken)
-                ;
+            var response = await _cognito.SignUpAsync(request, cancellationToken);
 
             var delivery = response.CodeDeliveryDetails;
             return new PhoneSignupResult(
@@ -125,8 +124,7 @@ public sealed class CognitoSignupClient : ICognitoSignupClient
 
         try
         {
-            var response = await _cognito.AdminCreateUserAsync(request, cancellationToken)
-                ;
+            var response = await _cognito.AdminCreateUserAsync(request, cancellationToken);
 
             var subAttribute = response.User?.Attributes?
                 .FirstOrDefault(a => string.Equals(a.Name, "sub", StringComparison.Ordinal));
@@ -178,8 +176,7 @@ public sealed class CognitoSignupClient : ICognitoSignupClient
 
         try
         {
-            await _cognito.AdminLinkProviderForUserAsync(request, cancellationToken)
-                ;
+            await _cognito.AdminLinkProviderForUserAsync(request, cancellationToken);
 
             // Ensure status is CONFIRMED for the federated user (AdminCreateUser leaves it
             // in FORCE_CHANGE_PASSWORD by default; SUPPRESS keeps it there). For federated
@@ -230,8 +227,7 @@ public sealed class CognitoSignupClient : ICognitoSignupClient
 
         try
         {
-            var response = await _cognito.ListUsersAsync(request, cancellationToken)
-                ;
+            var response = await _cognito.ListUsersAsync(request, cancellationToken);
 
             var existing = response.Users?.FirstOrDefault();
             if (existing is null)
