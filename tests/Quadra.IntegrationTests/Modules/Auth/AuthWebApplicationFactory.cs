@@ -46,6 +46,10 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
                 // Matches module fail-fast: SQS queue URLs must be present at startup.
                 ["Aws:Sqs:MatchCreatedQueueUrl"] = "http://test-stub/match-created",
                 ["Aws:Sqs:MatchStatusChangedQueueUrl"] = "http://test-stub/match-status-changed",
+                // F1.2 presence management SQS queues.
+                ["Aws:Sqs:PresenceConfirmedQueueUrl"] = "http://test-stub/presence-confirmed",
+                ["Aws:Sqs:MatchWindowOpenedQueueUrl"] = "http://test-stub/match-window-opened",
+                ["Aws:Sqs:MatchWindowClosedQueueUrl"] = "http://test-stub/match-window-closed",
                 // Database: must be present; use in-memory-safe stub for JWT-only tests.
                 ["ConnectionStrings:Default"] = "Host=localhost;Port=5432;Database=quadra_test_stub;Username=stub;Password=stub",
             });

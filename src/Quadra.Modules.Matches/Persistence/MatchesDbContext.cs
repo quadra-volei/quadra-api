@@ -15,6 +15,8 @@ public sealed class MatchesDbContext : DbContext
     }
 
     public DbSet<Match> Matches => Set<Match>();
+    public DbSet<MatchPresence> Presences => Set<MatchPresence>();
+    public DbSet<WaitingListEntry> WaitingList => Set<WaitingListEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -22,5 +24,7 @@ public sealed class MatchesDbContext : DbContext
         base.OnModelCreating(modelBuilder);
 
         modelBuilder.ApplyConfiguration(new MatchConfiguration());
+        modelBuilder.ApplyConfiguration(new MatchPresenceConfiguration());
+        modelBuilder.ApplyConfiguration(new WaitingListConfiguration());
     }
 }
