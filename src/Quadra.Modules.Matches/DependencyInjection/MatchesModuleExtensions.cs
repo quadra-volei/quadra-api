@@ -3,10 +3,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Quadra.Infrastructure.Realtime;
 using Quadra.Modules.Matches.Application;
 using Quadra.Modules.Matches.Contracts;
 using Quadra.Modules.Matches.Persistence;
 using Quadra.Modules.Matches.Validation;
+using Quadra.Shared.Realtime;
 
 namespace Quadra.Modules.Matches.DependencyInjection;
 
@@ -32,8 +34,23 @@ public static class MatchesModuleExtensions
             ?? throw new InvalidOperationException(
                 "Configuration key 'Aws:Sqs:MatchStatusChangedQueueUrl' is required but was not found.");
 
+        var presenceConfirmedQueue = configuration["Aws:Sqs:PresenceConfirmedQueueUrl"]
+            ?? throw new InvalidOperationException(
+                "Configuration key 'Aws:Sqs:PresenceConfirmedQueueUrl' is required but was not found.");
+
+        var matchWindowOpenedQueue = configuration["Aws:Sqs:MatchWindowOpenedQueueUrl"]
+            ?? throw new InvalidOperationException(
+                "Configuration key 'Aws:Sqs:MatchWindowOpenedQueueUrl' is required but was not found.");
+
+        var matchWindowClosedQueue = configuration["Aws:Sqs:MatchWindowClosedQueueUrl"]
+            ?? throw new InvalidOperationException(
+                "Configuration key 'Aws:Sqs:MatchWindowClosedQueueUrl' is required but was not found.");
+
         _ = matchCreatedQueue;        // validated above; consumed by the SQS publisher (future spec)
         _ = matchStatusChangedQueue;  // validated above; consumed by the SQS publisher (future spec)
+        _ = presenceConfirmedQueue;   // validated above; consumed by the SQS publisher (future spec)
+        _ = matchWindowOpenedQueue;   // validated above; consumed by the SQS publisher (future spec)
+        _ = matchWindowClosedQueue;   // validated above; consumed by the SQS publisher (future spec)
 
         // EF DbContext — reads from ConnectionStrings:Matches, falling back to ConnectionStrings:Default.
         services.AddDbContext<MatchesDbContext>((sp, builder) =>
@@ -51,14 +68,27 @@ public static class MatchesModuleExtensions
         });
 
         services.AddScoped<IMatchRepository, MatchRepository>();
+        services.AddScoped<IPresenceRepository, PresenceRepository>();
+        services.AddScoped<IWaitingListRepository, WaitingListRepository>();
 
         services.AddScoped<CreateMatchHandler>();
         services.AddScoped<GetMatchHandler>();
         services.AddScoped<ListMatchesHandler>();
         services.AddScoped<CancelMatchHandler>();
+        services.AddScoped<AddPresenceHandler>();
+        services.AddScoped<UpdateMyPresenceHandler>();
+        services.AddScoped<GetPresenceListHandler>();
+        services.AddScoped<RemovePresenceHandler>();
+        services.AddScoped<OpenMatchWindowHandler>();
+        services.AddScoped<CloseMatchWindowHandler>();
 
         services.AddScoped<IValidator<CreateMatchRequest>, CreateMatchRequestValidator>();
         services.AddScoped<IValidator<ListMatchesQuery>, ListMatchesQueryValidator>();
+        services.AddScoped<IValidator<AddPresenceRequest>, AddPresenceRequestValidator>();
+        services.AddScoped<IValidator<UpdateMyPresenceRequest>, UpdateMyPresenceRequestValidator>();
+
+        // IMatchRoomNotifier — no-op until the SignalR implementation is delivered by Quadra.Modules.Realtime.
+        services.TryAddSingleton<IMatchRoomNotifier, NoOpMatchRoomNotifier>();
 
         // TimeProvider.System — register only if not already registered (Auth module may have done so).
         services.TryAddSingleton(TimeProvider.System);

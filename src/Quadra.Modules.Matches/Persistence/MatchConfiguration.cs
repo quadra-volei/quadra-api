@@ -91,6 +91,9 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .HasConversion<string>()
             .HasDefaultValue(MatchStatus.Draft);
 
+        builder.Property(m => m.ReleasedDropInSlots)
+            .HasColumnName("released_drop_in_slots");
+
         builder.Property(m => m.CreatedAt)
             .HasColumnName("created_at")
             .IsRequired()

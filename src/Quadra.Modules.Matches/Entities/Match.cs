@@ -45,6 +45,13 @@ public sealed class Match
     public DateTimeOffset WindowOpensAt { get; private set; }
     public DateTimeOffset WindowClosesAt { get; private set; }
     public MatchStatus Status { get; private set; }
+
+    /// <summary>
+    /// Number of Regular slots freed up for DropIn use after the confirmation window closes.
+    /// Set by <c>CloseMatchWindowHandler</c>. Null until the window has been closed.
+    /// </summary>
+    public short? ReleasedDropInSlots { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
 
@@ -83,6 +90,8 @@ public sealed class Match
             DateTime = dateTime,
             MaxPlayers = (short)maxPlayers,
             RegularSlots = (short)regularSlots,
+            // Mirror the DB-computed column so in-memory objects behave consistently.
+            DropInSlots = (short)(maxPlayers - regularSlots),
             Price = price,
             Type = type,
             Frequency = frequency,
@@ -93,6 +102,40 @@ public sealed class Match
             CreatedAt = now,
             UpdatedAt = now,
         };
+    }
+
+    /// <summary>
+    /// Transitions the match from <see cref="MatchStatus.Draft"/> to <see cref="MatchStatus.Open"/>.
+    /// Throws <see cref="InvalidMatchStatusTransitionException"/> if not currently <see cref="MatchStatus.Draft"/>.
+    /// </summary>
+    public void OpenWindow(DateTimeOffset now)
+    {
+        if (Status is not MatchStatus.Draft)
+        {
+            throw new InvalidMatchStatusTransitionException(
+                $"Cannot open the confirmation window for a match with status '{Status}'. Match must be in Draft.");
+        }
+
+        Status = MatchStatus.Open;
+        UpdatedAt = now;
+    }
+
+    /// <summary>
+    /// Transitions the match from <see cref="MatchStatus.Open"/> to <see cref="MatchStatus.Closed"/>.
+    /// Stores how many Regular slots were released to DropIn players.
+    /// Throws <see cref="InvalidMatchStatusTransitionException"/> if not currently <see cref="MatchStatus.Open"/>.
+    /// </summary>
+    public void CloseWindow(int releasedSlots, DateTimeOffset now)
+    {
+        if (Status is not MatchStatus.Open)
+        {
+            throw new InvalidMatchStatusTransitionException(
+                $"Cannot close the confirmation window for a match with status '{Status}'. Match must be Open.");
+        }
+
+        Status = MatchStatus.Closed;
+        ReleasedDropInSlots = (short)releasedSlots;
+        UpdatedAt = now;
     }
 
     /// <summary>
