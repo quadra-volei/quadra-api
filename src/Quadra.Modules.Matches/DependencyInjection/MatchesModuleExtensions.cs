@@ -8,6 +8,7 @@ using Quadra.Modules.Matches.Application;
 using Quadra.Modules.Matches.Contracts;
 using Quadra.Modules.Matches.Persistence;
 using Quadra.Modules.Matches.Validation;
+using Quadra.Shared.Contracts;
 using Quadra.Shared.Realtime;
 
 namespace Quadra.Modules.Matches.DependencyInjection;
@@ -70,6 +71,10 @@ public static class MatchesModuleExtensions
         services.AddScoped<IMatchRepository, MatchRepository>();
         services.AddScoped<IPresenceRepository, PresenceRepository>();
         services.AddScoped<IWaitingListRepository, WaitingListRepository>();
+
+        // Cross-module read interfaces implemented by the Matches module.
+        services.AddScoped<IMatchReader, MatchReader>();
+        services.AddScoped<IConfirmedPlayersReader, ConfirmedPlayersReader>();
 
         services.AddScoped<CreateMatchHandler>();
         services.AddScoped<GetMatchHandler>();

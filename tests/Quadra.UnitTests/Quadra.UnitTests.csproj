@@ -25,6 +25,7 @@
     <ProjectReference Include="..\..\src\Quadra.Infrastructure\Quadra.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Quadra.Modules.Auth\Quadra.Modules.Auth.csproj" />
     <ProjectReference Include="..\..\src\Quadra.Modules.Matches\Quadra.Modules.Matches.csproj" />
+    <ProjectReference Include="..\..\src\Quadra.Modules.InGame\Quadra.Modules.InGame.csproj" />
   </ItemGroup>
 
 </Project>

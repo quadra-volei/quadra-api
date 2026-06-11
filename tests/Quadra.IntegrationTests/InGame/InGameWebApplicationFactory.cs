@@ -10,23 +10,24 @@ using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using NSubstitute;
 using Quadra.Infrastructure.Messaging;
 using Quadra.Modules.Auth.Persistence;
+using Quadra.Modules.InGame.Persistence;
 using Quadra.Modules.Matches.Persistence;
 using Testcontainers.PostgreSql;
 
-namespace Quadra.IntegrationTests.Matches;
+namespace Quadra.IntegrationTests.InGame;
 
 /// <summary>
-/// Shared test fixture for F1.1 integration tests.
+/// Shared test fixture for F1.3 (In-Game Teams) integration tests.
 /// Spins up a real Postgres (postgis/postgis:16-3.4) via Testcontainers,
-/// applies both Auth and Matches EF migrations, replaces the JWT bearer
+/// applies Auth, Matches, and InGame EF migrations, replaces the JWT bearer
 /// with a static in-process signing key, and provides an
 /// <see cref="IEventPublisher"/> substitute so tests can verify event publishing.
 /// </summary>
-public sealed class MatchesWebApplicationFactory : IAsyncLifetime
+public sealed class InGameWebApplicationFactory : IAsyncLifetime
 {
-    public const string TestUserPoolId = "us-east-1_MATCHES_TEST";
+    public const string TestUserPoolId = "us-east-1_INGAME_TEST";
     public const string TestRegion = "us-east-1";
-    public const string TestAudience = "matches-test-client-id";
+    public const string TestAudience = "ingame-test-client-id";
     public static string TestIssuer => $"https://cognito-idp.{TestRegion}.amazonaws.com/{TestUserPoolId}";
 
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgis/postgis:16-3.4")
@@ -49,7 +50,7 @@ public sealed class MatchesWebApplicationFactory : IAsyncLifetime
                 {
                     config.AddInMemoryCollection(new Dictionary<string, string?>
                     {
-                        // Auth module options (required by AddAuthModule ValidateOnStart)
+                        // Auth module options
                         ["Auth:Cognito:UserPoolId"] = TestUserPoolId,
                         ["Auth:Cognito:Region"] = TestRegion,
                         ["Auth:Cognito:Audience"] = TestAudience,
@@ -61,15 +62,15 @@ public sealed class MatchesWebApplicationFactory : IAsyncLifetime
                         ["Auth:Apple:ClientId"] = "test-apple-client",
                         ["Auth:Apple:Issuer"] = "https://appleid.apple.com",
                         ["Auth:Apple:JwksUri"] = "https://appleid.apple.com/.well-known/openid-configuration",
-                        // Database — both modules share the same container
+                        // Database — all modules share the same container
                         ["ConnectionStrings:Default"] = _postgres.GetConnectionString(),
-                        // SQS (required by AddMatchesModule fail-fast)
+                        // SQS — required by AddMatchesModule fail-fast
                         ["Aws:Sqs:MatchCreatedQueueUrl"] = "http://localhost:4566/000000000000/match-created",
                         ["Aws:Sqs:MatchStatusChangedQueueUrl"] = "http://localhost:4566/000000000000/match-status-changed",
                         ["Aws:Sqs:PresenceConfirmedQueueUrl"] = "http://localhost:4566/000000000000/presence-confirmed",
                         ["Aws:Sqs:MatchWindowOpenedQueueUrl"] = "http://localhost:4566/000000000000/match-window-opened",
                         ["Aws:Sqs:MatchWindowClosedQueueUrl"] = "http://localhost:4566/000000000000/match-window-closed",
-                        // SQS (required by AddInGameModule fail-fast — registered in Program.cs)
+                        // SQS — required by AddInGameModule fail-fast
                         ["Aws:Sqs:TeamsFormedQueueUrl"] = "http://localhost:4566/000000000000/teams-formed",
                     });
                 });
@@ -90,13 +91,13 @@ public sealed class MatchesWebApplicationFactory : IAsyncLifetime
                         {
                             Issuer = TestIssuer,
                         };
-                        staticConfig.SigningKeys.Add(MatchesTestSigningKeys.PublicKey);
+                        staticConfig.SigningKeys.Add(InGameTestSigningKeys.PublicKey);
 
                         jwt.ConfigurationManager =
                             new StaticConfigurationManager<OpenIdConnectConfiguration>(staticConfig);
 
                         jwt.TokenValidationParameters.ValidIssuer = TestIssuer;
-                        jwt.TokenValidationParameters.IssuerSigningKeys = new[] { MatchesTestSigningKeys.PublicKey };
+                        jwt.TokenValidationParameters.IssuerSigningKeys = new[] { InGameTestSigningKeys.PublicKey };
                         jwt.TokenValidationParameters.ValidateIssuerSigningKey = true;
                         jwt.TokenValidationParameters.ValidateIssuer = true;
                         jwt.TokenValidationParameters.ValidateLifetime = true;
@@ -105,12 +106,14 @@ public sealed class MatchesWebApplicationFactory : IAsyncLifetime
                 });
             });
 
-        // Apply EF migrations to the Testcontainers Postgres instance.
+        // Apply EF migrations for all modules to the Testcontainers Postgres instance.
         using var scope = Factory.Services.CreateScope();
         var authCtx = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
         await authCtx.Database.MigrateAsync();
         var matchesCtx = scope.ServiceProvider.GetRequiredService<MatchesDbContext>();
         await matchesCtx.Database.MigrateAsync();
+        var inGameCtx = scope.ServiceProvider.GetRequiredService<InGameDbContext>();
+        await inGameCtx.Database.MigrateAsync();
     }
 
     public async ValueTask DisposeAsync()
@@ -123,7 +126,7 @@ public sealed class MatchesWebApplicationFactory : IAsyncLifetime
     public HttpClient CreateAuthenticatedClient(Guid userId)
     {
         var client = Factory.CreateClient();
-        var token = MatchesTestJwtFactory.CreateAccessToken(TestIssuer, TestAudience, userId.ToString());
+        var token = InGameTestJwtFactory.CreateAccessToken(TestIssuer, TestAudience, userId.ToString());
         client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         return client;
     }
