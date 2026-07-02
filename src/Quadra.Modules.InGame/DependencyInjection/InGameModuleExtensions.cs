@@ -61,6 +61,9 @@ public static class InGameModuleExtensions
         services.AddScoped<IScoreboardRepository, ScoreboardRepository>();
         services.AddScoped<IMvpVotingRepository, MvpVotingRepository>();
 
+        // Cross-module read interface implemented by the InGame module (consumed by Matches, F1.6).
+        services.AddScoped<IMatchResultReader, MatchResultReader>();
+
         services.AddScoped<DraftTeamsHandler>();
         services.AddScoped<GetTeamsHandler>();
         services.AddScoped<MovePlayerHandler>();

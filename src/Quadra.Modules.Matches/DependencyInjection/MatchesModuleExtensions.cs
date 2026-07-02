@@ -47,11 +47,16 @@ public static class MatchesModuleExtensions
             ?? throw new InvalidOperationException(
                 "Configuration key 'Aws:Sqs:MatchWindowClosedQueueUrl' is required but was not found.");
 
-        _ = matchCreatedQueue;        // validated above; consumed by the SQS publisher (future spec)
-        _ = matchStatusChangedQueue;  // validated above; consumed by the SQS publisher (future spec)
-        _ = presenceConfirmedQueue;   // validated above; consumed by the SQS publisher (future spec)
-        _ = matchWindowOpenedQueue;   // validated above; consumed by the SQS publisher (future spec)
-        _ = matchWindowClosedQueue;   // validated above; consumed by the SQS publisher (future spec)
+        var matchSummaryGeneratedQueue = configuration["Aws:Sqs:MatchSummaryGeneratedQueueUrl"]
+            ?? throw new InvalidOperationException(
+                "Configuration key 'Aws:Sqs:MatchSummaryGeneratedQueueUrl' is required but was not found.");
+
+        _ = matchCreatedQueue;          // validated above; consumed by the SQS publisher (future spec)
+        _ = matchStatusChangedQueue;    // validated above; consumed by the SQS publisher (future spec)
+        _ = presenceConfirmedQueue;     // validated above; consumed by the SQS publisher (future spec)
+        _ = matchWindowOpenedQueue;     // validated above; consumed by the SQS publisher (future spec)
+        _ = matchWindowClosedQueue;     // validated above; consumed by the SQS publisher (future spec)
+        _ = matchSummaryGeneratedQueue; // validated above; consumed by the SQS publisher (future spec)
 
         // EF DbContext — reads from ConnectionStrings:Matches, falling back to ConnectionStrings:Default.
         services.AddDbContext<MatchesDbContext>((sp, builder) =>
@@ -71,6 +76,7 @@ public static class MatchesModuleExtensions
         services.AddScoped<IMatchRepository, MatchRepository>();
         services.AddScoped<IPresenceRepository, PresenceRepository>();
         services.AddScoped<IWaitingListRepository, WaitingListRepository>();
+        services.AddScoped<IMatchSummaryRepository, MatchSummaryRepository>();
 
         // Cross-module read interfaces implemented by the Matches module.
         services.AddScoped<IMatchReader, MatchReader>();
@@ -86,6 +92,8 @@ public static class MatchesModuleExtensions
         services.AddScoped<RemovePresenceHandler>();
         services.AddScoped<OpenMatchWindowHandler>();
         services.AddScoped<CloseMatchWindowHandler>();
+        services.AddScoped<GenerateMatchSummaryHandler>();
+        services.AddScoped<GetMatchSummaryHandler>();
 
         services.AddScoped<IValidator<CreateMatchRequest>, CreateMatchRequestValidator>();
         services.AddScoped<IValidator<ListMatchesQuery>, ListMatchesQueryValidator>();
