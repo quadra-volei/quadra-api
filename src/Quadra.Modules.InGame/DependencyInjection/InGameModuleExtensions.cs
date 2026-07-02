@@ -1,10 +1,13 @@
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Quadra.Infrastructure.Contracts;
 using Quadra.Modules.InGame.Application;
+using Quadra.Modules.InGame.Contracts;
 using Quadra.Modules.InGame.Persistence;
+using Quadra.Modules.InGame.Validation;
 using Quadra.Shared.Contracts;
 
 namespace Quadra.Modules.InGame.DependencyInjection;
@@ -22,10 +25,18 @@ public static class InGameModuleExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        // Fail-fast: SQS queue URL must be configured before the app starts.
+        // Fail-fast: SQS queue URLs must be configured before the app starts.
         _ = configuration["Aws:Sqs:TeamsFormedQueueUrl"]
             ?? throw new InvalidOperationException(
                 "Configuration key 'Aws:Sqs:TeamsFormedQueueUrl' is required but was not found.");
+
+        _ = configuration["Aws:Sqs:MatchStartedQueueUrl"]
+            ?? throw new InvalidOperationException(
+                "Configuration key 'Aws:Sqs:MatchStartedQueueUrl' is required but was not found.");
+
+        _ = configuration["Aws:Sqs:MatchEndedQueueUrl"]
+            ?? throw new InvalidOperationException(
+                "Configuration key 'Aws:Sqs:MatchEndedQueueUrl' is required but was not found.");
 
         // EF DbContext — reads from ConnectionStrings:InGame, falling back to ConnectionStrings:Default.
         services.AddDbContext<InGameDbContext>((sp, builder) =>
@@ -43,10 +54,20 @@ public static class InGameModuleExtensions
         });
 
         services.AddScoped<ITeamRepository, TeamRepository>();
+        services.AddScoped<IScoreboardRepository, ScoreboardRepository>();
 
         services.AddScoped<DraftTeamsHandler>();
         services.AddScoped<GetTeamsHandler>();
         services.AddScoped<MovePlayerHandler>();
+
+        services.AddScoped<CreateScoreboardHandler>();
+        services.AddScoped<StartScoreboardHandler>();
+        services.AddScoped<RecordPointHandler>();
+        services.AddScoped<EndScoreboardHandler>();
+        services.AddScoped<GetScoreboardHandler>();
+
+        services.AddScoped<IValidator<CreateScoreboardRequest>, CreateScoreboardRequestValidator>();
+        services.AddScoped<IValidator<RecordPointRequest>, RecordPointRequestValidator>();
 
         // IPlayerLevelReader — no-op until F2.1 (Profile module) delivers the real implementation.
         // TryAddScoped allows the Profile module to override this at composition time.

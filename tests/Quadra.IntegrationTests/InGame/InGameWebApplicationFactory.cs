@@ -12,6 +12,7 @@ using Quadra.Infrastructure.Messaging;
 using Quadra.Modules.Auth.Persistence;
 using Quadra.Modules.InGame.Persistence;
 using Quadra.Modules.Matches.Persistence;
+using Quadra.Shared.Realtime;
 using Testcontainers.PostgreSql;
 
 namespace Quadra.IntegrationTests.InGame;
@@ -34,6 +35,8 @@ public sealed class InGameWebApplicationFactory : IAsyncLifetime
         .Build();
 
     public IEventPublisher Publisher { get; private set; } = Substitute.For<IEventPublisher>();
+
+    public IMatchRoomNotifier Notifier { get; private set; } = Substitute.For<IMatchRoomNotifier>();
 
     public WebApplicationFactory<Program> Factory { get; private set; } = default!;
 
@@ -72,6 +75,8 @@ public sealed class InGameWebApplicationFactory : IAsyncLifetime
                         ["Aws:Sqs:MatchWindowClosedQueueUrl"] = "http://localhost:4566/000000000000/match-window-closed",
                         // SQS — required by AddInGameModule fail-fast
                         ["Aws:Sqs:TeamsFormedQueueUrl"] = "http://localhost:4566/000000000000/teams-formed",
+                        ["Aws:Sqs:MatchStartedQueueUrl"] = "http://localhost:4566/000000000000/match-started",
+                        ["Aws:Sqs:MatchEndedQueueUrl"] = "http://localhost:4566/000000000000/match-ended",
                     });
                 });
 
@@ -79,6 +84,9 @@ public sealed class InGameWebApplicationFactory : IAsyncLifetime
                 {
                     // Replace IEventPublisher with a substitute so tests can verify event calls.
                     ReplaceService(services, typeof(IEventPublisher), Publisher);
+
+                    // Replace IMatchRoomNotifier with a substitute so tests can verify SignalR broadcasts.
+                    ReplaceService(services, typeof(IMatchRoomNotifier), Notifier);
 
                     // Replace JWT bearer OIDC discovery with a static in-process signing key.
                     services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, jwt =>
