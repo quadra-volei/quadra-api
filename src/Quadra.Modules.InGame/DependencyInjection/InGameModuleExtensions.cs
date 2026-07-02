@@ -38,6 +38,10 @@ public static class InGameModuleExtensions
             ?? throw new InvalidOperationException(
                 "Configuration key 'Aws:Sqs:MatchEndedQueueUrl' is required but was not found.");
 
+        _ = configuration["Aws:Sqs:MvpAwardedQueueUrl"]
+            ?? throw new InvalidOperationException(
+                "Configuration key 'Aws:Sqs:MvpAwardedQueueUrl' is required but was not found.");
+
         // EF DbContext — reads from ConnectionStrings:InGame, falling back to ConnectionStrings:Default.
         services.AddDbContext<InGameDbContext>((sp, builder) =>
         {
@@ -55,6 +59,7 @@ public static class InGameModuleExtensions
 
         services.AddScoped<ITeamRepository, TeamRepository>();
         services.AddScoped<IScoreboardRepository, ScoreboardRepository>();
+        services.AddScoped<IMvpVotingRepository, MvpVotingRepository>();
 
         services.AddScoped<DraftTeamsHandler>();
         services.AddScoped<GetTeamsHandler>();
@@ -66,8 +71,15 @@ public static class InGameModuleExtensions
         services.AddScoped<EndScoreboardHandler>();
         services.AddScoped<GetScoreboardHandler>();
 
+        services.AddScoped<OpenMvpVotingHandler>();
+        services.AddScoped<CastMvpVoteHandler>();
+        services.AddScoped<CloseMvpVotingHandler>();
+        services.AddScoped<GetMvpVotingHandler>();
+
         services.AddScoped<IValidator<CreateScoreboardRequest>, CreateScoreboardRequestValidator>();
         services.AddScoped<IValidator<RecordPointRequest>, RecordPointRequestValidator>();
+        services.AddScoped<IValidator<OpenMvpVotingRequest>, OpenMvpVotingRequestValidator>();
+        services.AddScoped<IValidator<CastMvpVoteRequest>, CastMvpVoteRequestValidator>();
 
         // IPlayerLevelReader — no-op until F2.1 (Profile module) delivers the real implementation.
         // TryAddScoped allows the Profile module to override this at composition time.

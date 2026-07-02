@@ -77,6 +77,7 @@ public sealed class InGameWebApplicationFactory : IAsyncLifetime
                         ["Aws:Sqs:TeamsFormedQueueUrl"] = "http://localhost:4566/000000000000/teams-formed",
                         ["Aws:Sqs:MatchStartedQueueUrl"] = "http://localhost:4566/000000000000/match-started",
                         ["Aws:Sqs:MatchEndedQueueUrl"] = "http://localhost:4566/000000000000/match-ended",
+                        ["Aws:Sqs:MvpAwardedQueueUrl"] = "http://localhost:4566/000000000000/mvp-awarded",
                     });
                 });
 
