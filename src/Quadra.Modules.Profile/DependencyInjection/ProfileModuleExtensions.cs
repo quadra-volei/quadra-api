@@ -43,11 +43,13 @@ public static class ProfileModuleExtensions
 
         services.AddScoped<IPlayerProfileRepository, PlayerProfileRepository>();
         services.AddScoped<IPlayerMatchHistoryRepository, PlayerMatchHistoryRepository>();
+        services.AddScoped<IPlayerCardRepository, PlayerCardRepository>();
 
         services.AddScoped<GetProfileHandler>();
         services.AddScoped<UpdateProfileHandler>();
         services.AddScoped<GetMatchHistoryHandler>();
         services.AddScoped<CreatePhotoUploadUrlHandler>();
+        services.AddScoped<GetPlayerCardHandler>();
 
         // Profile-owned write interfaces (invoked by the Background Worker).
         services.AddScoped<IPlayerProfileProvisioner, ProvisionProfileHandler>();

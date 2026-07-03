@@ -163,7 +163,7 @@ public sealed class ProfileWebApplicationFactory : IAsyncLifetime
         using var scope = Factory.Services.CreateScope();
         var ctx = scope.ServiceProvider.GetRequiredService<ProfileDbContext>();
         await ctx.Database.ExecuteSqlRawAsync(
-            "TRUNCATE TABLE player_match_history, player_stats, player_profiles RESTART IDENTITY CASCADE;");
+            "TRUNCATE TABLE player_cards, player_match_history, player_stats, player_profiles RESTART IDENTITY CASCADE;");
         PhotoStorage.ClearReceivedCalls();
     }
 

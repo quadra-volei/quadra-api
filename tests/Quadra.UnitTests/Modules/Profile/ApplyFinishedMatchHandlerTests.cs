@@ -27,10 +27,18 @@ public sealed class ApplyFinishedMatchHandlerTests
 
     private readonly IPlayerProfileRepository _profiles = Substitute.For<IPlayerProfileRepository>();
     private readonly IPlayerMatchHistoryRepository _history = Substitute.For<IPlayerMatchHistoryRepository>();
+    private readonly IPlayerCardRepository _cards = Substitute.For<IPlayerCardRepository>();
     private readonly TimeProvider _time = new FixedTimeProvider(Now);
 
+    public ApplyFinishedMatchHandlerTests()
+    {
+        // Default: no card yet exists for the player (the handler will Generate on first crossing).
+        _cards.FindByUserIdAsync(UserId, Arg.Any<CancellationToken>())
+            .Returns(new PlayerCardLookup(Card: null, ProfileExists: true, MatchesPlayed: 0));
+    }
+
     private ApplyFinishedMatchHandler CreateSut() =>
-        new(_profiles, _history, _time, NullLogger<ApplyFinishedMatchHandler>.Instance);
+        new(_profiles, _history, _cards, _time, NullLogger<ApplyFinishedMatchHandler>.Instance);
 
     private static FinishedMatchParticipation Participation(string outcome = "Win", bool wasMvp = false) =>
         new(
@@ -160,5 +168,115 @@ public sealed class ApplyFinishedMatchHandlerTests
             .ApplyFinishedMatchAsync(Participation(outcome: "Forfeit"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
+    }
+
+    // ─── F2.2 Player-card generation gate ────────────────────────────────────
+
+    /// <summary>
+    /// Covers: F2.2 "generated only after 3 recorded matches (GenerationThreshold = 3); below 3 → no
+    /// card row". With only 2 matches played the handler must not write any card row.
+    /// </summary>
+    [Theory]
+    [InlineData(0, 0, 0, 0)] // 0 matches
+    [InlineData(1, 0, 0, 0)] // 1 match
+    [InlineData(1, 1, 0, 0)] // 2 matches
+    public async Task ApplyFinishedMatchAsync_below_threshold_writes_no_card(
+        int wins, int losses, int draws, int mvps)
+    {
+        SeedExistingProfile();
+        _history.GetOutcomeCountsAsync(UserId, Arg.Any<CancellationToken>())
+            .Returns(new OutcomeCounts(wins, losses, draws, mvps));
+
+        await CreateSut().ApplyFinishedMatchAsync(Participation(), CancellationToken.None);
+
+        await _cards.DidNotReceive().UpsertAsync(Arg.Any<PlayerCard>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Covers: F2.2 "at/after 3 → card exists" plus "generated_at is set on first crossing". At exactly
+    /// the threshold, with no existing card, a fresh card is generated whose snapshot mirrors the
+    /// recomputed profile/stats and whose generated_at == refreshed_at == now.
+    /// </summary>
+    [Fact]
+    public async Task ApplyFinishedMatchAsync_at_threshold_generates_card_snapshot()
+    {
+        var (profile, _) = SeedExistingProfile();
+        _history.GetOutcomeCountsAsync(UserId, Arg.Any<CancellationToken>())
+            .Returns(new OutcomeCounts(2, 1, 0, 1)); // 3 matches
+
+        await CreateSut().ApplyFinishedMatchAsync(Participation(), CancellationToken.None);
+
+        await _cards.Received(1).UpsertAsync(
+            Arg.Is<PlayerCard>(c =>
+                c.UserId == UserId &&
+                c.DisplayName == profile.DisplayName &&
+                c.Level == profile.Level &&
+                c.MatchesPlayed == 3 &&
+                c.Wins == 2 &&
+                c.Losses == 1 &&
+                c.Draws == 0 &&
+                c.MvpsReceived == 1 &&
+                c.GeneratedAt == Now &&
+                c.RefreshedAt == Now),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Covers: F2.2 "generated_at is set once on first crossing and preserved across refreshes;
+    /// refreshed_at updates each finished match". An existing card (generated earlier) is refreshed:
+    /// generated_at is preserved, refreshed_at advances to now, and the counters are overwritten.
+    /// </summary>
+    [Fact]
+    public async Task ApplyFinishedMatchAsync_with_existing_card_refreshes_preserving_generated_at()
+    {
+        var (profile, _) = SeedExistingProfile();
+        var generatedAt = Now.AddDays(-5);
+        var existing = PlayerCard.Generate(
+            UserId, profile.DisplayName, null, null, PlayerLevel.Beginner,
+            matchesPlayed: 3, wins: 3, losses: 0, draws: 0, mvpsReceived: 0, generatedAt);
+        _cards.FindByUserIdAsync(UserId, Arg.Any<CancellationToken>())
+            .Returns(new PlayerCardLookup(existing, ProfileExists: true, MatchesPlayed: 3));
+        _history.GetOutcomeCountsAsync(UserId, Arg.Any<CancellationToken>())
+            .Returns(new OutcomeCounts(5, 1, 0, 2)); // 6 matches now
+
+        await CreateSut().ApplyFinishedMatchAsync(Participation(), CancellationToken.None);
+
+        existing.GeneratedAt.Should().Be(generatedAt, "generated_at is set once and never overwritten");
+        existing.RefreshedAt.Should().Be(Now, "refreshed_at updates on each finished match");
+        existing.MatchesPlayed.Should().Be(6, "the snapshot is recomputed, not incremented");
+        existing.Wins.Should().Be(5);
+        existing.MvpsReceived.Should().Be(2);
+        await _cards.Received(1).UpsertAsync(existing, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Covers: F2.2 idempotency — "a redelivered MatchSummaryGenerated reproduces the identical card
+    /// snapshot (recompute-not-increment)". Applying the same participation twice (same recomputed
+    /// counts, existing card preserved) yields identical snapshot counters and generated_at both times.
+    /// </summary>
+    [Fact]
+    public async Task ApplyFinishedMatchAsync_redelivery_reproduces_identical_card_snapshot()
+    {
+        var (profile, _) = SeedExistingProfile();
+        var generatedAt = Now.AddDays(-1);
+        var existing = PlayerCard.Generate(
+            UserId, profile.DisplayName, null, null, PlayerLevel.Beginner,
+            matchesPlayed: 3, wins: 2, losses: 1, draws: 0, mvpsReceived: 1, generatedAt);
+        _cards.FindByUserIdAsync(UserId, Arg.Any<CancellationToken>())
+            .Returns(new PlayerCardLookup(existing, ProfileExists: true, MatchesPlayed: 3));
+        // Recompute-not-increment: the same event always yields the same counts.
+        _history.GetOutcomeCountsAsync(UserId, Arg.Any<CancellationToken>())
+            .Returns(new OutcomeCounts(2, 1, 0, 1));
+
+        var sut = CreateSut();
+        await sut.ApplyFinishedMatchAsync(Participation(), CancellationToken.None);
+        await sut.ApplyFinishedMatchAsync(Participation(), CancellationToken.None); // redelivery
+
+        existing.GeneratedAt.Should().Be(generatedAt, "redelivery must not move generated_at");
+        existing.MatchesPlayed.Should().Be(3);
+        existing.Wins.Should().Be(2);
+        existing.Losses.Should().Be(1);
+        existing.Draws.Should().Be(0);
+        existing.MvpsReceived.Should().Be(1);
     }
 }

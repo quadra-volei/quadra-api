@@ -105,6 +105,7 @@ Frontend is NOT in this phase — backend only. Specs describe **API contracts**
 - **IN**: generated after 3 recorded matches
 - **OUT**: visual rendering (frontend)
 - **OUT**: premium art variants (catalog comes later)
+- **OUT (human ruling, 2026-07-03)**: no persistent premium data structure in the MVP. The free/premium flag is resolved via a stub (`IPremiumStatusReader` → always `false`) behind a stable interface. No `plan`/`is_premium` column or table is created until billing is specified. This narrows PRODUCT's "prepared data structure" to interface-only for now.
 
 ### F2.3 — Group Ranking
 - **Module**: `Gamification`

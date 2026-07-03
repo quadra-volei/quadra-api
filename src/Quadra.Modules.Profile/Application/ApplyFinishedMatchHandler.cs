@@ -14,17 +14,20 @@ public sealed class ApplyFinishedMatchHandler : IPlayerStatsWriter
 {
     private readonly IPlayerProfileRepository _profiles;
     private readonly IPlayerMatchHistoryRepository _history;
+    private readonly IPlayerCardRepository _cards;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<ApplyFinishedMatchHandler> _logger;
 
     public ApplyFinishedMatchHandler(
         IPlayerProfileRepository profiles,
         IPlayerMatchHistoryRepository history,
+        IPlayerCardRepository cards,
         TimeProvider timeProvider,
         ILogger<ApplyFinishedMatchHandler> logger)
     {
         _profiles = profiles;
         _history = history;
+        _cards = cards;
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -57,11 +60,14 @@ public sealed class ApplyFinishedMatchHandler : IPlayerStatsWriter
         var counts = await _history.GetOutcomeCountsAsync(participation.PlayerId, cancellationToken);
         var found = await _profiles.FindByUserIdAsync(participation.PlayerId, cancellationToken);
 
+        PlayerProfile profile;
+        PlayerStats stats;
+
         if (found is null)
         {
             // Defensive: profile should already be provisioned; bootstrap it if not.
-            var profile = PlayerProfile.Provision(participation.PlayerId, now);
-            var stats = PlayerStats.Empty(participation.PlayerId, now);
+            profile = PlayerProfile.Provision(participation.PlayerId, now);
+            stats = PlayerStats.Empty(participation.PlayerId, now);
             stats.Recompute(counts.Wins, counts.Losses, counts.Draws, counts.MvpsReceived, now);
             profile.SetLevel(PlayerLevelCalculator.Calculate(stats), now);
             await _profiles.AddAsync(profile, stats, cancellationToken);
@@ -71,6 +77,16 @@ public sealed class ApplyFinishedMatchHandler : IPlayerStatsWriter
             found.Stats.Recompute(counts.Wins, counts.Losses, counts.Draws, counts.MvpsReceived, now);
             found.Profile.SetLevel(PlayerLevelCalculator.Calculate(found.Stats), now);
             await _profiles.UpdateAsync(found.Profile, cancellationToken);
+            profile = found.Profile;
+            stats = found.Stats;
+        }
+
+        // 3. (Re)generate the player card once the player has crossed the match threshold (F2.2).
+        //    Below the threshold no card row is written. Idempotent: recompute-not-increment stats
+        //    reproduce the identical snapshot on redelivery.
+        if (stats.MatchesPlayed >= PlayerCard.GenerationThreshold)
+        {
+            await UpsertCardAsync(participation.PlayerId, profile, stats, now, cancellationToken);
         }
 
         _logger.LogInformation(
@@ -78,6 +94,54 @@ public sealed class ApplyFinishedMatchHandler : IPlayerStatsWriter
             participation.MatchId,
             participation.PlayerId,
             outcome);
+    }
+
+    /// <summary>
+    /// Upserts the player-card snapshot: <see cref="PlayerCard.Generate"/> on the first threshold
+    /// crossing, <see cref="PlayerCard.Refresh"/> thereafter (which preserves <c>generated_at</c>).
+    /// </summary>
+    private async Task UpsertCardAsync(
+        Guid userId,
+        PlayerProfile profile,
+        PlayerStats stats,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var existing = (await _cards.FindByUserIdAsync(userId, cancellationToken)).Card;
+
+        PlayerCard card;
+        if (existing is null)
+        {
+            card = PlayerCard.Generate(
+                userId,
+                profile.DisplayName,
+                profile.PrimaryPosition,
+                profile.SecondaryPosition,
+                profile.Level,
+                stats.MatchesPlayed,
+                stats.Wins,
+                stats.Losses,
+                stats.Draws,
+                stats.MvpsReceived,
+                now);
+        }
+        else
+        {
+            existing.Refresh(
+                profile.DisplayName,
+                profile.PrimaryPosition,
+                profile.SecondaryPosition,
+                profile.Level,
+                stats.MatchesPlayed,
+                stats.Wins,
+                stats.Losses,
+                stats.Draws,
+                stats.MvpsReceived,
+                now);
+            card = existing;
+        }
+
+        await _cards.UpsertAsync(card, cancellationToken);
     }
 
     private static MatchOutcome ParseOutcome(string value)

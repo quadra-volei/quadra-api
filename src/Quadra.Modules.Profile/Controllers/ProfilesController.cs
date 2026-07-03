@@ -22,6 +22,7 @@ public sealed class ProfilesController : ControllerBase
     private readonly UpdateProfileHandler _updateProfileHandler;
     private readonly GetMatchHistoryHandler _getMatchHistoryHandler;
     private readonly CreatePhotoUploadUrlHandler _createPhotoUploadUrlHandler;
+    private readonly GetPlayerCardHandler _getPlayerCardHandler;
     private readonly IValidator<UpdateProfileRequest> _updateValidator;
     private readonly IValidator<PhotoUploadUrlRequest> _photoUploadValidator;
     private readonly IValidator<MatchHistoryQuery> _matchHistoryValidator;
@@ -31,6 +32,7 @@ public sealed class ProfilesController : ControllerBase
         UpdateProfileHandler updateProfileHandler,
         GetMatchHistoryHandler getMatchHistoryHandler,
         CreatePhotoUploadUrlHandler createPhotoUploadUrlHandler,
+        GetPlayerCardHandler getPlayerCardHandler,
         IValidator<UpdateProfileRequest> updateValidator,
         IValidator<PhotoUploadUrlRequest> photoUploadValidator,
         IValidator<MatchHistoryQuery> matchHistoryValidator)
@@ -39,6 +41,7 @@ public sealed class ProfilesController : ControllerBase
         _updateProfileHandler = updateProfileHandler;
         _getMatchHistoryHandler = getMatchHistoryHandler;
         _createPhotoUploadUrlHandler = createPhotoUploadUrlHandler;
+        _getPlayerCardHandler = getPlayerCardHandler;
         _updateValidator = updateValidator;
         _photoUploadValidator = photoUploadValidator;
         _matchHistoryValidator = matchHistoryValidator;
@@ -165,7 +168,46 @@ public sealed class ProfilesController : ControllerBase
         return await GetMatchHistoryAsync(userId, page, pageSize, cancellationToken);
     }
 
+    /// <summary>GET /api/v1/profiles/me/card</summary>
+    [HttpGet("me/card")]
+    public async Task<ActionResult<PlayerCardResponse>> GetMyCard(CancellationToken cancellationToken)
+    {
+        if (!TryGetCallerId(out var callerId))
+        {
+            return Unauthorized();
+        }
+
+        return await GetCardAsync(callerId, cancellationToken);
+    }
+
+    /// <summary>GET /api/v1/profiles/{userId}/card</summary>
+    [HttpGet("{userId:guid}/card")]
+    public async Task<ActionResult<PlayerCardResponse>> GetCardById(
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        return await GetCardAsync(userId, cancellationToken);
+    }
+
     // --- Private helpers ---
+
+    private async Task<ActionResult<PlayerCardResponse>> GetCardAsync(
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _getPlayerCardHandler.HandleAsync(userId, cancellationToken));
+        }
+        catch (ProfileNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (CardNotGeneratedException ex)
+        {
+            return Conflict(new ProblemDetails { Detail = ex.Message });
+        }
+    }
 
     private async Task<ActionResult<PagedResponse<MatchHistoryEntryResponse>>> GetMatchHistoryAsync(
         Guid userId,
