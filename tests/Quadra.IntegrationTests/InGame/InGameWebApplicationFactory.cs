@@ -12,6 +12,7 @@ using Quadra.Infrastructure.Messaging;
 using Quadra.Modules.Auth.Persistence;
 using Quadra.Modules.InGame.Persistence;
 using Quadra.Modules.Matches.Persistence;
+using Quadra.Modules.Profile.Persistence;
 using Quadra.Shared.Realtime;
 using Testcontainers.PostgreSql;
 
@@ -123,6 +124,10 @@ public sealed class InGameWebApplicationFactory : IAsyncLifetime
         await matchesCtx.Database.MigrateAsync();
         var inGameCtx = scope.ServiceProvider.GetRequiredService<InGameDbContext>();
         await inGameCtx.Database.MigrateAsync();
+        // F2.1: Program.cs now wires the real PlayerLevelReader (over the F1.3 NoOp), which reads
+        // player_profiles during team drafting — so the Profile schema must exist for these tests.
+        var profileCtx = scope.ServiceProvider.GetRequiredService<ProfileDbContext>();
+        await profileCtx.Database.MigrateAsync();
     }
 
     public async ValueTask DisposeAsync()

@@ -9,7 +9,6 @@
 
   <ItemGroup>
     <PackageReference Include="AWSSDK.SQS" Version="4.0.2.32" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.6" />
     <PackageReference Include="Serilog.Extensions.Hosting" Version="10.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
   </ItemGroup>
@@ -17,5 +16,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Quadra.Shared\Quadra.Shared.csproj" />
     <ProjectReference Include="..\Quadra.Infrastructure\Quadra.Infrastructure.csproj" />
+    <ProjectReference Include="..\Quadra.Modules.Profile\Quadra.Modules.Profile.csproj" />
+    <ProjectReference Include="..\Quadra.Modules.Matches\Quadra.Modules.Matches.csproj" />
+    <ProjectReference Include="..\Quadra.Modules.InGame\Quadra.Modules.InGame.csproj" />
   </ItemGroup>
 </Project>

@@ -91,11 +91,13 @@ Frontend is NOT in this phase — backend only. Specs describe **API contracts**
 
 ### F2.1 — Player Profile
 - **Module**: `Profile`
-- **IN**: photo (S3 object reference), name, primary position, secondary position
-- **IN**: automatically calculated level (`Beginner | Intermediate | Advanced | Elite`) using product doc criteria
-- **IN**: aggregated stats: matches played, wins, losses, MVPs received, frequency
-- **IN**: match history with pagination
+- **IN**: photo (S3 object reference), name, primary position, secondary position — position catalog: `Setter | OutsideHitter | Opposite | MiddleBlocker | Libero`
+- **IN**: automatically calculated level — MVP computes **`Beginner | Intermediate`** only (see `PRODUCT.md` level table). `Advanced` and `Elite` are **deferred**: Advanced's "vote average" is undefined and Elite depends on the Layer-3 global ranking
+- **IN**: aggregated stats: matches played, wins, losses, draws, MVPs received (draws included because F1.6 permits a null-winner match)
+- **IN**: match history with pagination (own table `player_match_history`)
 - **OUT**: manual stat editing (everything derived from events)
+- **OUT (deferred, not cut)**: `frequency` stat — no formula is defined in PRODUCT/SCOPE; excluded from the MVP until specified, re-added when defined
+- **OUT (deferred, not cut)**: `Advanced` / `Elite` level tiers — see above
 
 ### F2.2 — Player Card (data)
 - **Module**: `Profile` (data) + `Gamification` (premium check)

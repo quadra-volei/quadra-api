@@ -53,7 +53,7 @@ Takes over when the match begins. Drafts teams balanced by level, allows manual 
 ### Profile
 Everything about player identity. Photo, position, automatically calculated level, match history, accumulated stats and the player card. Read-heavy — Background Worker writes, the app reads.
 
-**Own tables**: `player_profiles`, `player_stats`, `player_cards`
+**Own tables**: `player_profiles`, `player_stats`, `player_match_history`, `player_cards`
 **Events consumed**: every event related to a finished match
 
 ### Geo / Map

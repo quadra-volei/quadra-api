@@ -2,6 +2,7 @@ using Quadra.Modules.Auth.DependencyInjection;
 using Quadra.Modules.Geo.DependencyInjection;
 using Quadra.Modules.InGame.DependencyInjection;
 using Quadra.Modules.Matches.DependencyInjection;
+using Quadra.Modules.Profile.DependencyInjection;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,6 +11,7 @@ builder.Services.AddControllers();
 builder.Services.AddAuthModule(builder.Configuration);
 builder.Services.AddMatchesModule(builder.Configuration);
 builder.Services.AddInGameModule(builder.Configuration);
+builder.Services.AddProfileModule(builder.Configuration);
 builder.Services.AddGeoModule(builder.Configuration);
 builder.Services.AddOpenApi();
 
