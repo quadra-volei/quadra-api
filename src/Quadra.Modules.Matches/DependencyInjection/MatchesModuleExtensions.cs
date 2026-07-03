@@ -81,6 +81,7 @@ public static class MatchesModuleExtensions
         // Cross-module read interfaces implemented by the Matches module.
         services.AddScoped<IMatchReader, MatchReader>();
         services.AddScoped<IConfirmedPlayersReader, ConfirmedPlayersReader>();
+        services.AddScoped<IMatchAvailabilityReader, MatchAvailabilityReader>();
 
         services.AddScoped<CreateMatchHandler>();
         services.AddScoped<GetMatchHandler>();

@@ -1,4 +1,5 @@
 using Quadra.Modules.Auth.DependencyInjection;
+using Quadra.Modules.Geo.DependencyInjection;
 using Quadra.Modules.InGame.DependencyInjection;
 using Quadra.Modules.Matches.DependencyInjection;
 using Scalar.AspNetCore;
@@ -9,6 +10,7 @@ builder.Services.AddControllers();
 builder.Services.AddAuthModule(builder.Configuration);
 builder.Services.AddMatchesModule(builder.Configuration);
 builder.Services.AddInGameModule(builder.Configuration);
+builder.Services.AddGeoModule(builder.Configuration);
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
