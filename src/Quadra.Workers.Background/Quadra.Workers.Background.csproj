@@ -19,5 +19,6 @@
     <ProjectReference Include="..\Quadra.Modules.Profile\Quadra.Modules.Profile.csproj" />
     <ProjectReference Include="..\Quadra.Modules.Matches\Quadra.Modules.Matches.csproj" />
     <ProjectReference Include="..\Quadra.Modules.InGame\Quadra.Modules.InGame.csproj" />
+    <ProjectReference Include="..\Quadra.Modules.Gamification\Quadra.Modules.Gamification.csproj" />
   </ItemGroup>
 </Project>

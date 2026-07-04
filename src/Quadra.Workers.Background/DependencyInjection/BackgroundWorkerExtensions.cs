@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Quadra.Modules.Gamification.DependencyInjection;
 using Quadra.Modules.InGame.DependencyInjection;
 using Quadra.Modules.Matches.DependencyInjection;
 using Quadra.Modules.Profile.DependencyInjection;
@@ -31,12 +32,14 @@ public static class BackgroundWorkerExtensions
                 "Configuration key 'Aws:Sqs:MatchSummaryGeneratedQueueUrl' is required but was not found.");
 
         // Modules exposing the interfaces the consumers resolve.
-        services.AddProfileModule(configuration);   // IPlayerProfileProvisioner, IPlayerStatsWriter
-        services.AddMatchesModule(configuration);   // IMatchDescriptorReader
-        services.AddInGameModule(configuration);    // IMatchResultReader
+        services.AddProfileModule(configuration);       // IPlayerProfileProvisioner, IPlayerStatsWriter
+        services.AddMatchesModule(configuration);       // IMatchDescriptorReader, IMatchGroupReader
+        services.AddInGameModule(configuration);        // IMatchResultReader
+        services.AddGamificationModule(configuration);  // IMatchPointsWriter
 
         services.AddScoped<UserRegisteredConsumer>();
         services.AddScoped<MatchSummaryGeneratedProfileConsumer>();
+        services.AddScoped<MatchSummaryGeneratedRankingConsumer>();
 
         return services;
     }
