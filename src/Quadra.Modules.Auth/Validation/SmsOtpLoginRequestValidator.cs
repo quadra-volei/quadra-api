@@ -7,11 +7,10 @@ namespace Quadra.Modules.Auth.Validation;
 
 /// <summary>
 /// FluentValidation rules for <see cref="SmsOtpLoginRequest"/>. A single endpoint discriminated by
-/// <see cref="SmsOtpLoginRequest.Step"/>; the <c>verify</c> step adds Code/Session requirements.
+/// <see cref="SmsOtpLoginRequest.Step"/>; the <c>verify</c> step adds the Code requirement.
 /// </summary>
 public sealed class SmsOtpLoginRequestValidator : AbstractValidator<SmsOtpLoginRequest>
 {
-    private const int MaxSessionLength = 4096;
     private const int MaxDeviceIdLength = 128;
 
     private static readonly string[] AllowedSteps =
@@ -48,10 +47,6 @@ public sealed class SmsOtpLoginRequestValidator : AbstractValidator<SmsOtpLoginR
                 .NotEmpty()
                 .Must(BeValidOtpCode)
                 .WithMessage("Code must be exactly 6 digits.");
-
-            RuleFor(x => x.Session)
-                .NotEmpty()
-                .MaximumLength(MaxSessionLength);
         });
 
         RuleFor(x => x.DeviceId)

@@ -19,6 +19,17 @@ public interface IRefreshTokenRepository
     Task AddAsync(RefreshToken refreshToken, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Atomically revokes <paramref name="current"/> and inserts <paramref name="replacement"/>.
+    /// Returns <c>false</c> — inserting nothing — when <paramref name="current"/> was already
+    /// revoked, so two concurrent refreshes of the same token cannot both succeed.
+    /// </summary>
+    Task<bool> TryRotateAsync(
+        RefreshToken current,
+        RefreshToken replacement,
+        DateTimeOffset now,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Marks the supplied tracked row revoked and commits.
     /// </summary>
     Task RevokeAsync(RefreshToken refreshToken, DateTimeOffset now, CancellationToken cancellationToken);

@@ -1,11 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Quadra.Modules.Auth.Entities;
 
 namespace Quadra.Modules.Auth.Persistence;
 
 /// <summary>
-/// EF Core implementation of <see cref="IUserRepository"/>. Caller is responsible for
-/// committing the unit of work via <see cref="AuthDbContext.SaveChangesAsync(CancellationToken)"/>.
+/// EF Core implementation of <see cref="IUserRepository"/>.
 /// </summary>
 public sealed class UserRepository : IUserRepository
 {
@@ -16,12 +16,11 @@ public sealed class UserRepository : IUserRepository
         _dbContext = dbContext;
     }
 
-    public Task<User?> FindByCognitoSubAsync(string cognitoSub, CancellationToken cancellationToken)
+    public Task<User?> FindByIdAsync(Guid id, CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(cognitoSub);
         return _dbContext.Users
             .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.CognitoSub == cognitoSub, cancellationToken);
+            .FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
     }
 
     public Task<User?> FindByPhoneNumberAsync(string phoneNumber, CancellationToken cancellationToken)
@@ -32,10 +31,35 @@ public sealed class UserRepository : IUserRepository
             .FirstOrDefaultAsync(u => u.PhoneNumber == phoneNumber, cancellationToken);
     }
 
-    public async Task AddAsync(User user, CancellationToken cancellationToken)
+    public Task<User?> FindByExternalIdentityAsync(
+        IdentityProvider provider,
+        string externalSubject,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(externalSubject);
+        return _dbContext.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                u => u.Provider == provider && u.ExternalSubject == externalSubject,
+                cancellationToken);
+    }
+
+    public async Task<bool> TryAddAsync(User user, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(user);
-        await _dbContext.Users.AddAsync(user, cancellationToken);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        var entry = await _dbContext.Users.AddAsync(user, cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateException ex) when (
+            ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            // Stop tracking the rejected row so later saves in this scope do not retry it.
+            entry.State = EntityState.Detached;
+            return false;
+        }
     }
 }

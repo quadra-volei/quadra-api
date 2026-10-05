@@ -1,24 +1,23 @@
 using Microsoft.Extensions.Logging;
 using Quadra.Infrastructure.Messaging;
-using Quadra.Modules.Auth.Cognito;
 using Quadra.Modules.Auth.Contracts;
 using Quadra.Modules.Auth.Entities;
 using Quadra.Modules.Auth.Oidc;
 using Quadra.Modules.Auth.Persistence;
+using Quadra.Modules.Auth.Tokens;
 using Quadra.Shared.Events.Auth;
 
 namespace Quadra.Modules.Auth.Application;
 
 /// <summary>
-/// Orchestrates the FA.3 Google/Apple login flow: validate the provider ID token → broker a
-/// Cognito session for the already-linked user → resolve the local user → persist the refresh
-/// token → publish <see cref="UserLoggedIn"/>.
+/// Orchestrates the FA.3 Google/Apple login flow: validate the provider ID token → find or create
+/// the local user for that identity → issue a session → publish <see cref="UserLoggedIn"/>.
 /// </summary>
 public sealed class OidcLoginHandler
 {
     private readonly IOidcTokenValidator _oidcValidator;
-    private readonly ICognitoAuthClient _cognitoAuthClient;
-    private readonly IUserRepository _userRepository;
+    private readonly UserProvisioner _userProvisioner;
+    private readonly SessionFactory _sessionFactory;
     private readonly IRefreshTokenRepository _refreshTokenRepository;
     private readonly IEventPublisher _eventPublisher;
     private readonly TimeProvider _timeProvider;
@@ -26,16 +25,16 @@ public sealed class OidcLoginHandler
 
     public OidcLoginHandler(
         IOidcTokenValidator oidcValidator,
-        ICognitoAuthClient cognitoAuthClient,
-        IUserRepository userRepository,
+        UserProvisioner userProvisioner,
+        SessionFactory sessionFactory,
         IRefreshTokenRepository refreshTokenRepository,
         IEventPublisher eventPublisher,
         TimeProvider timeProvider,
         ILogger<OidcLoginHandler> logger)
     {
         _oidcValidator = oidcValidator;
-        _cognitoAuthClient = cognitoAuthClient;
-        _userRepository = userRepository;
+        _userProvisioner = userProvisioner;
+        _sessionFactory = sessionFactory;
         _refreshTokenRepository = refreshTokenRepository;
         _eventPublisher = eventPublisher;
         _timeProvider = timeProvider;
@@ -73,63 +72,29 @@ public sealed class OidcLoginHandler
             throw;
         }
 
-        CognitoAuthResult tokens;
-        try
-        {
-            tokens = await _cognitoAuthClient
-                .BrokerExternalSessionAsync(provider, claims.Subject, cancellationToken);
-        }
-        catch (UserNotFoundForLoginException)
-        {
-            _logger.LogInformation(
-                "Login rejected: no linked user for external identity. {Provider} {OutcomeCategory}",
-                providerName,
-                "user_not_found");
-            throw;
-        }
-
-        var user = await _userRepository.FindByCognitoSubAsync(tokens.CognitoSub, cancellationToken);
-        if (user is null)
-        {
-            _logger.LogInformation(
-                "Login rejected: no local users row for Cognito sub. {Provider} {OutcomeCategory}",
-                providerName,
-                "user_not_found");
-            throw new UserNotFoundForLoginException("No local user is linked to the supplied external identity.");
-        }
-
         var now = _timeProvider.GetUtcNow();
-        var rawRefreshToken = tokens.RefreshToken
-            ?? throw new CognitoUnavailableException("Cognito did not return a refresh token on external login.");
 
-        var refreshToken = RefreshToken.Issue(
-            Guid.NewGuid(),
-            user.Id,
-            RefreshTokenHasher.Hash(rawRefreshToken),
-            user.CognitoSub,
-            deviceId,
+        var provisioned = await _userProvisioner.GetOrCreateForExternalAsync(
+            provider,
+            claims.Subject,
+            claims.Email,
             now,
-            tokens.RefreshTokenExpiresAt);
+            cancellationToken);
+        var user = provisioned.User;
 
-        await _refreshTokenRepository.AddAsync(refreshToken, cancellationToken);
+        var session = _sessionFactory.Create(user, deviceId, provisioned.IsNew, now);
+        await _refreshTokenRepository.AddAsync(session.RefreshTokenRow, cancellationToken);
 
         await PublishLoggedInAsync(user, providerName, deviceId, now, cancellationToken);
 
         _logger.LogInformation(
-            "Login succeeded. {Provider} {OutcomeCategory} {UserId}",
+            "Login succeeded. {Provider} {OutcomeCategory} {UserId} {IsNewUser}",
             providerName,
             "success",
-            user.Id);
-
-        return new AuthTokensResponse(
-            tokens.AccessToken,
-            tokens.IdToken,
-            rawRefreshToken,
-            "Bearer",
-            tokens.ExpiresIn,
             user.Id,
-            user.CognitoSub,
-            user.ConfirmationStatus.ToString());
+            provisioned.IsNew);
+
+        return session.Tokens;
     }
 
     private async Task PublishLoggedInAsync(
@@ -139,7 +104,7 @@ public sealed class OidcLoginHandler
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var @event = new UserLoggedIn(user.Id, user.CognitoSub, providerName, deviceId, now);
+        var @event = new UserLoggedIn(user.Id, providerName, deviceId, now);
 
         try
         {

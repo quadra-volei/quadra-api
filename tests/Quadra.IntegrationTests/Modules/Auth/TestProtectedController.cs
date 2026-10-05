@@ -23,7 +23,6 @@ public sealed class TestProtectedController : ControllerBase
             nameIdentifier = User.FindFirstValue(ClaimTypes.NameIdentifier),
             email = User.FindFirstValue("email"),
             role = User.FindFirstValue(ClaimTypes.Role),
-            cognitoUsername = User.FindFirstValue("cognito:username"),
         });
     }
 }

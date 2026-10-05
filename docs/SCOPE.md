@@ -134,39 +134,41 @@ Frontend is NOT in this phase — backend only. Specs describe **API contracts**
 
 ## Auth — Cross-cutting (MVP)
 
+> **Decision (2026-10-05, Johny)**: the backend no longer uses AWS Cognito. The Auth module is the
+> identity source of truth: it issues and validates its own JWTs, verifies phone numbers through
+> Twilio Verify, and validates Google ID tokens itself. FA.1–FA.3 below reflect that decision.
+
 ### FA.1 — JWT Validation Middleware
 - **Module**: `Auth`
-- **IN**: ASP.NET middleware that validates JWTs issued by AWS Cognito
-- **IN**: extracts claims (sub, email, custom:role) into HttpContext.User
-- **IN**: rejects expired or malformed tokens with 401
-- **IN**: configuration via appsettings (Cognito User Pool ID, region, audience)
-- **OUT**: token issuance (Cognito does that)
-- **OUT**: refresh token logic (FA.3)
+- **IN**: ASP.NET middleware that validates the JWTs issued by this API (HS256, signing key from configuration)
+- **IN**: validates signature, issuer, audience and lifetime; extracts claims (sub = `users.id`, role) into HttpContext.User
+- **IN**: rejects expired, malformed, unsigned or foreign-key tokens with 401
+- **IN**: configuration via appsettings / environment (`Auth:Jwt`: issuer, audience, signing key, lifetimes); startup fails without a strong key
+- **OUT**: token issuance and refresh token logic (FA.3)
 - **OUT**: any UI for login (frontend)
 
 ### FA.2 — User Signup
-- **Module**: `Auth`
-- **IN**: endpoint POST /api/v1/auth/signup that triggers Cognito SignUp
-- **IN**: persists local user record (id, cognito_sub, email, created_at) in `users` table
-- **IN**: returns user id and confirmation status
-- **OUT**: email/SMS confirmation flow (handled by Cognito)
+- **Superseded — no separate signup.** There is no `POST /api/v1/auth/signup`. The local user record (`users`: id, provider, phone_number / external_subject, email, created_at) is created by FA.3 on the first successful login (first valid SMS OTP for a phone number, or first valid Google ID token for a Google account).
 - **OUT**: profile data (that's the Profile module's F2.1)
 
 ### FA.3 — Login flows
 - **Module**: `Auth`
-- **IN**: endpoint POST /api/v1/auth/login/sms-otp (initiate + verify)
-- **IN**: endpoint POST /api/v1/auth/login/google (exchange Google token for Cognito session)
-- **IN**: endpoint POST /api/v1/auth/login/apple (idem)
-- **IN**: endpoint POST /api/v1/auth/refresh
-- **IN**: returns JWT + refresh token
+- **IN**: endpoint POST /api/v1/auth/login/sms-otp (initiate + verify) — 6-digit code delivered and checked by Twilio Verify, behind `IPhoneVerificationService` (swappable provider; fixed-code fake for development/tests, refused in Production)
+- **IN**: initiate accepts any valid phone number; the first valid OTP creates the user (no 404 for unknown phones)
+- **IN**: endpoint POST /api/v1/auth/login/google (validate the Google ID token server-side, find or create the user, issue a session)
+- **IN**: endpoint POST /api/v1/auth/login/apple (idem) — code path kept, **not enabled** until Apple is configured
+- **IN**: endpoint POST /api/v1/auth/refresh — rotates the refresh token on every use
+- **IN**: endpoint POST /api/v1/auth/logout — revokes the session's refresh token
+- **IN**: endpoint GET /api/v1/auth/me — the account behind the access token
+- **IN**: returns own JWT access token (short-lived) + opaque refresh token (stored only as a SHA-256 hash in `refresh_tokens`)
 - **OUT**: account linking (multiple providers same user) — push to v2
-- **OUT**: password reset (Cognito-hosted flow only, not custom)
+- **OUT**: password login / password reset (there are no passwords)
 
 ## Auth and supporting infra (cross-cutting, MVP)
 
 These are not "user stories" but must exist for the MVP to work:
 
-- **Auth**: SMS OTP signup, Google login (Cognito), Apple login (Cognito), JWT issuance and validation
+- **Auth**: SMS OTP login (Twilio Verify), Google login, Apple login (not enabled yet), own JWT issuance and validation — no AWS Cognito
 - **In-app notifications**: `notifications` table, endpoints `GET /notifications`, `POST /notifications/{id}/mark-read`, unread counter
 - **Notification Worker**: SQS consumer delivering push to devices (FCM/APNS via OneSignal or similar — provider choice outside this spec)
 - **Background Worker**: SQS consumer to distribute XP, update rankings, generate card data

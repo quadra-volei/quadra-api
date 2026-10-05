@@ -1,5 +1,13 @@
 # Spec: User Signup
 
+> ## Superseded — 2026-10-05
+>
+> Johny decided to drop AWS Cognito and the separate signup step. `POST /api/v1/auth/signup`,
+> `SignupHandler`, the Cognito signup client and `users.cognito_sub` / `users.confirmation_status`
+> **no longer exist**. A `users` row is created by the FA.3 login flows on the first successful
+> login (see the amendment at the top of `FA.3-login-flows.md`), which also publishes
+> `UserRegistered`. Everything below is the original spec, kept for history only.
+
 ## Origin
 - User Story / Feature from SCOPE: FA.2 — User Signup
 - Layer: Cross-cutting (Auth, MVP)
