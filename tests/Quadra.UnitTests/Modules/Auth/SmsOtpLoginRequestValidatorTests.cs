@@ -6,7 +6,7 @@ namespace Quadra.UnitTests.Modules.Auth;
 
 /// <summary>
 /// Unit tests for <see cref="SmsOtpLoginRequestValidator"/> (FA.3). The endpoint is a single route
-/// discriminated by <c>Step</c>; the <c>verify</c> step adds Code/Session requirements.
+/// discriminated by <c>Step</c>; the <c>verify</c> step adds the Code requirement.
 /// </summary>
 public sealed class SmsOtpLoginRequestValidatorTests
 {
@@ -16,14 +16,12 @@ public sealed class SmsOtpLoginRequestValidatorTests
         Step: "initiate",
         PhoneNumber: "+5511999999999",
         Code: null,
-        Session: null,
         DeviceId: null);
 
     private static SmsOtpLoginRequest ValidVerify() => new(
         Step: "verify",
         PhoneNumber: "+5511999999999",
         Code: "123456",
-        Session: "opaque-session",
         DeviceId: "device-1");
 
     /// <summary>
@@ -38,10 +36,10 @@ public sealed class SmsOtpLoginRequestValidatorTests
     }
 
     /// <summary>
-    /// Covers FA.3 validation: a valid verify request (code + session present) passes.
+    /// Covers FA.3 validation: a valid verify request (code present) passes.
     /// </summary>
     [Fact]
-    public void Verify_with_code_and_session_passes()
+    public void Verify_with_code_passes()
     {
         var result = _sut.Validate(ValidVerify());
 
@@ -137,32 +135,6 @@ public sealed class SmsOtpLoginRequestValidatorTests
     }
 
     /// <summary>
-    /// Covers FA.3 400: "verify missing Session".
-    /// </summary>
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    public void Verify_without_session_fails(string? session)
-    {
-        var result = _sut.Validate(ValidVerify() with { Session = session });
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(SmsOtpLoginRequest.Session));
-    }
-
-    /// <summary>
-    /// Covers FA.3 validation: "Session ... max 4096 chars".
-    /// </summary>
-    [Fact]
-    public void Verify_with_oversized_session_fails()
-    {
-        var result = _sut.Validate(ValidVerify() with { Session = new string('s', 4097) });
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(SmsOtpLoginRequest.Session));
-    }
-
-    /// <summary>
     /// Covers FA.3 validation: "DeviceId: optional; max 128 chars when present".
     /// </summary>
     [Fact]
@@ -175,12 +147,12 @@ public sealed class SmsOtpLoginRequestValidatorTests
     }
 
     /// <summary>
-    /// Covers FA.3: the initiate step does NOT require Code/Session (they are verify-only).
+    /// Covers FA.3: the initiate step does NOT require Code (it is verify-only).
     /// </summary>
     [Fact]
-    public void Initiate_without_code_or_session_passes()
+    public void Initiate_without_code_passes()
     {
-        var result = _sut.Validate(ValidInitiate() with { Code = null, Session = null });
+        var result = _sut.Validate(ValidInitiate() with { Code = null });
 
         result.IsValid.Should().BeTrue();
     }

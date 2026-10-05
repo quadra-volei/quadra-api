@@ -25,7 +25,8 @@ Modular monolith in .NET 10 (CORE), with two separate workers running on ECS:
 | Redis | SignalR backplane; light cache |
 | SQS | Inter-module events and worker decoupling |
 | S3 | Profile photos, generated assets |
-| AWS Cognito | External auth provider (Google, Apple, SMS OTP) |
+| Twilio Verify | SMS OTP delivery and code check (called from the Auth module; swappable behind `IPhoneVerificationService`) |
+| Google Identity | Issuer of the Google ID tokens the Auth module validates (JWKS) |
 
 ---
 
@@ -34,7 +35,7 @@ Modular monolith in .NET 10 (CORE), with two separate workers running on ECS:
 Each module is a separate .NET project at `src/Quadra.Modules.<Name>/`. Boundaries are an **architectural rule**, validated by the `scope-guardian`.
 
 ### Auth
-Signup, SMS OTP login, Google and Apple integration through Cognito. Issues and validates JWTs that protect every other route. No request reaches other modules without passing through it.
+The source of truth for identity — there is no external identity provider (no AWS Cognito). Logs users in by SMS OTP (Twilio Verify) or Google ID token, creating the account on the first successful login; Apple is wired but not enabled. Issues its own JWT access tokens (HS256, short-lived) plus rotating refresh tokens stored hashed, and validates those JWTs on every other route. No request reaches other modules without passing through it.
 
 **Own tables**: `users`, `refresh_tokens`
 

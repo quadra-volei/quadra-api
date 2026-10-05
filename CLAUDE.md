@@ -27,7 +27,8 @@ These decisions MUST NOT be questioned or changed by any agent. If a feature req
 | API | ASP.NET Core with **traditional Controllers** (not Minimal APIs) | 10.0 |
 | ORM | **Entity Framework Core** (no Dapper in MVP) | 10.0 |
 | Database | PostgreSQL with PostGIS extension | 16+ |
-| External auth | AWS Cognito (OIDC/JWT) | — |
+| Auth | **Own JWT** issued by the Auth module (HS256 access token + rotating refresh token). Google ID tokens validated server-side. No AWS Cognito. | — |
+| SMS OTP | Twilio Verify over REST (`HttpClient`, no SDK), behind `IPhoneVerificationService` so the provider can be swapped (e.g. Zenvia) | — |
 | Real-time | SignalR over WebSocket | 10.0 |
 | SignalR backplane | Redis | 7+ |
 | Messaging | AWS SQS | — |
@@ -57,7 +58,7 @@ The backend is ONE deployable project (CORE), internally organized into isolated
 ```
 src/
   Quadra.Api/                  # ASP.NET host, Program.cs, Controllers
-  Quadra.Modules.Auth/         # Signup, login, JWT, Cognito integration
+  Quadra.Modules.Auth/         # Login (SMS OTP, Google), own JWT issuance + validation, refresh tokens
   Quadra.Modules.Matches/      # Match lifecycle
   Quadra.Modules.InGame/       # Teams, live scoreboard
   Quadra.Modules.Profile/      # Identity, stats, player card

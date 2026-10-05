@@ -1,18 +1,18 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Quadra.Infrastructure.Messaging;
-using Quadra.Modules.Auth.Cognito;
 using Quadra.Modules.Auth.Contracts;
 using Quadra.Modules.Auth.Entities;
 using Quadra.Modules.Auth.Persistence;
+using Quadra.Modules.Auth.PhoneVerification;
+using Quadra.Modules.Auth.Tokens;
 using Quadra.Shared.Events.Auth;
 
 namespace Quadra.Modules.Auth.Application;
 
 /// <summary>
-/// Orchestrates the FA.3 SMS OTP login flow: <c>initiate</c> (Cognito code delivery) and
-/// <c>verify</c> (challenge response → confirmation flip → refresh-token persist → publish
-/// <see cref="UserLoggedIn"/>).
+/// Orchestrates the FA.3 SMS OTP login flow: <c>initiate</c> (code delivery, for any phone number)
+/// and <c>verify</c> (code check → find or create the user → issue a session → publish
+/// <see cref="UserLoggedIn"/>). The first valid OTP for a phone number creates its account.
 /// </summary>
 public sealed class SmsOtpLoginHandler
 {
@@ -20,24 +20,28 @@ public sealed class SmsOtpLoginHandler
     public const string StepVerify = "verify";
 
     private const string Provider = "phone";
+    private const string DeliveryMedium = "SMS";
 
-    private readonly AuthDbContext _dbContext;
-    private readonly ICognitoAuthClient _cognitoAuthClient;
+    private readonly IPhoneVerificationService _phoneVerification;
+    private readonly UserProvisioner _userProvisioner;
+    private readonly SessionFactory _sessionFactory;
     private readonly IRefreshTokenRepository _refreshTokenRepository;
     private readonly IEventPublisher _eventPublisher;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<SmsOtpLoginHandler> _logger;
 
     public SmsOtpLoginHandler(
-        AuthDbContext dbContext,
-        ICognitoAuthClient cognitoAuthClient,
+        IPhoneVerificationService phoneVerification,
+        UserProvisioner userProvisioner,
+        SessionFactory sessionFactory,
         IRefreshTokenRepository refreshTokenRepository,
         IEventPublisher eventPublisher,
         TimeProvider timeProvider,
         ILogger<SmsOtpLoginHandler> logger)
     {
-        _dbContext = dbContext;
-        _cognitoAuthClient = cognitoAuthClient;
+        _phoneVerification = phoneVerification;
+        _userProvisioner = userProvisioner;
+        _sessionFactory = sessionFactory;
         _refreshTokenRepository = refreshTokenRepository;
         _eventPublisher = eventPublisher;
         _timeProvider = timeProvider;
@@ -50,20 +54,9 @@ public sealed class SmsOtpLoginHandler
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(phoneNumber);
 
-        var user = await _dbContext.Users
-            .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.PhoneNumber == phoneNumber, cancellationToken);
-        if (user is null)
-        {
-            _logger.LogInformation(
-                "Login rejected: no local user for phone. {Provider} {Step} {OutcomeCategory}",
-                Provider,
-                StepInitiate,
-                "user_not_found");
-            throw new UserNotFoundForLoginException("No user is registered for the supplied phone number.");
-        }
-
-        var challenge = await _cognitoAuthClient.InitiateSmsOtpAsync(phoneNumber, cancellationToken);
+        // No user lookup: the response is identical for known and unknown numbers, so the
+        // endpoint cannot be used to probe which phones have an account.
+        await _phoneVerification.StartAsync(phoneNumber, cancellationToken);
 
         _logger.LogInformation(
             "Login OTP initiated. {Provider} {Step} {OutcomeCategory}",
@@ -72,99 +65,61 @@ public sealed class SmsOtpLoginHandler
             "success");
 
         return new SmsOtpInitiateResponse(
-            challenge.Session,
-            new SmsDeliveryDetails(challenge.DeliveryMedium, challenge.DeliveryDestination));
+            new SmsDeliveryDetails(DeliveryMedium, MaskPhoneNumber(phoneNumber)));
     }
 
     public async Task<AuthTokensResponse> VerifyAsync(
         string phoneNumber,
-        string session,
         string code,
         string? deviceId,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(phoneNumber);
-        ArgumentException.ThrowIfNullOrWhiteSpace(session);
         ArgumentException.ThrowIfNullOrWhiteSpace(code);
 
-        var user = await _dbContext.Users
-            .FirstOrDefaultAsync(u => u.PhoneNumber == phoneNumber, cancellationToken);
-        if (user is null)
+        var result = await _phoneVerification.CheckAsync(phoneNumber, code, cancellationToken);
+        switch (result)
         {
-            _logger.LogInformation(
-                "Login rejected: no local user for phone. {Provider} {Step} {OutcomeCategory}",
-                Provider,
-                StepVerify,
-                "user_not_found");
-            throw new UserNotFoundForLoginException("No user is registered for the supplied phone number.");
-        }
-
-        CognitoAuthResult tokens;
-        try
-        {
-            tokens = await _cognitoAuthClient
-                .RespondToSmsOtpAsync(phoneNumber, session, code, cancellationToken);
-        }
-        catch (InvalidOtpException)
-        {
-            _logger.LogInformation(
-                "Login rejected: invalid OTP. {Provider} {Step} {OutcomeCategory}",
-                Provider,
-                StepVerify,
-                "invalid_otp");
-            throw;
-        }
-        catch (OtpChallengeExpiredException)
-        {
-            _logger.LogInformation(
-                "Login rejected: OTP expired. {Provider} {Step} {OutcomeCategory}",
-                Provider,
-                StepVerify,
-                "otp_expired");
-            throw;
+            case PhoneVerificationResult.Approved:
+                break;
+            case PhoneVerificationResult.InvalidCode:
+                _logger.LogInformation(
+                    "Login rejected: invalid OTP. {Provider} {Step} {OutcomeCategory}",
+                    Provider,
+                    StepVerify,
+                    "invalid_otp");
+                throw new InvalidOtpException("The OTP code is incorrect.");
+            case PhoneVerificationResult.Expired:
+                _logger.LogInformation(
+                    "Login rejected: OTP expired. {Provider} {Step} {OutcomeCategory}",
+                    Provider,
+                    StepVerify,
+                    "otp_expired");
+                throw new OtpChallengeExpiredException("The OTP code has expired. Request a new one.");
+            default:
+                throw new InvalidOperationException($"Unknown phone verification result {result}.");
         }
 
         var now = _timeProvider.GetUtcNow();
 
-        // First successful OTP confirms the phone account (completes the FA.2 phone signup).
-        user.Confirm(now);
+        var provisioned = await _userProvisioner
+            .GetOrCreateForPhoneAsync(phoneNumber, now, cancellationToken);
+        var user = provisioned.User;
 
-        var refreshToken = PersistRefreshToken(user, tokens, deviceId, now);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        var session = _sessionFactory.Create(user, deviceId, provisioned.IsNew, now);
+        await _refreshTokenRepository.AddAsync(session.RefreshTokenRow, cancellationToken);
 
         await PublishLoggedInAsync(user, deviceId, now, cancellationToken);
 
         _logger.LogInformation(
-            "Login succeeded. {Provider} {Step} {OutcomeCategory} {UserId}",
+            "Login succeeded. {Provider} {Step} {OutcomeCategory} {UserId} {IsNewUser}",
             Provider,
             StepVerify,
             "success",
-            user.Id);
-
-        return BuildResponse(user, tokens, refreshToken);
-    }
-
-    private RefreshToken PersistRefreshToken(
-        User user,
-        CognitoAuthResult tokens,
-        string? deviceId,
-        DateTimeOffset now)
-    {
-        // The verify leg always yields a fresh refresh token from Cognito.
-        var rawRefreshToken = tokens.RefreshToken
-            ?? throw new CognitoUnavailableException("Cognito did not return a refresh token on OTP verify.");
-
-        var entity = RefreshToken.Issue(
-            Guid.NewGuid(),
             user.Id,
-            RefreshTokenHasher.Hash(rawRefreshToken),
-            user.CognitoSub,
-            deviceId,
-            now,
-            tokens.RefreshTokenExpiresAt);
+            provisioned.IsNew);
 
-        _dbContext.RefreshTokens.Add(entity);
-        return entity;
+        return session.Tokens;
     }
 
     private async Task PublishLoggedInAsync(
@@ -173,7 +128,7 @@ public sealed class SmsOtpLoginHandler
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var @event = new UserLoggedIn(user.Id, user.CognitoSub, Provider, deviceId, now);
+        var @event = new UserLoggedIn(user.Id, Provider, deviceId, now);
 
         try
         {
@@ -189,17 +144,16 @@ public sealed class SmsOtpLoginHandler
         }
     }
 
-    private static AuthTokensResponse BuildResponse(User user, CognitoAuthResult tokens, RefreshToken persisted)
+    private static string MaskPhoneNumber(string phoneNumber)
     {
-        _ = persisted;
-        return new AuthTokensResponse(
-            tokens.AccessToken,
-            tokens.IdToken,
-            tokens.RefreshToken!,
-            "Bearer",
-            tokens.ExpiresIn,
-            user.Id,
-            user.CognitoSub,
-            user.ConfirmationStatus.ToString());
+        if (phoneNumber.Length <= 5)
+        {
+            return new string('*', phoneNumber.Length);
+        }
+
+        var prefix = phoneNumber[..3];
+        var suffix = phoneNumber[^2..];
+        var masked = new string('*', phoneNumber.Length - prefix.Length - suffix.Length);
+        return $"{prefix}{masked}{suffix}";
     }
 }

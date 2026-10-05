@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
@@ -12,8 +13,8 @@ using NSubstitute;
 using NSubstitute.ClearExtensions;
 using NSubstitute.ExceptionExtensions;
 using Quadra.Infrastructure.Messaging;
+using Quadra.IntegrationTests.Modules.Auth;
 using Quadra.Modules.Auth.Application;
-using Quadra.Modules.Auth.Cognito;
 using Quadra.Modules.Auth.Entities;
 using Quadra.Modules.Auth.Oidc;
 using Quadra.Modules.Auth.Persistence;
@@ -23,14 +24,21 @@ using Testcontainers.PostgreSql;
 namespace Quadra.IntegrationTests.Auth;
 
 /// <summary>
-/// HTTP integration tests for the FA.3 login endpoints. Spins up a real Postgres (Testcontainers)
-/// and substitutes the Cognito auth client / OIDC validator / SQS publisher. Verifies every FA.3
-/// acceptance criterion end-to-end: the four endpoints, the AuthTokensResponse shape, the hashed
-/// (never raw) refresh-token persistence, the confirmation flip, rotation revoking the old row,
-/// the exception→status mapping, and that UserLoggedIn fires on login but not on refresh.
+/// HTTP integration tests for the FA.3 login endpoints. Spins up a real Postgres (Testcontainers),
+/// uses the fake phone verification (fixed code) and substitutes the OIDC validator / event
+/// publisher. Verifies FA.3 end-to-end: account creation on the first valid OTP or Google token,
+/// the AuthTokensResponse shape, the issued access token being accepted by the API's own
+/// middleware, hashed (never raw) refresh-token persistence, rotation, logout, the
+/// exception→status mapping, and that UserLoggedIn fires on login but not on refresh.
 /// </summary>
 public sealed class LoginEndpointsTests : IClassFixture<LoginEndpointsTests.Fixture>
 {
+    private const string OtpEndpoint = "/api/v1/auth/login/sms-otp";
+    private const string GoogleEndpoint = "/api/v1/auth/login/google";
+    private const string RefreshEndpoint = "/api/v1/auth/refresh";
+    private const string LogoutEndpoint = "/api/v1/auth/logout";
+    private const string MeEndpoint = "/api/v1/auth/me";
+
     private readonly Fixture _fx;
 
     public LoginEndpointsTests(Fixture fx)
@@ -38,116 +46,61 @@ public sealed class LoginEndpointsTests : IClassFixture<LoginEndpointsTests.Fixt
         _fx = fx;
     }
 
-    private async Task ResetDbAsync()
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    private async Task ResetAsync()
     {
         using var scope = _fx.Factory.Services.CreateScope();
         var ctx = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-        await ctx.Database.ExecuteSqlRawAsync("TRUNCATE TABLE refresh_tokens, users RESTART IDENTITY CASCADE;");
-    }
+        await ctx.Database.ExecuteSqlRawAsync("TRUNCATE TABLE refresh_tokens, users RESTART IDENTITY CASCADE;", Ct);
 
-    private void ResetMocks()
-    {
-        _fx.CognitoAuth.ClearSubstitute();
         _fx.Oidc.ClearSubstitute();
         _fx.Publisher.ClearSubstitute();
     }
 
-    private async Task<User> SeedPhoneUserAsync(string phone, string cognitoSub, UserConfirmationStatus status)
+    private async Task<T> QueryAsync<T>(Func<AuthDbContext, Task<T>> query)
     {
         using var scope = _fx.Factory.Services.CreateScope();
         var ctx = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-        var user = User.CreateForPhone(Guid.NewGuid(), cognitoSub, phone, DateTimeOffset.UtcNow);
-        if (status == UserConfirmationStatus.Confirmed)
-        {
-            user.Confirm(DateTimeOffset.UtcNow);
-        }
-
-        ctx.Users.Add(user);
-        await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
-        return user;
+        return await query(ctx);
     }
 
-    private async Task<User> SeedExternalUserAsync(IdentityProvider provider, string cognitoSub)
-    {
-        using var scope = _fx.Factory.Services.CreateScope();
-        var ctx = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-        var user = User.CreateForExternal(Guid.NewGuid(), cognitoSub, provider, "u@example.com", DateTimeOffset.UtcNow);
-        ctx.Users.Add(user);
-        await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
-        return user;
-    }
+    private static Task<HttpResponseMessage> VerifyOtpAsync(
+        HttpClient client,
+        string phone,
+        string code = TestJwtFactory.FakeOtpCode,
+        string? deviceId = null) =>
+        client.PostAsJsonAsync(
+            OtpEndpoint,
+            new { step = "verify", phoneNumber = phone, code, deviceId },
+            Ct);
+
+    private static async Task<JsonElement> ReadJsonAsync(HttpResponseMessage response) =>
+        await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
 
     // =====================================================================
     // POST /login/sms-otp — initiate
     // =====================================================================
 
     /// <summary>
-    /// Covers FA.3: "404 — no local users row exists for the phone number" on initiate.
+    /// Covers FA.3: "initiate sends a code to any phone number" — an unknown phone gets 200 (not
+    /// the old 404), no user row is created yet, and the destination is masked.
     /// </summary>
     [Fact]
-    public async Task Sms_otp_initiate_without_local_user_returns_404()
+    public async Task Sms_otp_initiate_for_unknown_phone_returns_200_and_creates_no_user()
     {
-        await ResetDbAsync();
-        ResetMocks();
+        await ResetAsync();
+        const string phone = "+5511955554444";
 
         var client = _fx.Factory.CreateClient();
-        var resp = await client.PostAsJsonAsync(
-            "/api/v1/auth/login/sms-otp",
-            new { step = "initiate", phoneNumber = "+5511955554444" },
-            TestContext.Current.CancellationToken);
-
-        resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
-    }
-
-    /// <summary>
-    /// Covers FA.3: "POST /login/sms-otp (initiate)" — returns 200 with the opaque session + masked
-    /// delivery details.
-    /// </summary>
-    [Fact]
-    public async Task Sms_otp_initiate_with_local_user_returns_200_and_session()
-    {
-        await ResetDbAsync();
-        ResetMocks();
-        const string phone = "+5511955553333";
-        await SeedPhoneUserAsync(phone, "cog-sub-otp", UserConfirmationStatus.Unconfirmed);
-
-        _fx.CognitoAuth.InitiateSmsOtpAsync(phone, Arg.Any<CancellationToken>())
-            .Returns(new SmsOtpChallenge("opaque-session", "SMS", "+55********33"));
-
-        var client = _fx.Factory.CreateClient();
-        var resp = await client.PostAsJsonAsync(
-            "/api/v1/auth/login/sms-otp",
-            new { step = "initiate", phoneNumber = phone },
-            TestContext.Current.CancellationToken);
+        var resp = await client.PostAsJsonAsync(OtpEndpoint, new { step = "initiate", phoneNumber = phone }, Ct);
 
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
-        var json = await resp.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
-        json.GetProperty("session").GetString().Should().Be("opaque-session");
+        var json = await ReadJsonAsync(resp);
         json.GetProperty("delivery").GetProperty("deliveryMedium").GetString().Should().Be("SMS");
-        json.GetProperty("delivery").GetProperty("deliveryDestination").GetString().Should().Be("+55********33");
-    }
+        json.GetProperty("delivery").GetProperty("deliveryDestination").GetString().Should().Be("+55*********44");
 
-    /// <summary>
-    /// Covers FA.3: "429 — Cognito throttling (TooManyRequests / LimitExceeded)" maps to 429.
-    /// </summary>
-    [Fact]
-    public async Task Sms_otp_initiate_when_throttled_returns_429()
-    {
-        await ResetDbAsync();
-        ResetMocks();
-        const string phone = "+5511955552222";
-        await SeedPhoneUserAsync(phone, "cog-sub-throttle", UserConfirmationStatus.Unconfirmed);
-
-        _fx.CognitoAuth.InitiateSmsOtpAsync(phone, Arg.Any<CancellationToken>())
-            .ThrowsAsync(new CognitoAuthThrottledException("slow down"));
-
-        var client = _fx.Factory.CreateClient();
-        var resp = await client.PostAsJsonAsync(
-            "/api/v1/auth/login/sms-otp",
-            new { step = "initiate", phoneNumber = phone },
-            TestContext.Current.CancellationToken);
-
-        resp.StatusCode.Should().Be((HttpStatusCode)429);
+        (await QueryAsync(ctx => ctx.Users.CountAsync(Ct))).Should().Be(0);
     }
 
     /// <summary>
@@ -156,14 +109,24 @@ public sealed class LoginEndpointsTests : IClassFixture<LoginEndpointsTests.Fixt
     [Fact]
     public async Task Sms_otp_with_bad_phone_returns_400()
     {
-        await ResetDbAsync();
-        ResetMocks();
+        await ResetAsync();
 
         var client = _fx.Factory.CreateClient();
-        var resp = await client.PostAsJsonAsync(
-            "/api/v1/auth/login/sms-otp",
-            new { step = "initiate", phoneNumber = "5511invalid" },
-            TestContext.Current.CancellationToken);
+        var resp = await client.PostAsJsonAsync(OtpEndpoint, new { step = "initiate", phoneNumber = "5511invalid" }, Ct);
+
+        resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    /// <summary>
+    /// Covers FA.3: "400 — the code must be exactly 6 digits" (a 4-digit code is refused before
+    /// reaching the SMS provider).
+    /// </summary>
+    [Fact]
+    public async Task Sms_otp_verify_with_four_digit_code_returns_400()
+    {
+        await ResetAsync();
+
+        var resp = await VerifyOtpAsync(_fx.Factory.CreateClient(), "+5511955550000", code: "1234");
 
         resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
@@ -173,250 +136,156 @@ public sealed class LoginEndpointsTests : IClassFixture<LoginEndpointsTests.Fixt
     // =====================================================================
 
     /// <summary>
-    /// Covers FA.3: "POST /login/sms-otp (verify)" + "confirmation_status flip on first successful
-    /// verify" + "returns JWT + refresh token (AuthTokensResponse shape)" + "refresh token persisted
-    /// as SHA-256 hash (never raw)" + "UserLoggedIn event published on login".
+    /// Covers FA.3: "the first valid OTP creates the user" + "returns JWT + refresh token" +
+    /// "refresh token persisted as SHA-256 hash (never raw)" + "UserRegistered and UserLoggedIn
+    /// published", and FA.1: the issued access token is accepted by the API (GET /me).
     /// </summary>
     [Fact]
-    public async Task Sms_otp_verify_flips_confirmation_persists_hashed_token_and_publishes_event()
+    public async Task Sms_otp_verify_for_new_phone_creates_user_and_issues_a_working_session()
     {
-        await ResetDbAsync();
-        ResetMocks();
+        await ResetAsync();
         const string phone = "+5511955551111";
-        const string cognitoSub = "cog-sub-verify";
-        const string rawRefresh = "raw-refresh-otp";
-        var seeded = await SeedPhoneUserAsync(phone, cognitoSub, UserConfirmationStatus.Unconfirmed);
-
-        _fx.CognitoAuth.RespondToSmsOtpAsync(phone, "opaque-session", "123456", Arg.Any<CancellationToken>())
-            .Returns(new CognitoAuthResult("access-jwt", "id-jwt", rawRefresh, 3600,
-                DateTimeOffset.UtcNow.AddDays(30), cognitoSub));
 
         var client = _fx.Factory.CreateClient();
-        var resp = await client.PostAsJsonAsync(
-            "/api/v1/auth/login/sms-otp",
-            new { step = "verify", phoneNumber = phone, code = "123456", session = "opaque-session", deviceId = "dev-otp" },
-            TestContext.Current.CancellationToken);
+        var resp = await VerifyOtpAsync(client, phone, deviceId: "dev-otp");
 
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        var json = await resp.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
-        json.GetProperty("accessToken").GetString().Should().Be("access-jwt");
-        json.GetProperty("idToken").GetString().Should().Be("id-jwt");
-        json.GetProperty("refreshToken").GetString().Should().Be(rawRefresh);
+        var json = await ReadJsonAsync(resp);
+        var userId = json.GetProperty("userId").GetGuid();
+        var accessToken = json.GetProperty("accessToken").GetString()!;
+        var refreshToken = json.GetProperty("refreshToken").GetString()!;
         json.GetProperty("tokenType").GetString().Should().Be("Bearer");
-        json.GetProperty("expiresIn").GetInt32().Should().Be(3600);
-        json.GetProperty("userId").GetGuid().Should().Be(seeded.Id);
-        json.GetProperty("cognitoSub").GetString().Should().Be(cognitoSub);
-        json.GetProperty("confirmationStatus").GetString().Should().Be("Confirmed");
+        json.GetProperty("expiresIn").GetInt32().Should().Be(15 * 60);
+        json.GetProperty("isNewUser").GetBoolean().Should().BeTrue();
 
-        using (var scope = _fx.Factory.Services.CreateScope())
-        {
-            var ctx = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var user = await QueryAsync(ctx => ctx.Users.SingleAsync(Ct));
+        user.Id.Should().Be(userId);
+        user.Provider.Should().Be(IdentityProvider.Phone);
+        user.PhoneNumber.Should().Be(phone);
 
-            // Confirmation flip persisted.
-            var user = await ctx.Users.SingleAsync(u => u.PhoneNumber == phone, TestContext.Current.CancellationToken);
-            user.ConfirmationStatus.Should().Be(UserConfirmationStatus.Confirmed);
-
-            // Refresh token persisted as SHA-256 hash, never the raw token.
-            var stored = await ctx.RefreshTokens.SingleAsync(t => t.UserId == seeded.Id, TestContext.Current.CancellationToken);
-            stored.TokenHash.Should().Be(RefreshTokenHasher.Hash(rawRefresh));
-            stored.TokenHash.Should().NotBe(rawRefresh);
-            stored.CognitoSub.Should().Be(cognitoSub);
-            stored.DeviceId.Should().Be("dev-otp");
-            stored.RevokedAt.Should().BeNull();
-        }
+        var row = await QueryAsync(ctx => ctx.RefreshTokens.SingleAsync(Ct));
+        row.TokenHash.Should().Be(RefreshTokenHasher.Hash(refreshToken));
+        row.TokenHash.Should().NotBe(refreshToken);
+        row.UserId.Should().Be(userId);
+        row.DeviceId.Should().Be("dev-otp");
+        row.RevokedAt.Should().BeNull();
 
         await _fx.Publisher.Received(1).PublishAsync(
-            Arg.Is<UserLoggedIn>(e => e.UserId == seeded.Id && e.Provider == "phone" && e.DeviceId == "dev-otp"),
+            Arg.Is<UserRegistered>(e => e.UserId == userId && e.Provider == "phone" && e.PhoneNumber == phone),
             Arg.Any<CancellationToken>());
+        await _fx.Publisher.Received(1).PublishAsync(
+            Arg.Is<UserLoggedIn>(e => e.UserId == userId && e.Provider == "phone" && e.DeviceId == "dev-otp"),
+            Arg.Any<CancellationToken>());
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        var me = await client.GetAsync(MeEndpoint, Ct);
+        me.StatusCode.Should().Be(HttpStatusCode.OK);
+        var meJson = await ReadJsonAsync(me);
+        meJson.GetProperty("userId").GetGuid().Should().Be(userId);
+        meJson.GetProperty("provider").GetString().Should().Be("phone");
+        meJson.GetProperty("phoneNumber").GetString().Should().Be(phone);
     }
 
     /// <summary>
-    /// Covers FA.3: "401 — wrong/expired OTP code" maps to 401; no token persisted.
+    /// Covers FA.3: a second login of the same phone reuses the account (IsNewUser false, one
+    /// users row, two sessions) and does not publish UserRegistered again.
     /// </summary>
     [Fact]
-    public async Task Sms_otp_verify_with_wrong_code_returns_401()
+    public async Task Sms_otp_verify_for_returning_phone_reuses_the_user()
     {
-        await ResetDbAsync();
-        ResetMocks();
-        const string phone = "+5511955550000";
-        await SeedPhoneUserAsync(phone, "cog-sub-wrong", UserConfirmationStatus.Unconfirmed);
-
-        _fx.CognitoAuth.RespondToSmsOtpAsync(phone, Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .ThrowsAsync(new InvalidOtpException("wrong code"));
-
+        await ResetAsync();
+        const string phone = "+5511955552222";
         var client = _fx.Factory.CreateClient();
-        var resp = await client.PostAsJsonAsync(
-            "/api/v1/auth/login/sms-otp",
-            new { step = "verify", phoneNumber = phone, code = "999999", session = "s" },
-            TestContext.Current.CancellationToken);
+
+        var first = await ReadJsonAsync(await VerifyOtpAsync(client, phone));
+        var second = await ReadJsonAsync(await VerifyOtpAsync(client, phone));
+
+        second.GetProperty("userId").GetGuid().Should().Be(first.GetProperty("userId").GetGuid());
+        second.GetProperty("isNewUser").GetBoolean().Should().BeFalse();
+        (await QueryAsync(ctx => ctx.Users.CountAsync(Ct))).Should().Be(1);
+        (await QueryAsync(ctx => ctx.RefreshTokens.CountAsync(Ct))).Should().Be(2);
+        await _fx.Publisher.Received(1).PublishAsync(Arg.Any<UserRegistered>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Covers FA.3: "401 — wrong code", and nothing is created.
+    /// </summary>
+    [Fact]
+    public async Task Sms_otp_verify_with_wrong_code_returns_401_and_creates_nothing()
+    {
+        await ResetAsync();
+
+        var resp = await VerifyOtpAsync(_fx.Factory.CreateClient(), "+5511955553333", code: "000000");
 
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-        await _fx.Publisher.DidNotReceiveWithAnyArgs()
-            .PublishAsync<UserLoggedIn>(Arg.Any<UserLoggedIn>(), Arg.Any<CancellationToken>());
+        (await QueryAsync(ctx => ctx.Users.CountAsync(Ct))).Should().Be(0);
+        (await QueryAsync(ctx => ctx.RefreshTokens.CountAsync(Ct))).Should().Be(0);
     }
 
     // =====================================================================
-    // POST /login/google + /login/apple
+    // POST /login/google
     // =====================================================================
 
     /// <summary>
-    /// Covers FA.3: "POST /login/google (validate token → broker Cognito session → tokens)" +
-    /// AuthTokensResponse shape + hashed refresh-token persistence + UserLoggedIn on login.
+    /// Covers FA.3: "POST /login/google — validate the Google ID token, find or create the user,
+    /// return JWT + refresh". The second login with the same Google account reuses the user.
     /// </summary>
     [Fact]
-    public async Task Google_login_returns_tokens_persists_hashed_token_and_publishes_event()
+    public async Task Google_login_creates_the_user_once_and_reuses_it_afterwards()
     {
-        await ResetDbAsync();
-        ResetMocks();
-        const string cognitoSub = "cog-sub-google-login";
-        const string rawRefresh = "raw-refresh-google";
-        var seeded = await SeedExternalUserAsync(IdentityProvider.Google, cognitoSub);
-
-        _fx.Oidc.ValidateAsync("good.google.token", OidcProvider.Google, Arg.Any<CancellationToken>())
-            .Returns(new OidcClaims("google-ext-sub", "u@example.com", true));
-        _fx.CognitoAuth.BrokerExternalSessionAsync(IdentityProvider.Google, "google-ext-sub", Arg.Any<CancellationToken>())
-            .Returns(new CognitoAuthResult("g-access", "g-id", rawRefresh, 3600,
-                DateTimeOffset.UtcNow.AddDays(30), cognitoSub));
+        await ResetAsync();
+        _fx.Oidc.ValidateAsync("google.id.token", OidcProvider.Google, Arg.Any<CancellationToken>())
+            .Returns(new OidcClaims("google-sub-1", "Alice@Example.com", true));
 
         var client = _fx.Factory.CreateClient();
-        var resp = await client.PostAsJsonAsync(
-            "/api/v1/auth/login/google",
-            new { idToken = "good.google.token", deviceId = "dev-g" },
-            TestContext.Current.CancellationToken);
+        var first = await client.PostAsJsonAsync(GoogleEndpoint, new { idToken = "google.id.token", deviceId = "dev-g" }, Ct);
+        var second = await client.PostAsJsonAsync(GoogleEndpoint, new { idToken = "google.id.token" }, Ct);
 
-        resp.StatusCode.Should().Be(HttpStatusCode.OK);
-        var json = await resp.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
-        json.GetProperty("accessToken").GetString().Should().Be("g-access");
-        json.GetProperty("refreshToken").GetString().Should().Be(rawRefresh);
-        json.GetProperty("tokenType").GetString().Should().Be("Bearer");
-        json.GetProperty("userId").GetGuid().Should().Be(seeded.Id);
+        first.StatusCode.Should().Be(HttpStatusCode.OK);
+        second.StatusCode.Should().Be(HttpStatusCode.OK);
+        var firstJson = await ReadJsonAsync(first);
+        var secondJson = await ReadJsonAsync(second);
+        firstJson.GetProperty("isNewUser").GetBoolean().Should().BeTrue();
+        secondJson.GetProperty("isNewUser").GetBoolean().Should().BeFalse();
+        secondJson.GetProperty("userId").GetGuid().Should().Be(firstJson.GetProperty("userId").GetGuid());
 
-        using (var scope = _fx.Factory.Services.CreateScope())
-        {
-            var ctx = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-            var stored = await ctx.RefreshTokens.SingleAsync(t => t.UserId == seeded.Id, TestContext.Current.CancellationToken);
-            stored.TokenHash.Should().Be(RefreshTokenHasher.Hash(rawRefresh));
-            stored.TokenHash.Should().NotBe(rawRefresh);
-        }
+        var user = await QueryAsync(ctx => ctx.Users.SingleAsync(Ct));
+        user.Provider.Should().Be(IdentityProvider.Google);
+        user.ExternalSubject.Should().Be("google-sub-1");
+        user.Email.Should().Be("alice@example.com");
 
-        await _fx.Publisher.Received(1).PublishAsync(
-            Arg.Is<UserLoggedIn>(e => e.UserId == seeded.Id && e.Provider == "google"),
+        await _fx.Publisher.Received(2).PublishAsync(
+            Arg.Is<UserLoggedIn>(e => e.UserId == user.Id && e.Provider == "google"),
             Arg.Any<CancellationToken>());
     }
 
     /// <summary>
-    /// Covers FA.3: "POST /login/apple (idem, Apple provider)" — token validated with Apple,
-    /// event Provider == "apple".
-    /// </summary>
-    [Fact]
-    public async Task Apple_login_returns_tokens_and_publishes_apple_event()
-    {
-        await ResetDbAsync();
-        ResetMocks();
-        const string cognitoSub = "cog-sub-apple-login";
-        var seeded = await SeedExternalUserAsync(IdentityProvider.Apple, cognitoSub);
-
-        _fx.Oidc.ValidateAsync("good.apple.token", OidcProvider.Apple, Arg.Any<CancellationToken>())
-            .Returns(new OidcClaims("apple-ext-sub", "relay@privaterelay.appleid.com", true));
-        _fx.CognitoAuth.BrokerExternalSessionAsync(IdentityProvider.Apple, "apple-ext-sub", Arg.Any<CancellationToken>())
-            .Returns(new CognitoAuthResult("a-access", "a-id", "raw-refresh-apple", 3600,
-                DateTimeOffset.UtcNow.AddDays(30), cognitoSub));
-
-        var client = _fx.Factory.CreateClient();
-        var resp = await client.PostAsJsonAsync(
-            "/api/v1/auth/login/apple",
-            new { idToken = "good.apple.token" },
-            TestContext.Current.CancellationToken);
-
-        resp.StatusCode.Should().Be(HttpStatusCode.OK);
-        await _fx.Oidc.Received(1).ValidateAsync("good.apple.token", OidcProvider.Apple, Arg.Any<CancellationToken>());
-        await _fx.Publisher.Received(1).PublishAsync(
-            Arg.Is<UserLoggedIn>(e => e.UserId == seeded.Id && e.Provider == "apple"),
-            Arg.Any<CancellationToken>());
-    }
-
-    /// <summary>
-    /// Covers FA.3: "401 — Google ID token fails validation".
+    /// Covers FA.3: "401 — invalid Google ID token".
     /// </summary>
     [Fact]
     public async Task Google_login_with_invalid_token_returns_401()
     {
-        await ResetDbAsync();
-        ResetMocks();
-
+        await ResetAsync();
         _fx.Oidc.ValidateAsync(Arg.Any<string>(), OidcProvider.Google, Arg.Any<CancellationToken>())
-            .ThrowsAsync(new OidcTokenInvalidException("bad signature"));
+            .ThrowsAsync(new OidcTokenInvalidException("bad"));
 
-        var client = _fx.Factory.CreateClient();
-        var resp = await client.PostAsJsonAsync(
-            "/api/v1/auth/login/google",
-            new { idToken = "bad.token" },
-            TestContext.Current.CancellationToken);
+        var resp = await _fx.Factory.CreateClient()
+            .PostAsJsonAsync(GoogleEndpoint, new { idToken = "bad.token" }, Ct);
 
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await QueryAsync(ctx => ctx.Users.CountAsync(Ct))).Should().Be(0);
     }
 
     /// <summary>
-    /// Covers FA.3: "404 — token valid but no linked Cognito / local user" (broker throws).
-    /// </summary>
-    [Fact]
-    public async Task Google_login_with_unlinked_user_returns_404()
-    {
-        await ResetDbAsync();
-        ResetMocks();
-
-        _fx.Oidc.ValidateAsync(Arg.Any<string>(), OidcProvider.Google, Arg.Any<CancellationToken>())
-            .Returns(new OidcClaims("unlinked-sub", "u@example.com", true));
-        _fx.CognitoAuth.BrokerExternalSessionAsync(IdentityProvider.Google, "unlinked-sub", Arg.Any<CancellationToken>())
-            .ThrowsAsync(new UserNotFoundForLoginException("no linked user"));
-
-        var client = _fx.Factory.CreateClient();
-        var resp = await client.PostAsJsonAsync(
-            "/api/v1/auth/login/google",
-            new { idToken = "tok" },
-            TestContext.Current.CancellationToken);
-
-        resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
-    }
-
-    /// <summary>
-    /// Covers FA.3: "502 — unexpected Cognito service error".
-    /// </summary>
-    [Fact]
-    public async Task Google_login_when_cognito_unavailable_returns_502()
-    {
-        await ResetDbAsync();
-        ResetMocks();
-
-        _fx.Oidc.ValidateAsync(Arg.Any<string>(), OidcProvider.Google, Arg.Any<CancellationToken>())
-            .Returns(new OidcClaims("ext-sub", "u@example.com", true));
-        _fx.CognitoAuth.BrokerExternalSessionAsync(IdentityProvider.Google, "ext-sub", Arg.Any<CancellationToken>())
-            .ThrowsAsync(new CognitoUnavailableException("boom"));
-
-        var client = _fx.Factory.CreateClient();
-        var resp = await client.PostAsJsonAsync(
-            "/api/v1/auth/login/google",
-            new { idToken = "tok" },
-            TestContext.Current.CancellationToken);
-
-        resp.StatusCode.Should().Be(HttpStatusCode.BadGateway);
-    }
-
-    /// <summary>
-    /// Covers FA.3: "400 — validation failure (empty token)".
+    /// Covers FA.3: "400 — empty ID token".
     /// </summary>
     [Fact]
     public async Task Google_login_with_empty_token_returns_400()
     {
-        await ResetDbAsync();
-        ResetMocks();
+        await ResetAsync();
 
-        var client = _fx.Factory.CreateClient();
-        var resp = await client.PostAsJsonAsync(
-            "/api/v1/auth/login/google",
-            new { idToken = "" },
-            TestContext.Current.CancellationToken);
+        var resp = await _fx.Factory.CreateClient()
+            .PostAsJsonAsync(GoogleEndpoint, new { idToken = "" }, Ct);
 
         resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
@@ -426,201 +295,153 @@ public sealed class LoginEndpointsTests : IClassFixture<LoginEndpointsTests.Fixt
     // =====================================================================
 
     /// <summary>
-    /// Covers FA.3: "POST /refresh — unknown refresh token → 401".
+    /// Covers FA.3: "refresh rotates the refresh token" — a new pair is returned, the old row is
+    /// revoked, the old raw token no longer works, the new one does, and no UserLoggedIn is
+    /// published for the refresh.
+    /// </summary>
+    [Fact]
+    public async Task Refresh_rotates_the_token_and_the_old_one_stops_working()
+    {
+        await ResetAsync();
+        var client = _fx.Factory.CreateClient();
+        var login = await ReadJsonAsync(await VerifyOtpAsync(client, "+5511955556666", deviceId: "dev-r"));
+        var oldRefresh = login.GetProperty("refreshToken").GetString()!;
+        _fx.Publisher.ClearReceivedCalls();
+
+        var resp = await client.PostAsJsonAsync(RefreshEndpoint, new { refreshToken = oldRefresh }, Ct);
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var json = await ReadJsonAsync(resp);
+        var newRefresh = json.GetProperty("refreshToken").GetString()!;
+        newRefresh.Should().NotBe(oldRefresh);
+        json.GetProperty("accessToken").GetString().Should().NotBeNullOrWhiteSpace();
+        json.GetProperty("userId").GetGuid().Should().Be(login.GetProperty("userId").GetGuid());
+
+        var rows = await QueryAsync(ctx => ctx.RefreshTokens.ToListAsync(Ct));
+        rows.Should().HaveCount(2);
+        rows.Single(r => r.TokenHash == RefreshTokenHasher.Hash(oldRefresh)).RevokedAt.Should().NotBeNull();
+        var active = rows.Single(r => r.TokenHash == RefreshTokenHasher.Hash(newRefresh));
+        active.RevokedAt.Should().BeNull();
+        active.DeviceId.Should().Be("dev-r");
+
+        await _fx.Publisher.DidNotReceive().PublishAsync(Arg.Any<UserLoggedIn>(), Arg.Any<CancellationToken>());
+
+        var replay = await client.PostAsJsonAsync(RefreshEndpoint, new { refreshToken = oldRefresh }, Ct);
+        replay.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        var again = await client.PostAsJsonAsync(RefreshEndpoint, new { refreshToken = newRefresh }, Ct);
+        again.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    /// <summary>
+    /// Covers the concurrent-refresh guard against the real database: two simultaneous refreshes
+    /// of one token yield exactly one success.
+    /// </summary>
+    [Fact]
+    public async Task Concurrent_refreshes_of_the_same_token_succeed_only_once()
+    {
+        await ResetAsync();
+        var client = _fx.Factory.CreateClient();
+        var login = await ReadJsonAsync(await VerifyOtpAsync(client, "+5511955557777"));
+        var refreshToken = login.GetProperty("refreshToken").GetString()!;
+
+        var responses = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ =>
+            client.PostAsJsonAsync(RefreshEndpoint, new { refreshToken }, Ct)));
+
+        responses.Count(r => r.StatusCode == HttpStatusCode.OK).Should().Be(1);
+        responses.Count(r => r.StatusCode == HttpStatusCode.Unauthorized).Should().Be(3);
+        (await QueryAsync(ctx => ctx.RefreshTokens.CountAsync(t => t.RevokedAt == null, Ct))).Should().Be(1);
+    }
+
+    /// <summary>
+    /// Covers FA.3: "401 — refresh token unknown".
     /// </summary>
     [Fact]
     public async Task Refresh_with_unknown_token_returns_401()
     {
-        await ResetDbAsync();
-        ResetMocks();
+        await ResetAsync();
 
-        var client = _fx.Factory.CreateClient();
-        var resp = await client.PostAsJsonAsync(
-            "/api/v1/auth/refresh",
-            new { refreshToken = "unknown-token" },
-            TestContext.Current.CancellationToken);
+        var resp = await _fx.Factory.CreateClient()
+            .PostAsJsonAsync(RefreshEndpoint, new { refreshToken = "never-issued" }, Ct);
 
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     /// <summary>
-    /// Covers FA.3: "POST /refresh — revoked token → 401".
-    /// </summary>
-    [Fact]
-    public async Task Refresh_with_revoked_token_returns_401()
-    {
-        await ResetDbAsync();
-        ResetMocks();
-        const string raw = "revoked-raw-token";
-        var user = await SeedExternalUserAsync(IdentityProvider.Google, "cog-sub-revoked");
-
-        using (var scope = _fx.Factory.Services.CreateScope())
-        {
-            var ctx = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-            var token = RefreshToken.Issue(Guid.NewGuid(), user.Id, RefreshTokenHasher.Hash(raw),
-                user.CognitoSub, null, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(29));
-            token.Revoke(DateTimeOffset.UtcNow);
-            ctx.RefreshTokens.Add(token);
-            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
-        }
-
-        var client = _fx.Factory.CreateClient();
-        var resp = await client.PostAsJsonAsync(
-            "/api/v1/auth/refresh",
-            new { refreshToken = raw },
-            TestContext.Current.CancellationToken);
-
-        resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-        await _fx.CognitoAuth.DidNotReceiveWithAnyArgs()
-            .RefreshAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
-    }
-
-    /// <summary>
-    /// Covers FA.3: "POST /refresh — expired token → 401".
+    /// Covers FA.3: "401 — refresh token expired".
     /// </summary>
     [Fact]
     public async Task Refresh_with_expired_token_returns_401()
     {
-        await ResetDbAsync();
-        ResetMocks();
-        const string raw = "expired-raw-token";
-        var user = await SeedExternalUserAsync(IdentityProvider.Google, "cog-sub-expired");
-
-        using (var scope = _fx.Factory.Services.CreateScope())
-        {
-            var ctx = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-            var token = RefreshToken.Issue(Guid.NewGuid(), user.Id, RefreshTokenHasher.Hash(raw),
-                user.CognitoSub, null, DateTimeOffset.UtcNow.AddDays(-40), DateTimeOffset.UtcNow.AddDays(-10));
-            ctx.RefreshTokens.Add(token);
-            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
-        }
-
+        await ResetAsync();
         var client = _fx.Factory.CreateClient();
-        var resp = await client.PostAsJsonAsync(
-            "/api/v1/auth/refresh",
-            new { refreshToken = raw },
-            TestContext.Current.CancellationToken);
+        var login = await ReadJsonAsync(await VerifyOtpAsync(client, "+5511955558888"));
+        var refreshToken = login.GetProperty("refreshToken").GetString()!;
+        await QueryAsync(ctx => ctx.Database.ExecuteSqlRawAsync(
+            "UPDATE refresh_tokens SET expires_at = now() - interval '1 minute';", Ct));
+
+        var resp = await client.PostAsJsonAsync(RefreshEndpoint, new { refreshToken }, Ct);
 
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     /// <summary>
-    /// Covers FA.3: "POST /refresh — rotation revoking the old row" + new hashed row persisted +
-    /// "no UserLoggedIn event on refresh".
-    /// </summary>
-    [Fact]
-    public async Task Refresh_with_rotation_revokes_old_row_persists_new_and_does_not_publish()
-    {
-        await ResetDbAsync();
-        ResetMocks();
-        const string oldRaw = "old-raw-token";
-        const string newRaw = "rotated-raw-token";
-        const string cognitoSub = "cog-sub-rotate";
-        var user = await SeedExternalUserAsync(IdentityProvider.Google, cognitoSub);
-
-        Guid oldRowId;
-        using (var scope = _fx.Factory.Services.CreateScope())
-        {
-            var ctx = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-            var token = RefreshToken.Issue(Guid.NewGuid(), user.Id, RefreshTokenHasher.Hash(oldRaw),
-                cognitoSub, null, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(29));
-            ctx.RefreshTokens.Add(token);
-            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
-            oldRowId = token.Id;
-        }
-
-        _fx.CognitoAuth.RefreshAsync(oldRaw, cognitoSub, Arg.Any<CancellationToken>())
-            .Returns(new CognitoAuthResult("new-access", "new-id", newRaw, 3600,
-                DateTimeOffset.UtcNow.AddDays(30), cognitoSub));
-
-        var client = _fx.Factory.CreateClient();
-        var resp = await client.PostAsJsonAsync(
-            "/api/v1/auth/refresh",
-            new { refreshToken = oldRaw, deviceId = "dev-rot" },
-            TestContext.Current.CancellationToken);
-
-        resp.StatusCode.Should().Be(HttpStatusCode.OK);
-        var json = await resp.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
-        json.GetProperty("accessToken").GetString().Should().Be("new-access");
-        json.GetProperty("refreshToken").GetString().Should().Be(newRaw);
-
-        using (var scope = _fx.Factory.Services.CreateScope())
-        {
-            var ctx = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-
-            // Old row revoked.
-            var oldRow = await ctx.RefreshTokens.SingleAsync(t => t.Id == oldRowId, TestContext.Current.CancellationToken);
-            oldRow.RevokedAt.Should().NotBeNull();
-
-            // New row persisted, hashed (never raw), active.
-            var newRow = await ctx.RefreshTokens.SingleAsync(t => t.Id != oldRowId, TestContext.Current.CancellationToken);
-            newRow.TokenHash.Should().Be(RefreshTokenHasher.Hash(newRaw));
-            newRow.TokenHash.Should().NotBe(newRaw);
-            newRow.DeviceId.Should().Be("dev-rot");
-            newRow.RevokedAt.Should().BeNull();
-        }
-
-        // No UserLoggedIn on refresh.
-        await _fx.Publisher.DidNotReceiveWithAnyArgs()
-            .PublishAsync<UserLoggedIn>(Arg.Any<UserLoggedIn>(), Arg.Any<CancellationToken>());
-    }
-
-    /// <summary>
-    /// Covers FA.3: "POST /refresh — Cognito rejects → 401 and the local row is revoked".
-    /// </summary>
-    [Fact]
-    public async Task Refresh_when_cognito_rejects_returns_401_and_revokes_row()
-    {
-        await ResetDbAsync();
-        ResetMocks();
-        const string raw = "cognito-rejected-token";
-        const string cognitoSub = "cog-sub-reject";
-        var user = await SeedExternalUserAsync(IdentityProvider.Google, cognitoSub);
-
-        Guid rowId;
-        using (var scope = _fx.Factory.Services.CreateScope())
-        {
-            var ctx = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-            var token = RefreshToken.Issue(Guid.NewGuid(), user.Id, RefreshTokenHasher.Hash(raw),
-                cognitoSub, null, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(29));
-            ctx.RefreshTokens.Add(token);
-            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
-            rowId = token.Id;
-        }
-
-        _fx.CognitoAuth.RefreshAsync(raw, cognitoSub, Arg.Any<CancellationToken>())
-            .ThrowsAsync(new RefreshTokenRejectedException("Cognito NotAuthorized"));
-
-        var client = _fx.Factory.CreateClient();
-        var resp = await client.PostAsJsonAsync(
-            "/api/v1/auth/refresh",
-            new { refreshToken = raw },
-            TestContext.Current.CancellationToken);
-
-        resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-
-        using var verifyScope = _fx.Factory.Services.CreateScope();
-        var verifyCtx = verifyScope.ServiceProvider.GetRequiredService<AuthDbContext>();
-        var row = await verifyCtx.RefreshTokens.SingleAsync(t => t.Id == rowId, TestContext.Current.CancellationToken);
-        row.RevokedAt.Should().NotBeNull();
-    }
-
-    /// <summary>
-    /// Covers FA.3: "400 — validation failure (empty token)" on refresh.
+    /// Covers FA.3: "400 — empty refresh token".
     /// </summary>
     [Fact]
     public async Task Refresh_with_empty_token_returns_400()
     {
-        await ResetDbAsync();
-        ResetMocks();
+        await ResetAsync();
 
-        var client = _fx.Factory.CreateClient();
-        var resp = await client.PostAsJsonAsync(
-            "/api/v1/auth/refresh",
-            new { refreshToken = "" },
-            TestContext.Current.CancellationToken);
+        var resp = await _fx.Factory.CreateClient()
+            .PostAsJsonAsync(RefreshEndpoint, new { refreshToken = "" }, Ct);
 
         resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    // =====================================================================
+    // POST /logout and GET /me
+    // =====================================================================
+
+    /// <summary>
+    /// Covers logout: 204, the refresh token is revoked and can no longer be refreshed; a second
+    /// logout with the same token is still 204.
+    /// </summary>
+    [Fact]
+    public async Task Logout_revokes_the_refresh_token()
+    {
+        await ResetAsync();
+        var client = _fx.Factory.CreateClient();
+        var login = await ReadJsonAsync(await VerifyOtpAsync(client, "+5511955559999"));
+        var refreshToken = login.GetProperty("refreshToken").GetString()!;
+
+        var logout = await client.PostAsJsonAsync(LogoutEndpoint, new { refreshToken }, Ct);
+        var logoutAgain = await client.PostAsJsonAsync(LogoutEndpoint, new { refreshToken }, Ct);
+        var refresh = await client.PostAsJsonAsync(RefreshEndpoint, new { refreshToken }, Ct);
+
+        logout.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        logoutAgain.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        refresh.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    /// <summary>
+    /// Covers GET /me: requires a token, and a valid token for a user that does not exist is 401.
+    /// </summary>
+    [Fact]
+    public async Task Me_requires_a_token_for_an_existing_user()
+    {
+        await ResetAsync();
+        var client = _fx.Factory.CreateClient();
+
+        var anonymous = await client.GetAsync(MeEndpoint, Ct);
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer",
+            TestJwtFactory.CreateAccessToken(subject: Guid.NewGuid().ToString()));
+        var ghost = await client.GetAsync(MeEndpoint, Ct);
+
+        anonymous.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        ghost.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     // =====================================================================
@@ -632,7 +453,6 @@ public sealed class LoginEndpointsTests : IClassFixture<LoginEndpointsTests.Fixt
         private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:16")
             .Build();
 
-        public ICognitoAuthClient CognitoAuth { get; private set; } = Substitute.For<ICognitoAuthClient>();
         public IOidcTokenValidator Oidc { get; private set; } = Substitute.For<IOidcTokenValidator>();
         public IEventPublisher Publisher { get; private set; } = Substitute.For<IEventPublisher>();
 
@@ -649,19 +469,9 @@ public sealed class LoginEndpointsTests : IClassFixture<LoginEndpointsTests.Fixt
 
                     builder.ConfigureAppConfiguration((_, config) =>
                     {
+                        config.AddInMemoryCollection(TestJwtFactory.AuthSettings());
                         config.AddInMemoryCollection(new Dictionary<string, string?>
                         {
-                            ["Auth:Cognito:UserPoolId"] = "us-east-1_TESTPOOL",
-                            ["Auth:Cognito:Region"] = "us-east-1",
-                            ["Auth:Cognito:Audience"] = "test-aud",
-                            ["Auth:Cognito:AppClientId"] = "test-app-client",
-                            ["Auth:Cognito:ClockSkewSeconds"] = "30",
-                            ["Auth:Google:ClientId"] = "google-client",
-                            ["Auth:Google:Issuer"] = "https://accounts.google.com",
-                            ["Auth:Google:JwksUri"] = "https://accounts.google.com/.well-known/openid-configuration",
-                            ["Auth:Apple:ClientId"] = "apple-client",
-                            ["Auth:Apple:Issuer"] = "https://appleid.apple.com",
-                            ["Auth:Apple:JwksUri"] = "https://appleid.apple.com/.well-known/openid-configuration",
                             ["ConnectionStrings:Auth"] = _postgres.GetConnectionString(),
                             ["ConnectionStrings:Default"] = _postgres.GetConnectionString(),
                             // Matches module fail-fast: SQS queue URLs required at startup.
@@ -672,7 +482,6 @@ public sealed class LoginEndpointsTests : IClassFixture<LoginEndpointsTests.Fixt
 
                     builder.ConfigureTestServices(services =>
                     {
-                        ReplaceService(services, typeof(ICognitoAuthClient), CognitoAuth);
                         ReplaceService(services, typeof(IOidcTokenValidator), Oidc);
                         ReplaceService(services, typeof(IEventPublisher), Publisher);
                     });

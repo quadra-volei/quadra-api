@@ -1,5 +1,35 @@
 # Spec: Login flows
 
+> ## Amendment — 2026-10-05: own JWT, Twilio Verify, login creates the user (supersedes the Cognito details below)
+>
+> Johny decided to drop AWS Cognito. Where this amendment and the original text disagree, the amendment wins.
+>
+> **Model**
+> - No separate signup (FA.2 is superseded). The first valid SMS OTP for a phone number, or the first valid Google ID token for a Google account, creates the `users` row and publishes `UserRegistered`; every interactive login publishes `UserLoggedIn`.
+> - The API issues its own session: an HS256 JWT access token (`sub` = `users.id`, default 15 min) and an opaque random refresh token (default 30 days), stored only as a SHA-256 hash in `refresh_tokens`.
+> - SMS OTP goes through `IPhoneVerificationService`: `TwilioVerifyPhoneVerificationService` (Twilio Verify v2 REST via `HttpClient`, no new NuGet) or `FakePhoneVerificationService` (fixed code, no SMS, refused in Production). Selected by `Auth:PhoneVerification:Provider` (`Twilio` | `Fake`). The code is 6 digits; the provider owns generation, expiry and attempt limits.
+> - Google ID tokens are validated by the existing `GoogleAppleTokenValidator` (`aud` = `Auth:Google:ClientId`, the **web** OAuth client ID the mobile app passes as `webClientId`). The Apple endpoint is kept but answers 401 until `Auth:Apple:ClientId` is configured.
+>
+> **Endpoints** (all under `/api/v1/auth`)
+> - `POST /login/sms-otp` — `{ step: "initiate" | "verify", phoneNumber, code?, deviceId? }` (no `session` field).
+>   - initiate → `200 { delivery: { deliveryMedium, deliveryDestination } }` for **any** valid E.164 number (no 404 for unknown phones; calling it again resends).
+>   - verify → `200 AuthTokensResponse`; `401` wrong or expired code.
+>   - `400` validation, `422` number refused by the SMS provider, `429` provider throttling, `502` provider failure.
+> - `POST /login/google`, `POST /login/apple` — `{ idToken, deviceId? }` → `200 AuthTokensResponse`; `401` invalid token; `400` validation.
+> - `POST /refresh` — `{ refreshToken, deviceId? }` → `200 AuthTokensResponse` with a **new** refresh token; the presented one is revoked atomically (two concurrent refreshes of one token: exactly one succeeds). `401` unknown / revoked / expired.
+> - `POST /logout` — `{ refreshToken }` → `204` always (revokes the token if it was active).
+> - `GET /me` — bearer token required → `200 { userId, provider, phoneNumber, email }`; `401` without a valid token or when the user no longer exists.
+>
+> `AuthTokensResponse`: `{ accessToken, refreshToken, tokenType: "Bearer", expiresIn, userId, isNewUser }` (no `idToken`, `cognitoSub` or `confirmationStatus`).
+>
+> **Database** — migration `ReplaceCognitoWithOwnIdentity`: drops `users.cognito_sub`, `users.confirmation_status`, `refresh_tokens.cognito_sub` and their indexes; adds `users.external_subject varchar(255) NULL` (the Google/Apple `sub`) with a unique index on `(provider, external_subject)` where not null; deletes existing `refresh_tokens` rows (Cognito-issued sessions cannot be refreshed).
+>
+> **Events** — `UserRegistered(UserId, Provider, PhoneNumber, Email, OccurredAt)` and `UserLoggedIn(UserId, Provider, DeviceId, OccurredAt)`; the `CognitoSub` and `ConfirmationStatus` fields were removed.
+>
+> **Configuration** — `Auth:Jwt` (`Issuer`, `Audience`, `SigningKey`, `AccessTokenMinutes`, `RefreshTokenDays`, `ClockSkewSeconds`), `Auth:PhoneVerification` (`Provider`, `Twilio:{AccountSid, AuthToken, VerifyServiceSid}`, `Fake:{Code, PhoneNumber}`), `Auth:Google:ClientId`. Secrets come from the environment / secret store, never from versioned files.
+>
+> Everything below is the original Cognito-based spec, kept for history.
+
 ## Origin
 - User Story / Feature from SCOPE: FA.3 — Login flows
 - Layer: Cross-cutting (Auth, MVP)

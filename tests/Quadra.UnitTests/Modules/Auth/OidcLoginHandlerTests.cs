@@ -4,7 +4,6 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Quadra.Infrastructure.Messaging;
 using Quadra.Modules.Auth.Application;
-using Quadra.Modules.Auth.Cognito;
 using Quadra.Modules.Auth.Entities;
 using Quadra.Modules.Auth.Oidc;
 using Quadra.Modules.Auth.Persistence;
@@ -13,207 +12,158 @@ using Quadra.Shared.Events.Auth;
 namespace Quadra.UnitTests.Modules.Auth;
 
 /// <summary>
-/// Unit tests for <see cref="OidcLoginHandler"/> (FA.3 Google/Apple login). Covers token validation,
-/// the Cognito broker, refresh-token persistence (hashed), exception translation, and the
-/// <c>UserLoggedIn</c> event.
+/// Unit tests for <see cref="OidcLoginHandler"/> (FA.3 Google/Apple login). Covers ID token
+/// validation, find-or-create of the local user by external identity, hashed refresh-token
+/// persistence, and the <c>UserRegistered</c> / <c>UserLoggedIn</c> events.
 /// </summary>
 public sealed class OidcLoginHandlerTests
 {
-    private static readonly DateTimeOffset Now = new(2026, 5, 30, 12, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset Now = new(2026, 10, 5, 12, 0, 0, TimeSpan.Zero);
+
+    private const string IdToken = "good.google.token";
+    private const string GoogleSub = "google-sub-1";
 
     private readonly IOidcTokenValidator _oidc = Substitute.For<IOidcTokenValidator>();
-    private readonly ICognitoAuthClient _cognito = Substitute.For<ICognitoAuthClient>();
     private readonly IUserRepository _users = Substitute.For<IUserRepository>();
     private readonly IRefreshTokenRepository _refreshTokens = Substitute.For<IRefreshTokenRepository>();
     private readonly IEventPublisher _publisher = Substitute.For<IEventPublisher>();
-    private readonly TimeProvider _timeProvider = new FixedTimeProvider(Now);
 
     private OidcLoginHandler CreateSut() => new(
         _oidc,
-        _cognito,
-        _users,
+        new UserProvisioner(_users, _publisher, NullLogger<UserProvisioner>.Instance),
+        AuthTestSupport.SessionFactory(),
         _refreshTokens,
         _publisher,
-        _timeProvider,
+        new FixedTimeProvider(Now),
         NullLogger<OidcLoginHandler>.Instance);
 
-    private static User ExternalUser(IdentityProvider provider, string cognitoSub) =>
-        User.CreateForExternal(Guid.NewGuid(), cognitoSub, provider, "u@example.com", Now);
-
-    // ---------------- google happy path ----------------
+    // ---------------- first login creates the user ----------------
 
     /// <summary>
-    /// Covers FA.3: "POST /login/google — validate token → broker Cognito session → tokens";
-    /// "returns JWT + refresh token (AuthTokensResponse shape)"; refresh token persisted hashed;
-    /// "UserLoggedIn event published on login".
+    /// Covers FA.3: "POST /login/google — validate token → create user → JWT + refresh". The
+    /// Google <c>sub</c> is stored as the external identity and the email is normalized.
     /// </summary>
     [Fact]
-    public async Task Google_login_validates_brokers_persists_hashed_token_and_publishes_event()
+    public async Task Google_first_login_creates_user_and_issues_session()
     {
-        const string idToken = "good.google.token";
-        const string externalSub = "google-sub-1";
-        const string cognitoSub = "cog-sub-google";
-        const string rawRefresh = "raw-refresh-google";
+        _oidc.ValidateAsync(IdToken, OidcProvider.Google, Arg.Any<CancellationToken>())
+            .Returns(new OidcClaims(GoogleSub, "  U@Example.com ", true));
+        _users.FindByExternalIdentityAsync(IdentityProvider.Google, GoogleSub, Arg.Any<CancellationToken>())
+            .Returns((User?)null);
+        _users.TryAddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>()).Returns(true);
 
-        _oidc.ValidateAsync(idToken, OidcProvider.Google, Arg.Any<CancellationToken>())
-            .Returns(new OidcClaims(externalSub, "u@example.com", true));
-        _cognito.BrokerExternalSessionAsync(IdentityProvider.Google, externalSub, Arg.Any<CancellationToken>())
-            .Returns(new CognitoAuthResult("acc", "idt", rawRefresh, 3600, Now.AddDays(30), cognitoSub));
-        var user = ExternalUser(IdentityProvider.Google, cognitoSub);
-        _users.FindByCognitoSubAsync(cognitoSub, Arg.Any<CancellationToken>()).Returns(user);
+        var response = await CreateSut().HandleAsync(
+            IdentityProvider.Google, IdToken, deviceId: "dev-1", TestContext.Current.CancellationToken);
 
-        var sut = CreateSut();
-
-        var response = await sut.HandleAsync(
-            IdentityProvider.Google, idToken, deviceId: "dev-1", TestContext.Current.CancellationToken);
-
-        response.AccessToken.Should().Be("acc");
-        response.IdToken.Should().Be("idt");
-        response.RefreshToken.Should().Be(rawRefresh);
+        response.IsNewUser.Should().BeTrue();
         response.TokenType.Should().Be("Bearer");
-        response.ExpiresIn.Should().Be(3600);
-        response.UserId.Should().Be(user.Id);
-        response.CognitoSub.Should().Be(cognitoSub);
-        response.ConfirmationStatus.Should().Be("Confirmed");
+        response.ExpiresIn.Should().Be(15 * 60);
+
+        await _users.Received(1).TryAddAsync(
+            Arg.Is<User>(u =>
+                u.Id == response.UserId
+                && u.Provider == IdentityProvider.Google
+                && u.ExternalSubject == GoogleSub
+                && u.Email == "u@example.com"
+                && u.PhoneNumber == null),
+            Arg.Any<CancellationToken>());
 
         await _refreshTokens.Received(1).AddAsync(
             Arg.Is<RefreshToken>(t =>
-                t.TokenHash == RefreshTokenHasher.Hash(rawRefresh)
-                && t.TokenHash != rawRefresh
-                && t.UserId == user.Id
-                && t.CognitoSub == cognitoSub
+                t.TokenHash == RefreshTokenHasher.Hash(response.RefreshToken)
+                && t.TokenHash != response.RefreshToken
+                && t.UserId == response.UserId
                 && t.DeviceId == "dev-1"
                 && t.IssuedAt == Now
                 && t.ExpiresAt == Now.AddDays(30)),
             Arg.Any<CancellationToken>());
 
         await _publisher.Received(1).PublishAsync(
+            Arg.Is<UserRegistered>(e =>
+                e.UserId == response.UserId && e.Provider == "google" && e.Email == "u@example.com"),
+            Arg.Any<CancellationToken>());
+        await _publisher.Received(1).PublishAsync(
             Arg.Is<UserLoggedIn>(e =>
-                e.UserId == user.Id
-                && e.CognitoSub == cognitoSub
-                && e.Provider == "google"
-                && e.DeviceId == "dev-1"
-                && e.OccurredAt == Now),
+                e.UserId == response.UserId && e.Provider == "google" && e.DeviceId == "dev-1" && e.OccurredAt == Now),
             Arg.Any<CancellationToken>());
     }
 
+    // ---------------- returning user ----------------
+
     /// <summary>
-    /// Covers FA.3: "POST /login/apple (idem, Apple provider)" — validated with OidcProvider.Apple
-    /// and event Provider == "apple".
+    /// Covers FA.3: a returning Google account logs into its existing user — no insert, no
+    /// UserRegistered, IsNewUser false.
     /// </summary>
     [Fact]
-    public async Task Apple_login_validates_with_apple_provider_and_publishes_apple_event()
+    public async Task Google_login_for_known_identity_reuses_the_user()
     {
-        const string idToken = "good.apple.token";
-        const string externalSub = "apple-sub-1";
-        const string cognitoSub = "cog-sub-apple";
+        var existing = User.CreateForExternal(
+            Guid.NewGuid(), IdentityProvider.Google, GoogleSub, "u@example.com", Now.AddDays(-3));
+        _oidc.ValidateAsync(IdToken, OidcProvider.Google, Arg.Any<CancellationToken>())
+            .Returns(new OidcClaims(GoogleSub, "u@example.com", true));
+        _users.FindByExternalIdentityAsync(IdentityProvider.Google, GoogleSub, Arg.Any<CancellationToken>())
+            .Returns(existing);
 
-        _oidc.ValidateAsync(idToken, OidcProvider.Apple, Arg.Any<CancellationToken>())
-            .Returns(new OidcClaims(externalSub, "relay@privaterelay.appleid.com", true));
-        _cognito.BrokerExternalSessionAsync(IdentityProvider.Apple, externalSub, Arg.Any<CancellationToken>())
-            .Returns(new CognitoAuthResult("a", "i", "rr", 3600, Now.AddDays(30), cognitoSub));
-        var user = ExternalUser(IdentityProvider.Apple, cognitoSub);
-        _users.FindByCognitoSubAsync(cognitoSub, Arg.Any<CancellationToken>()).Returns(user);
+        var response = await CreateSut().HandleAsync(
+            IdentityProvider.Google, IdToken, deviceId: null, TestContext.Current.CancellationToken);
 
-        var sut = CreateSut();
-
-        await sut.HandleAsync(IdentityProvider.Apple, idToken, deviceId: null, TestContext.Current.CancellationToken);
-
-        await _oidc.Received(1).ValidateAsync(idToken, OidcProvider.Apple, Arg.Any<CancellationToken>());
-        await _publisher.Received(1).PublishAsync(
-            Arg.Is<UserLoggedIn>(e => e.Provider == "apple"), Arg.Any<CancellationToken>());
+        response.UserId.Should().Be(existing.Id);
+        response.IsNewUser.Should().BeFalse();
+        await _users.DidNotReceive().TryAddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
+        await _publisher.DidNotReceive().PublishAsync(Arg.Any<UserRegistered>(), Arg.Any<CancellationToken>());
+        await _publisher.Received(1).PublishAsync(Arg.Any<UserLoggedIn>(), Arg.Any<CancellationToken>());
     }
 
-    // ---------------- error paths ----------------
-
     /// <summary>
-    /// Covers FA.3: "401 — the provider ID token fails validation" — never reaches Cognito/persist.
+    /// Covers FA.3: "POST /login/apple (idem, Apple provider)" — validated with OidcProvider.Apple,
+    /// looked up under the Apple provider, and the event Provider is "apple".
     /// </summary>
     [Fact]
-    public async Task Invalid_token_throws_401_without_broker_or_persist()
+    public async Task Apple_login_uses_the_apple_provider()
     {
-        const string idToken = "bad.token";
-        _oidc.ValidateAsync(idToken, OidcProvider.Google, Arg.Any<CancellationToken>())
+        const string appleSub = "apple-sub-1";
+        var existing = User.CreateForExternal(Guid.NewGuid(), IdentityProvider.Apple, appleSub, null, Now);
+        _oidc.ValidateAsync("apple.token", OidcProvider.Apple, Arg.Any<CancellationToken>())
+            .Returns(new OidcClaims(appleSub, null, false));
+        _users.FindByExternalIdentityAsync(IdentityProvider.Apple, appleSub, Arg.Any<CancellationToken>())
+            .Returns(existing);
+
+        await CreateSut().HandleAsync(
+            IdentityProvider.Apple, "apple.token", deviceId: null, TestContext.Current.CancellationToken);
+
+        await _publisher.Received(1).PublishAsync(
+            Arg.Is<UserLoggedIn>(e => e.UserId == existing.Id && e.Provider == "apple"),
+            Arg.Any<CancellationToken>());
+    }
+
+    // ---------------- failures ----------------
+
+    /// <summary>
+    /// Covers FA.3: "invalid ID token → 401" — the exception propagates and nothing is created.
+    /// </summary>
+    [Fact]
+    public async Task Invalid_id_token_propagates_and_creates_nothing()
+    {
+        _oidc.ValidateAsync(Arg.Any<string>(), Arg.Any<OidcProvider>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new OidcTokenInvalidException("bad signature"));
 
-        var sut = CreateSut();
-
-        var act = async () => await sut.HandleAsync(
-            IdentityProvider.Google, idToken, deviceId: null, TestContext.Current.CancellationToken);
+        var act = async () => await CreateSut().HandleAsync(
+            IdentityProvider.Google, "bad.token", deviceId: null, TestContext.Current.CancellationToken);
 
         await act.Should().ThrowAsync<OidcTokenInvalidException>();
-        await _cognito.DidNotReceiveWithAnyArgs().BrokerExternalSessionAsync(default, default!, Arg.Any<CancellationToken>());
-        await _refreshTokens.DidNotReceiveWithAnyArgs().AddAsync(default!, Arg.Any<CancellationToken>());
-        await _publisher.DidNotReceiveWithAnyArgs().PublishAsync<UserLoggedIn>(default!, Arg.Any<CancellationToken>());
+        await _users.DidNotReceive().TryAddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
+        await _refreshTokens.DidNotReceive().AddAsync(Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
-    /// Covers FA.3: "404 — token valid but no linked Cognito user" (broker throws UserNotFound).
+    /// Covers the guard: the phone provider is not an OIDC provider.
     /// </summary>
     [Fact]
-    public async Task No_linked_cognito_user_throws_404()
+    public async Task Phone_provider_is_rejected()
     {
-        const string idToken = "good.token";
-        _oidc.ValidateAsync(idToken, OidcProvider.Google, Arg.Any<CancellationToken>())
-            .Returns(new OidcClaims("ext-sub", "u@example.com", true));
-        _cognito.BrokerExternalSessionAsync(IdentityProvider.Google, "ext-sub", Arg.Any<CancellationToken>())
-            .ThrowsAsync(new UserNotFoundForLoginException("no linked user"));
+        var act = async () => await CreateSut().HandleAsync(
+            IdentityProvider.Phone, IdToken, deviceId: null, TestContext.Current.CancellationToken);
 
-        var sut = CreateSut();
-
-        var act = async () => await sut.HandleAsync(
-            IdentityProvider.Google, idToken, deviceId: null, TestContext.Current.CancellationToken);
-
-        await act.Should().ThrowAsync<UserNotFoundForLoginException>();
-        await _publisher.DidNotReceiveWithAnyArgs().PublishAsync<UserLoggedIn>(default!, Arg.Any<CancellationToken>());
-    }
-
-    /// <summary>
-    /// Covers FA.3: "404 — no local users row linked to the brokered Cognito sub".
-    /// </summary>
-    [Fact]
-    public async Task No_local_user_for_brokered_sub_throws_404()
-    {
-        const string idToken = "good.token";
-        _oidc.ValidateAsync(idToken, OidcProvider.Google, Arg.Any<CancellationToken>())
-            .Returns(new OidcClaims("ext-sub", "u@example.com", true));
-        _cognito.BrokerExternalSessionAsync(IdentityProvider.Google, "ext-sub", Arg.Any<CancellationToken>())
-            .Returns(new CognitoAuthResult("a", "i", "rr", 3600, Now.AddDays(30), "cog-sub"));
-        _users.FindByCognitoSubAsync("cog-sub", Arg.Any<CancellationToken>()).Returns((User?)null);
-
-        var sut = CreateSut();
-
-        var act = async () => await sut.HandleAsync(
-            IdentityProvider.Google, idToken, deviceId: null, TestContext.Current.CancellationToken);
-
-        await act.Should().ThrowAsync<UserNotFoundForLoginException>();
-        await _refreshTokens.DidNotReceiveWithAnyArgs().AddAsync(default!, Arg.Any<CancellationToken>());
-    }
-
-    /// <summary>
-    /// Covers FA.3: "502 — unexpected Cognito service error" propagates from the broker.
-    /// </summary>
-    [Fact]
-    public async Task Cognito_unavailable_propagates_502()
-    {
-        const string idToken = "good.token";
-        _oidc.ValidateAsync(idToken, OidcProvider.Google, Arg.Any<CancellationToken>())
-            .Returns(new OidcClaims("ext-sub", "u@example.com", true));
-        _cognito.BrokerExternalSessionAsync(IdentityProvider.Google, "ext-sub", Arg.Any<CancellationToken>())
-            .ThrowsAsync(new CognitoUnavailableException("boom"));
-
-        var sut = CreateSut();
-
-        var act = async () => await sut.HandleAsync(
-            IdentityProvider.Google, idToken, deviceId: null, TestContext.Current.CancellationToken);
-
-        await act.Should().ThrowAsync<CognitoUnavailableException>();
-    }
-
-    private sealed class FixedTimeProvider : TimeProvider
-    {
-        private readonly DateTimeOffset _now;
-        public FixedTimeProvider(DateTimeOffset now) => _now = now;
-        public override DateTimeOffset GetUtcNow() => _now;
+        await act.Should().ThrowAsync<InvalidOperationException>();
     }
 }

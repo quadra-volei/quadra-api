@@ -1,5 +1,3 @@
-using Amazon;
-using Amazon.CognitoIdentityProvider;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -13,11 +11,12 @@ using Microsoft.IdentityModel.Tokens;
 using Quadra.Infrastructure.Messaging;
 using Quadra.Modules.Auth.Application;
 using Quadra.Modules.Auth.Authentication;
-using Quadra.Modules.Auth.Cognito;
 using Quadra.Modules.Auth.Configuration;
 using Quadra.Modules.Auth.Contracts;
 using Quadra.Modules.Auth.Oidc;
 using Quadra.Modules.Auth.Persistence;
+using Quadra.Modules.Auth.PhoneVerification;
+using Quadra.Modules.Auth.Tokens;
 using Quadra.Modules.Auth.Validation;
 
 namespace Quadra.Modules.Auth.DependencyInjection;
@@ -28,9 +27,11 @@ namespace Quadra.Modules.Auth.DependencyInjection;
 /// </summary>
 public static class AuthModuleExtensions
 {
+    private static readonly TimeSpan TwilioTimeout = TimeSpan.FromSeconds(10);
+
     /// <summary>
-    /// Registers Cognito-backed JWT bearer authentication and its dependencies.
-    /// Fails fast at startup if the <c>Auth:Cognito</c> section is missing required values.
+    /// Registers JWT bearer authentication for the tokens this API issues, plus the login
+    /// pipeline. Fails fast at startup if the <c>Auth</c> section is missing required values.
     /// </summary>
     public static IServiceCollection AddAuthModule(
         this IServiceCollection services,
@@ -39,30 +40,16 @@ public static class AuthModuleExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        services.AddSingleton<IValidator<CognitoJwtOptions>, CognitoJwtOptionsValidator>();
-
+        // We use BindConfiguration (resolved lazily through DI) so that test hosts which
+        // mutate IConfiguration after AddAuthModule has been called still see their values.
+        services.AddSingleton<IValidateOptions<JwtOptions>, JwtOptionsValidator>();
         services
-            .AddOptions<CognitoJwtOptions>()
-            .BindConfiguration(CognitoJwtOptions.SectionName)
-            .Validate(
-                static (CognitoJwtOptions options, IValidator<CognitoJwtOptions> validator) =>
-                {
-                    var result = validator.Validate(options);
-                    if (result.IsValid)
-                    {
-                        return true;
-                    }
-
-                    var errors = string.Join("; ", result.Errors.Select(e => e.ErrorMessage));
-                    throw new OptionsValidationException(
-                        nameof(CognitoJwtOptions),
-                        typeof(CognitoJwtOptions),
-                        [errors]);
-                })
+            .AddOptions<JwtOptions>()
+            .BindConfiguration(JwtOptions.SectionName)
             .ValidateOnStart();
 
-        services.AddSingleton<CognitoJwtBearerEventsHandler>();
-        services.AddSingleton<IClaimsTransformation, CognitoClaimsTransformer>();
+        services.AddSingleton<QuadraJwtBearerEventsHandler>();
+        services.AddSingleton<IClaimsTransformation, QuadraClaimsTransformer>();
 
         services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -70,34 +57,35 @@ public static class AuthModuleExtensions
 
         services
             .AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
-            .Configure<IOptionsMonitor<CognitoJwtOptions>, CognitoJwtBearerEventsHandler>(
-                static (jwt, cognitoOptionsMonitor, eventsHandler) =>
+            .Configure<IOptionsMonitor<JwtOptions>, QuadraJwtBearerEventsHandler>(
+                static (jwt, jwtOptionsMonitor, eventsHandler) =>
                 {
-                    var cognito = cognitoOptionsMonitor.CurrentValue;
+                    var options = jwtOptionsMonitor.CurrentValue;
 
-                    jwt.Authority = cognito.Authority;
-                    jwt.RequireHttpsMetadata = true;
                     jwt.MapInboundClaims = false;
                     jwt.Events = eventsHandler;
 
                     jwt.TokenValidationParameters = new TokenValidationParameters
                     {
                         ValidateIssuer = true,
-                        ValidIssuer = cognito.Authority,
+                        ValidIssuer = options.Issuer,
+                        ValidateAudience = true,
+                        ValidAudience = options.Audience,
                         ValidateIssuerSigningKey = true,
+                        IssuerSigningKey = JwtAccessTokenIssuer.CreateSigningKey(options),
+                        // Pin the algorithm so a token signed any other way is never accepted.
+                        ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
                         ValidateLifetime = true,
-                        // Cognito access tokens do not carry an `aud` claim — instead we validate
-                        // `client_id` manually inside CognitoJwtBearerEventsHandler.OnTokenValidated.
-                        ValidateAudience = false,
-                        ClockSkew = TimeSpan.FromSeconds(cognito.ClockSkewSeconds),
-                        NameClaimType = "cognito:username",
-                        RoleClaimType = "custom:role",
+                        RequireExpirationTime = true,
+                        ClockSkew = TimeSpan.FromSeconds(options.ClockSkewSeconds),
+                        NameClaimType = QuadraClaimsTransformer.SubjectClaim,
+                        RoleClaimType = QuadraClaimsTransformer.RoleClaim,
                     };
                 });
 
         services.AddAuthorization();
 
-        AddSignupPipeline(services);
+        AddLoginPipeline(services);
 
         return services;
     }
@@ -116,39 +104,33 @@ public static class AuthModuleExtensions
         return app;
     }
 
-    private static void AddSignupPipeline(IServiceCollection services)
+    private static void AddLoginPipeline(IServiceCollection services)
     {
-        // Options binding + fail-fast validation for the signup pipeline.
-        // We use BindConfiguration (resolved lazily through DI) so that test hosts which
-        // mutate IConfiguration after AddAuthModule has been called still see their values.
-        services
-            .AddOptions<CognitoSignupOptions>()
-            .BindConfiguration(CognitoSignupOptions.SectionName)
-            .Validate(
-                static options =>
-                    !string.IsNullOrWhiteSpace(options.AppClientId)
-                    && !string.IsNullOrWhiteSpace(options.UserPoolId)
-                    && !string.IsNullOrWhiteSpace(options.Region),
-                "Auth:Cognito:AppClientId, UserPoolId and Region are required.")
-            .ValidateOnStart();
-
+        // Apple login is not enabled yet, so only the Google client ID is mandatory.
         services
             .AddOptions<OidcProvidersOptions>()
             .BindConfiguration(OidcProvidersOptions.SectionName)
             .Validate(
-                static options =>
-                    !string.IsNullOrWhiteSpace(options.Google.ClientId)
-                    && !string.IsNullOrWhiteSpace(options.Apple.ClientId),
-                "Auth:Google:ClientId and Auth:Apple:ClientId are required.")
+                static options => !string.IsNullOrWhiteSpace(options.Google.ClientId),
+                "Auth:Google:ClientId is required.")
             .ValidateOnStart();
 
-        // AWS Cognito client. Region resolved from the bound options.
-        services.AddSingleton<IAmazonCognitoIdentityProvider>(sp =>
-        {
-            var options = sp.GetRequiredService<IOptions<CognitoSignupOptions>>().Value;
-            var region = RegionEndpoint.GetBySystemName(options.Region);
-            return new AmazonCognitoIdentityProviderClient(region);
-        });
+        services.AddSingleton<IValidateOptions<PhoneVerificationOptions>, PhoneVerificationOptionsValidator>();
+        services
+            .AddOptions<PhoneVerificationOptions>()
+            .BindConfiguration(PhoneVerificationOptions.SectionName)
+            .ValidateOnStart();
+
+        services
+            .AddHttpClient(TwilioVerifyPhoneVerificationService.HttpClientName)
+            .ConfigureHttpClient(static client => client.Timeout = TwilioTimeout);
+
+        services.AddSingleton<FakePhoneVerificationService>();
+        services.AddSingleton<TwilioVerifyPhoneVerificationService>();
+        services.AddSingleton<IPhoneVerificationService>(static sp =>
+            sp.GetRequiredService<IOptions<PhoneVerificationOptions>>().Value.UsesFake
+                ? sp.GetRequiredService<FakePhoneVerificationService>()
+                : sp.GetRequiredService<TwilioVerifyPhoneVerificationService>());
 
         // EF persistence — connection string comes from the standard ConnectionStrings:Auth slot,
         // falling back to ConnectionStrings:Default so tests with a single Postgres can share it.
@@ -168,20 +150,21 @@ public static class AuthModuleExtensions
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 
-        services.AddSingleton<ICognitoSignupClient, CognitoSignupClient>();
-        services.AddSingleton<ICognitoAuthClient, CognitoAuthClient>();
         services.AddSingleton<IOidcTokenValidator, GoogleAppleTokenValidator>();
+        services.AddSingleton<IAccessTokenIssuer, JwtAccessTokenIssuer>();
+        services.AddSingleton<SessionFactory>();
         services.AddSingleton(TimeProvider.System);
 
-        services.AddScoped<SignupHandler>();
+        services.AddScoped<UserProvisioner>();
         services.AddScoped<SmsOtpLoginHandler>();
         services.AddScoped<OidcLoginHandler>();
         services.AddScoped<RefreshHandler>();
+        services.AddScoped<LogoutHandler>();
 
-        services.AddScoped<IValidator<SignupRequest>, SignupRequestValidator>();
         services.AddScoped<IValidator<SmsOtpLoginRequest>, SmsOtpLoginRequestValidator>();
         services.AddScoped<IValidator<OidcLoginRequest>, OidcLoginRequestValidator>();
         services.AddScoped<IValidator<RefreshRequest>, RefreshRequestValidator>();
+        services.AddScoped<IValidator<LogoutRequest>, LogoutRequestValidator>();
 
         // Default IEventPublisher (no-op) — replaced by the SQS publisher when that spec lands.
         services.TryAddSingleton<IEventPublisher, NoOpEventPublisher>();

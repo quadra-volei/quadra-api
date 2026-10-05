@@ -31,11 +31,6 @@ public sealed class RefreshTokenConfiguration : IEntityTypeConfiguration<Refresh
             .HasMaxLength(128)
             .IsRequired();
 
-        builder.Property(t => t.CognitoSub)
-            .HasColumnName("cognito_sub")
-            .HasMaxLength(64)
-            .IsRequired();
-
         builder.Property(t => t.DeviceId)
             .HasColumnName("device_id")
             .HasMaxLength(128);
@@ -58,9 +53,6 @@ public sealed class RefreshTokenConfiguration : IEntityTypeConfiguration<Refresh
 
         builder.HasIndex(t => t.UserId)
             .HasDatabaseName("ix_refresh_tokens_user_id");
-
-        builder.HasIndex(t => t.CognitoSub)
-            .HasDatabaseName("ix_refresh_tokens_cognito_sub");
 
         builder.HasIndex(t => t.ExpiresAt)
             .HasDatabaseName("ix_refresh_tokens_expires_at");
