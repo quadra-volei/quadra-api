@@ -13,12 +13,15 @@ public sealed class CreateMatchHandler
     private readonly IMatchRepository _repository;
     private readonly IEventPublisher _eventPublisher;
     private readonly TimeProvider _timeProvider;
+    private readonly MatchWindowSynchronizer _windowSynchronizer;
 
     public CreateMatchHandler(
         IMatchRepository repository,
         IEventPublisher eventPublisher,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        MatchWindowSynchronizer windowSynchronizer)
     {
+        _windowSynchronizer = windowSynchronizer;
         _repository = repository;
         _eventPublisher = eventPublisher;
         _timeProvider = timeProvider;
@@ -32,6 +35,15 @@ public sealed class CreateMatchHandler
         Entities.MatchFrequency? frequency = command.Frequency is not null
             ? Enum.Parse<Entities.MatchFrequency>(command.Frequency, ignoreCase: true)
             : null;
+
+        // "Opens N hours before" form: the window runs up to the start of the match. When that
+        // moment is already past, the window is simply open from now.
+        var windowOpensAt = command.ConfirmationOpensHoursBefore is { } hoursBefore
+            ? command.DateTime.AddHours(-hoursBefore)
+            : command.WindowOpensAt!.Value;
+        var windowClosesAt = command.ConfirmationOpensHoursBefore is not null
+            ? command.DateTime
+            : command.WindowClosesAt!.Value;
 
         var match = Match.Create(
             organizerId: command.OrganizerId,
@@ -47,9 +59,21 @@ public sealed class CreateMatchHandler
             type: type,
             frequency: frequency,
             dayOfWeekIso: command.DayOfWeek,
-            windowOpensAt: command.WindowOpensAt,
-            windowClosesAt: command.WindowClosesAt,
-            now: now);
+            windowOpensAt: windowOpensAt,
+            windowClosesAt: windowClosesAt,
+            now: now,
+            settings: new MatchSettings(
+                Format: command.Format?.ToUpperInvariant(),
+                Level: command.Level is null ? null : Enum.Parse<MatchLevel>(command.Level, ignoreCase: true),
+                DurationMinutes: command.DurationMinutes,
+                Visibility: command.Visibility is null
+                    ? MatchVisibility.Open
+                    : Enum.Parse<MatchVisibility>(command.Visibility, ignoreCase: true),
+                InviteMode: command.InviteMode is null
+                    ? null
+                    : Enum.Parse<MatchInviteMode>(command.InviteMode, ignoreCase: true),
+                PriceMonthly: command.PriceMonthly,
+                RecurrenceDays: command.RecurrenceDays));
 
         await _repository.AddAsync(match, cancellationToken);
 
@@ -68,6 +92,7 @@ public sealed class CreateMatchHandler
 
         await _eventPublisher.PublishAsync(@event, cancellationToken);
 
-        return match;
+        // A window that is already due opens right away, so the response shows the real status.
+        return await _windowSynchronizer.SyncAsync(match, cancellationToken);
     }
 }

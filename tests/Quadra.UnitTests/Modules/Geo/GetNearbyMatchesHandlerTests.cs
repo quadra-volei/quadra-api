@@ -210,6 +210,8 @@ public sealed class GetNearbyMatchesHandlerTests
             DateTime: FixedNow.AddDays(3),
             MaxPlayers: 12,
             Price: null,
+            Format: "4X4",
+            Level: "Intermediate",
             Type: "OneOff",
             Status: "Open",
             DistanceMeters: distanceMeters);

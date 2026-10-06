@@ -336,6 +336,123 @@ public sealed class CreateMatchRequestValidatorTests
         result.IsValid.Should().BeTrue();
     }
 
+    // ─── Mobile create form (format, level, privacy, recurrence, window) ─────
+
+    private static CreateMatchRequest MobileOneOff() => BuildValidOneOff() with
+    {
+        WindowOpensAt = null,
+        WindowClosesAt = null,
+        ConfirmationOpensHoursBefore = 24,
+        Format = "4X4",
+        Level = "Intermediate",
+        DurationMinutes = 90,
+        Visibility = "Open",
+    };
+
+    private static CreateMatchRequest MobileRecurring() => MobileOneOff() with
+    {
+        Type = "Recurring",
+        Frequency = "Weekly",
+        RecurrenceDays = new[] { 2, 4 },
+        PriceMonthly = 80m,
+    };
+
+    /// <summary>
+    /// Covers: the body the mobile form sends — window as "opens N hours before", several week
+    /// days without DayOfWeek, monthly price, private by code.
+    /// </summary>
+    [Fact]
+    public async Task Mobile_form_payloads_pass_validation()
+    {
+        var privateByCode = MobileRecurring() with { Visibility = "Private", InviteMode = "Code" };
+
+        foreach (var request in new[] { MobileOneOff(), MobileRecurring(), privateByCode })
+        {
+            (await _sut.ValidateAsync(request, CancellationToken.None)).IsValid.Should().BeTrue();
+        }
+    }
+
+    /// <summary>
+    /// Covers: the window comes in exactly one form — neither both nor none.
+    /// </summary>
+    [Fact]
+    public async Task Window_must_come_in_exactly_one_form()
+    {
+        var both = MobileOneOff() with { WindowOpensAt = FutureWindowOpens, WindowClosesAt = FutureWindowCloses };
+        var none = MobileOneOff() with { ConfirmationOpensHoursBefore = null };
+
+        (await _sut.ValidateAsync(both, CancellationToken.None)).Errors
+            .Should().Contain(e => e.PropertyName == nameof(CreateMatchRequest.WindowOpensAt));
+        (await _sut.ValidateAsync(none, CancellationToken.None)).Errors
+            .Should().Contain(e => e.PropertyName == nameof(CreateMatchRequest.WindowOpensAt));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(169)]
+    public async Task ConfirmationOpensHoursBefore_out_of_range_fails_validation(int hours)
+    {
+        var request = MobileOneOff() with { ConfirmationOpensHoursBefore = hours };
+        var result = await _sut.ValidateAsync(request, CancellationToken.None);
+        result.Errors.Should().Contain(
+            e => e.PropertyName == nameof(CreateMatchRequest.ConfirmationOpensHoursBefore));
+    }
+
+    [Fact]
+    public async Task Unknown_format_level_or_visibility_fails_validation()
+    {
+        var request = MobileOneOff() with { Format = "5X5", Level = "Elite", Visibility = "Secret", DurationMinutes = 29 };
+        var result = await _sut.ValidateAsync(request, CancellationToken.None);
+        result.Errors.Select(e => e.PropertyName).Should().Contain(
+        [
+            nameof(CreateMatchRequest.Format),
+            nameof(CreateMatchRequest.Level),
+            nameof(CreateMatchRequest.Visibility),
+            nameof(CreateMatchRequest.DurationMinutes),
+        ]);
+    }
+
+    /// <summary>
+    /// Covers: InviteMode is required for a Private match and refused for an Open one.
+    /// </summary>
+    [Theory]
+    [InlineData("Private", null)]
+    [InlineData("Private", "Carrier pigeon")]
+    [InlineData("Open", "Code")]
+    [InlineData(null, "Guests")]
+    public async Task InviteMode_must_match_the_visibility(string? visibility, string? inviteMode)
+    {
+        var request = MobileOneOff() with { Visibility = visibility, InviteMode = inviteMode };
+        var result = await _sut.ValidateAsync(request, CancellationToken.None);
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateMatchRequest.InviteMode));
+    }
+
+    [Theory]
+    [InlineData(new[] { 0, 3 })]
+    [InlineData(new[] { 8 })]
+    [InlineData(new[] { 2, 2 })]
+    public async Task RecurrenceDays_must_be_distinct_iso_week_days(int[] days)
+    {
+        var request = MobileRecurring() with { RecurrenceDays = days };
+        var result = await _sut.ValidateAsync(request, CancellationToken.None);
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateMatchRequest.RecurrenceDays));
+    }
+
+    /// <summary>
+    /// Covers: recurrence settings and the monthly price make no sense for a one-off match.
+    /// </summary>
+    [Fact]
+    public async Task OneOff_with_recurrence_days_or_monthly_price_fails_validation()
+    {
+        var request = MobileOneOff() with { RecurrenceDays = new[] { 2 }, PriceMonthly = 80m };
+        var result = await _sut.ValidateAsync(request, CancellationToken.None);
+        result.Errors.Select(e => e.PropertyName).Should().Contain(
+        [
+            nameof(CreateMatchRequest.RecurrenceDays),
+            nameof(CreateMatchRequest.PriceMonthly),
+        ]);
+    }
+
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
     private static CreateMatchRequest BuildValidOneOff() =>

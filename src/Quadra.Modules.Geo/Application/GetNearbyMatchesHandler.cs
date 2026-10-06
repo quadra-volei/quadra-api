@@ -99,5 +99,8 @@ public sealed class GetNearbyMatchesHandler
             OpenToDropIns: availability.HasOpenDropInSlot,
             Price: candidate.Price,
             Type: candidate.Type,
-            Status: candidate.Status);
+            Status: candidate.Status,
+            ConfirmedCount: availability.ConfirmedCount,
+            Format: candidate.Format,
+            Level: candidate.Level);
 }

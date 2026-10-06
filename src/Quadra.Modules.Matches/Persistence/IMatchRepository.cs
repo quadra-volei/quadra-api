@@ -18,6 +18,22 @@ public interface IMatchRepository
     Task<(IReadOnlyList<Match> Items, int TotalCount)> ListAsync(
         ListMatchesFilter filter,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Matches whose confirmation window is due for a transition at <paramref name="now"/>:
+    /// Draft with the window already open, or Open with the window already closed.
+    /// </summary>
+    Task<IReadOnlyList<Match>> ListWindowDueAsync(DateTimeOffset now, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Matches starting at or after <paramref name="since"/>, neither cancelled nor ended, that
+    /// <paramref name="playerId"/> organizes, is on the presence list of (not declined) or waits
+    /// for. Soonest first, capped at 50.
+    /// </summary>
+    Task<IReadOnlyList<Match>> ListUpcomingForPlayerAsync(
+        Guid playerId,
+        DateTimeOffset since,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Quadra.Api.Background;
 using Quadra.Api.Events;
 using Quadra.Modules.Auth.DependencyInjection;
 using Quadra.Modules.Auth.Persistence;
@@ -24,6 +25,7 @@ builder.Services.AddInGameModule(builder.Configuration);
 builder.Services.AddProfileModule(builder.Configuration);
 builder.Services.AddGeoModule(builder.Configuration);
 builder.Services.AddGamificationModule(builder.Configuration);
+builder.Services.AddHostedService<MatchWindowSweeper>();
 builder.Services.AddOpenApi();
 
 var app = builder.Build();

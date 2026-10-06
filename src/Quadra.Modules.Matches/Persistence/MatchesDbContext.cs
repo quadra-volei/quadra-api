@@ -17,6 +17,8 @@ public sealed class MatchesDbContext : DbContext
     public DbSet<Match> Matches => Set<Match>();
     public DbSet<MatchPresence> Presences => Set<MatchPresence>();
     public DbSet<WaitingListEntry> WaitingList => Set<WaitingListEntry>();
+
+    public DbSet<MatchGuest> Guests => Set<MatchGuest>();
     public DbSet<MatchSummary> MatchSummaries => Set<MatchSummary>();
     public DbSet<MatchSummarySet> MatchSummarySets => Set<MatchSummarySet>();
     public DbSet<MatchSummaryPlayer> MatchSummaryPlayers => Set<MatchSummaryPlayer>();
@@ -29,6 +31,7 @@ public sealed class MatchesDbContext : DbContext
         modelBuilder.ApplyConfiguration(new MatchConfiguration());
         modelBuilder.ApplyConfiguration(new MatchPresenceConfiguration());
         modelBuilder.ApplyConfiguration(new WaitingListConfiguration());
+        modelBuilder.ApplyConfiguration(new MatchGuestConfiguration());
         modelBuilder.ApplyConfiguration(new MatchSummaryConfiguration());
         modelBuilder.ApplyConfiguration(new MatchSummarySetConfiguration());
         modelBuilder.ApplyConfiguration(new MatchSummaryPlayerConfiguration());

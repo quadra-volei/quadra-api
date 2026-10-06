@@ -17,5 +17,9 @@ public sealed class UpdateMyPresenceRequestValidator : AbstractValidator<UpdateM
             .NotEmpty()
             .Must(s => ValidStatuses.Contains(s))
             .WithMessage("Status must be 'Confirmed' or 'Declined'.");
+
+        RuleFor(x => x.InviteCode)
+            .MaximumLength(16)
+            .When(x => x.InviteCode is not null);
     }
 }

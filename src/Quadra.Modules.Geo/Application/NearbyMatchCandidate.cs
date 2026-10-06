@@ -16,4 +16,6 @@ public sealed record NearbyMatchCandidate(
     decimal? Price,
     string Type,
     string Status,
+    string? Format,
+    string? Level,
     double DistanceMeters);

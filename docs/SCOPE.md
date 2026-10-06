@@ -203,11 +203,15 @@ These are not "user stories" but must exist for the MVP to work:
 > so they are tracked here for a future refactor instead of being applied inline when
 > the frontend SCOPE changed.
 
-### R1 — F1.1 Match Creation: align with frontend S11
-Frontend S11 (Criar partida) needs fields the current `Match` aggregate does not have:
+### R1 — F1.1 Match Creation: align with frontend S11 — DONE (2026-10-06)
+`format`, `level`, `visibility` (`Open | Private` + `inviteMode`), `durationMinutes`, `priceMonthly`,
+`recurrenceDays` and `confirmationOpensHoursBefore` are in the `Match` aggregate and in
+`POST /matches`, together with self-enrollment, guests without an account, `GET /matches/mine`
+and `GET /matches/{id}/detail`. Decisions and reasons: `docs/DECISIONS.md` (block 1).
 
-| Field | Type | Value |
-| --- | --- | --- |
+- **Still out**: `coverImage` (waits for photo storage to be configured).
+
+--- | --- | --- |
 | `format` | enum `2x2 \| 4x4 \| 6x6` | high — Explore filters / matchmaking |
 | `level` | enum `Beginner \| Intermediate \| Advanced` | high — filters / team balancing |
 | `visibility` | enum `Open \| InviteOnly` | medium — "Partida aberta"; partially overlaps existing Regular/DropIn slot logic |

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Quadra.Infrastructure.Contracts;
 using Quadra.Infrastructure.Persistence;
 using Quadra.Infrastructure.Realtime;
 using Quadra.Modules.Matches.Application;
@@ -78,6 +79,7 @@ public static class MatchesModuleExtensions
         services.AddScoped<IPresenceRepository, PresenceRepository>();
         services.AddScoped<IWaitingListRepository, WaitingListRepository>();
         services.AddScoped<IMatchSummaryRepository, MatchSummaryRepository>();
+        services.AddScoped<IMatchGuestRepository, MatchGuestRepository>();
 
         // Cross-module read interfaces implemented by the Matches module.
         services.AddScoped<IMatchReader, MatchReader>();
@@ -98,11 +100,20 @@ public static class MatchesModuleExtensions
         services.AddScoped<CloseMatchWindowHandler>();
         services.AddScoped<GenerateMatchSummaryHandler>();
         services.AddScoped<GetMatchSummaryHandler>();
+        services.AddScoped<MatchWindowSynchronizer>();
+        services.AddScoped<GetMatchDetailHandler>();
+        services.AddScoped<ListMyMatchesHandler>();
+        services.AddScoped<AddMatchGuestHandler>();
+        services.AddScoped<RemoveMatchGuestHandler>();
 
         services.AddScoped<IValidator<CreateMatchRequest>, CreateMatchRequestValidator>();
         services.AddScoped<IValidator<ListMatchesQuery>, ListMatchesQueryValidator>();
         services.AddScoped<IValidator<AddPresenceRequest>, AddPresenceRequestValidator>();
         services.AddScoped<IValidator<UpdateMyPresenceRequest>, UpdateMyPresenceRequestValidator>();
+        services.AddScoped<IValidator<AddGuestRequest>, AddGuestRequestValidator>();
+
+        // Player identities for rosters come from Profile; hosts without it get placeholders.
+        services.TryAddScoped<IPlayerSummaryReader, NoOpPlayerSummaryReader>();
 
         // IMatchRoomNotifier — no-op until the SignalR implementation is delivered by Quadra.Modules.Realtime.
         services.TryAddSingleton<IMatchRoomNotifier, NoOpMatchRoomNotifier>();

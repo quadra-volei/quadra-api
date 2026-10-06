@@ -9,6 +9,7 @@ using Quadra.Infrastructure.Messaging;
 using Quadra.IntegrationTests.Modules.Auth;
 using Quadra.Modules.Auth.Persistence;
 using Quadra.Modules.Matches.Persistence;
+using Quadra.Modules.Profile.Persistence;
 using Testcontainers.PostgreSql;
 
 namespace Quadra.IntegrationTests.Matches;
@@ -70,6 +71,9 @@ public sealed class MatchesWebApplicationFactory : IAsyncLifetime
         await authCtx.Database.MigrateAsync();
         var matchesCtx = scope.ServiceProvider.GetRequiredService<MatchesDbContext>();
         await matchesCtx.Database.MigrateAsync();
+        // Match rosters read player identities from Profile.
+        var profileCtx = scope.ServiceProvider.GetRequiredService<ProfileDbContext>();
+        await profileCtx.Database.MigrateAsync();
     }
 
     public async ValueTask DisposeAsync()

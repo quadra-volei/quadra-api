@@ -17,5 +17,13 @@ public sealed record CreateMatchCommand(
     string Type,
     string? Frequency,
     int? DayOfWeek,
-    DateTimeOffset WindowOpensAt,
-    DateTimeOffset WindowClosesAt);
+    DateTimeOffset? WindowOpensAt,
+    DateTimeOffset? WindowClosesAt,
+    string? Format = null,
+    string? Level = null,
+    int? DurationMinutes = null,
+    string? Visibility = null,
+    string? InviteMode = null,
+    decimal? PriceMonthly = null,
+    IReadOnlyList<int>? RecurrenceDays = null,
+    int? ConfirmationOpensHoursBefore = null);
