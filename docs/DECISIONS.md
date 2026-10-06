@@ -22,3 +22,14 @@ Format: date · decision · why.
 | 11 | `format` (`2X2/4X4/6X6`), `level`, `durationMinutes`, `priceMonthly` are **optional, descriptive columns**; nothing enforces them (e.g. `6X6` does not force 12 players). | They exist for display and filters; closes pending refactor R1. Cover image stays out until photo storage is configured. |
 | 12 | Player identities in rosters come from Profile through **`IPlayerSummaryReader`** (Shared). A player with no profile shows as "Player". | Module boundary rule: Matches must not read Profile tables. |
 | 13 | New read endpoints instead of changing existing ones: **`GET /matches/mine`** (matches I organize or joined, from 6 h ago onwards, soonest first) and **`GET /matches/{id}/detail`** (match + organizer + roster + guests + waiting list + my standing). | Existing `GET /matches` and `GET /matches/{id}` keep their contracts and tests. The 6 h grace keeps a match that is being played on the home screen. |
+
+## 2026-10-06 — Block 2: address search for the match location
+
+| # | Decision | Why |
+| --- | --- | --- |
+| 14 | The address search is a **backend proxy** in the Geo module: `GET /places/autocomplete?q=&lat=&lon=&sessionToken=` and `GET /places/{id}`. The app never talks to the provider. | The provider key stays on the server and the provider can be swapped without an app release. |
+| 15 | **Provider by configuration** (`Places:Provider`): `Google` (Places API New, needs `Places:GoogleApiKey`), `OpenStreetMap` (the public Photon geocoder, no key) or `None`. Empty = Google when a key is set, OpenStreetMap otherwise. | The search works today with no key and no account; pasting a Google key in Render switches to Google with no code change. |
+| 16 | The keyless fallback is a **real free geocoder (Photon)**, not canned data. What users type in the location field is sent to that public service. | Canned data would not let anyone test real addresses. Photon is fair-use with no SLA and weaker results than Google — good enough for the test environment; set `Places:Provider=None` to turn it off. |
+| 17 | Search is **restricted to Brazil** and biased to the user's position; Google uses session tokens. | Better suggestions; Google bills a typing session plus its details call as one request. |
+| 18 | A suggestion may already carry coordinates (OpenStreetMap) or not (Google → one `GET /places/{id}` when picked). Provider failure answers 503 and the app falls back to the typed text. | One contract for both providers; the create flow never blocks on the search. |
+| 19 | No NuGet package added: both providers are called with `HttpClient`. | Stack rule. |

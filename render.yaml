@@ -51,6 +51,11 @@ services:
       - key: Auth__PhoneVerification__Provider
         value: Fake
 
+      # Address search in "create match". Empty key = the free OpenStreetMap search (Photon).
+      # Paste a Google Places API (New) key in the dashboard to switch to Google.
+      - key: Places__GoogleApiKey
+        sync: false
+
       # Still required at startup by the modules, but unused: events are handled in-process.
       - key: Aws__Sqs__MatchCreatedQueueUrl
         value: http://unused/match-created
