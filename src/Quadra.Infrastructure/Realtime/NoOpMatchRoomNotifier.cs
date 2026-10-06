@@ -24,4 +24,12 @@ public sealed class NoOpMatchRoomNotifier : IMatchRoomNotifier
             message.MatchId, message.PlayerId);
         return Task.CompletedTask;
     }
+
+    public Task NotifyScoreboardUpdatedAsync(ScoreboardUpdatedMessage message, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation(
+            "NoOpMatchRoomNotifier: discarded ScoreboardUpdated message for MatchId={MatchId} State={State}.",
+            message.MatchId, message.State);
+        return Task.CompletedTask;
+    }
 }

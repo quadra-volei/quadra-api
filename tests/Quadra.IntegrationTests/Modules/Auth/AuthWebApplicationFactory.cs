@@ -50,6 +50,8 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
                 ["Aws:Sqs:PresenceConfirmedQueueUrl"] = "http://test-stub/presence-confirmed",
                 ["Aws:Sqs:MatchWindowOpenedQueueUrl"] = "http://test-stub/match-window-opened",
                 ["Aws:Sqs:MatchWindowClosedQueueUrl"] = "http://test-stub/match-window-closed",
+                // F1.3 in-game teams SQS queue.
+                ["Aws:Sqs:TeamsFormedQueueUrl"] = "http://test-stub/teams-formed",
                 // Database: must be present; use in-memory-safe stub for JWT-only tests.
                 ["ConnectionStrings:Default"] = "Host=localhost;Port=5432;Database=quadra_test_stub;Username=stub;Password=stub",
             });

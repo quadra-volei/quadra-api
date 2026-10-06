@@ -25,6 +25,11 @@
     <ProjectReference Include="..\..\src\Quadra.Infrastructure\Quadra.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Quadra.Modules.Auth\Quadra.Modules.Auth.csproj" />
     <ProjectReference Include="..\..\src\Quadra.Modules.Matches\Quadra.Modules.Matches.csproj" />
+    <ProjectReference Include="..\..\src\Quadra.Modules.InGame\Quadra.Modules.InGame.csproj" />
+    <ProjectReference Include="..\..\src\Quadra.Modules.Geo\Quadra.Modules.Geo.csproj" />
+    <ProjectReference Include="..\..\src\Quadra.Modules.Profile\Quadra.Modules.Profile.csproj" />
+    <ProjectReference Include="..\..\src\Quadra.Modules.Gamification\Quadra.Modules.Gamification.csproj" />
+    <ProjectReference Include="..\..\src\Quadra.Workers.Background\Quadra.Workers.Background.csproj" />
   </ItemGroup>
 
 </Project>

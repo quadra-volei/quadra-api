@@ -25,12 +25,14 @@ Mobile app for volleyball players that centralizes:
 
 ## Level system
 
-| Level | Criteria |
-| --- | --- |
-| Beginner | < 10 matches |
-| Intermediate | 10+ matches and ≥ 1 MVP received |
-| Advanced | 30+ matches and > 60% vote average |
-| Elite | 50+ matches, 10+ MVPs, top 10% of global ranking |
+| Level | Criteria | MVP status |
+| --- | --- | --- |
+| Beginner | < 10 matches | **Active** |
+| Intermediate | 10+ matches and ≥ 1 MVP received | **Active** |
+| Advanced | 30+ matches and > 60% vote average | **Deferred** — "vote average" is undefined and no event carries per-player MVP votes received. Not computed until the metric and its data source are defined. |
+| Elite | 50+ matches, 10+ MVPs, top 10% of global ranking | **Deferred** — depends on a city-wide/global ranking, which is Layer 3 (out of MVP). Not computed until Layer 3 ranking exists. |
+
+> **MVP scope (F2.1):** only **Beginner** and **Intermediate** are auto-calculated. A player who exceeds the Advanced/Elite thresholds stays labelled `Intermediate` until those tiers are activated. See `docs/specs/F2.1-player-profile.md`.
 
 ## Point system
 

@@ -197,4 +197,84 @@ public sealed class MatchEntityTests
 
         match.Status.Should().Be(MatchStatus.Cancelled);
     }
+
+    // ─── Match.MarkEnded (F1.6) ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Covers: F1.6 "matches.status → Ended transition" — MarkEnded from Closed transitions to
+    /// Ended, bumps UpdatedAt and reports that the status changed.
+    /// </summary>
+    [Fact]
+    public void MarkEnded_from_Closed_transitions_to_Ended_and_returns_true()
+    {
+        var match = CreateDraftMatch(MatchStatus.Closed);
+        var endedAt = Now.AddHours(2);
+
+        var changed = match.MarkEnded(endedAt);
+
+        changed.Should().BeTrue();
+        match.Status.Should().Be(MatchStatus.Ended);
+        match.UpdatedAt.Should().Be(endedAt);
+    }
+
+    /// <summary>
+    /// Covers: F1.6 — MarkEnded is also valid from InProgress.
+    /// </summary>
+    [Fact]
+    public void MarkEnded_from_InProgress_transitions_to_Ended_and_returns_true()
+    {
+        var match = CreateDraftMatch(MatchStatus.InProgress);
+
+        var changed = match.MarkEnded(Now);
+
+        changed.Should().BeTrue();
+        match.Status.Should().Be(MatchStatus.Ended);
+    }
+
+    /// <summary>
+    /// Covers: F1.6 — MarkEnded on an already-Ended match is a no-op and returns false
+    /// (this is what keeps the summary generation idempotent w.r.t. status/event publication).
+    /// </summary>
+    [Fact]
+    public void MarkEnded_when_already_Ended_is_noop_and_returns_false()
+    {
+        var match = CreateDraftMatch(MatchStatus.Ended);
+        var beforeUpdatedAt = match.UpdatedAt;
+
+        var changed = match.MarkEnded(Now.AddHours(5));
+
+        changed.Should().BeFalse();
+        match.Status.Should().Be(MatchStatus.Ended);
+        match.UpdatedAt.Should().Be(beforeUpdatedAt, "a no-op transition must not bump UpdatedAt");
+    }
+
+    /// <summary>
+    /// Covers: F1.6 "Match summaries for cancelled matches are out of scope" — MarkEnded on a
+    /// Cancelled match throws InvalidMatchStatusTransitionException.
+    /// </summary>
+    [Fact]
+    public void MarkEnded_when_Cancelled_throws_InvalidMatchStatusTransitionException()
+    {
+        var match = CreateDraftMatch(MatchStatus.Cancelled);
+
+        var act = () => match.MarkEnded(Now);
+
+        act.Should().Throw<InvalidMatchStatusTransitionException>()
+            .WithMessage("*Cancelled*");
+    }
+
+    /// <summary>
+    /// Covers: F1.6 — MarkEnded is rejected from pre-game states (Draft / Open).
+    /// </summary>
+    [Theory]
+    [InlineData(MatchStatus.Draft)]
+    [InlineData(MatchStatus.Open)]
+    public void MarkEnded_from_pre_game_states_throws(MatchStatus status)
+    {
+        var match = CreateDraftMatch(status);
+
+        var act = () => match.MarkEnded(Now);
+
+        act.Should().Throw<InvalidMatchStatusTransitionException>();
+    }
 }

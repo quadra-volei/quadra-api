@@ -154,4 +154,29 @@ public sealed class Match
         Status = MatchStatus.Cancelled;
         UpdatedAt = now;
     }
+
+    /// <summary>
+    /// Transitions the match to <see cref="MatchStatus.Ended"/> when the immutable summary is finalized (F1.6).
+    /// Valid from <see cref="MatchStatus.Closed"/> or <see cref="MatchStatus.InProgress"/>.
+    /// No-op when already <see cref="MatchStatus.Ended"/>.
+    /// Throws <see cref="InvalidMatchStatusTransitionException"/> when the match is <see cref="MatchStatus.Cancelled"/>.
+    /// </summary>
+    /// <returns><c>true</c> when the status actually changed; <c>false</c> when it was already Ended.</returns>
+    public bool MarkEnded(DateTimeOffset now)
+    {
+        if (Status is MatchStatus.Ended)
+        {
+            return false;
+        }
+
+        if (Status is not (MatchStatus.Closed or MatchStatus.InProgress))
+        {
+            throw new InvalidMatchStatusTransitionException(
+                $"Cannot end a match with status '{Status}'. Only Closed or InProgress matches can be ended.");
+        }
+
+        Status = MatchStatus.Ended;
+        UpdatedAt = now;
+        return true;
+    }
 }

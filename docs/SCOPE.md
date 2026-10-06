@@ -91,11 +91,13 @@ Frontend is NOT in this phase — backend only. Specs describe **API contracts**
 
 ### F2.1 — Player Profile
 - **Module**: `Profile`
-- **IN**: photo (S3 object reference), name, primary position, secondary position
-- **IN**: automatically calculated level (`Beginner | Intermediate | Advanced | Elite`) using product doc criteria
-- **IN**: aggregated stats: matches played, wins, losses, MVPs received, frequency
-- **IN**: match history with pagination
+- **IN**: photo (S3 object reference), name, primary position, secondary position — position catalog: `Setter | OutsideHitter | Opposite | MiddleBlocker | Libero`
+- **IN**: automatically calculated level — MVP computes **`Beginner | Intermediate`** only (see `PRODUCT.md` level table). `Advanced` and `Elite` are **deferred**: Advanced's "vote average" is undefined and Elite depends on the Layer-3 global ranking
+- **IN**: aggregated stats: matches played, wins, losses, draws, MVPs received (draws included because F1.6 permits a null-winner match)
+- **IN**: match history with pagination (own table `player_match_history`)
 - **OUT**: manual stat editing (everything derived from events)
+- **OUT (deferred, not cut)**: `frequency` stat — no formula is defined in PRODUCT/SCOPE; excluded from the MVP until specified, re-added when defined
+- **OUT (deferred, not cut)**: `Advanced` / `Elite` level tiers — see above
 
 ### F2.2 — Player Card (data)
 - **Module**: `Profile` (data) + `Gamification` (premium check)
@@ -103,12 +105,18 @@ Frontend is NOT in this phase — backend only. Specs describe **API contracts**
 - **IN**: generated after 3 recorded matches
 - **OUT**: visual rendering (frontend)
 - **OUT**: premium art variants (catalog comes later)
+- **OUT (human ruling, 2026-07-03)**: no persistent premium data structure in the MVP. The free/premium flag is resolved via a stub (`IPremiumStatusReader` → always `false`) behind a stable interface. No `plan`/`is_premium` column or table is created until billing is specified. This narrows PRODUCT's "prepared data structure" to interface-only for now.
 
 ### F2.3 — Group Ranking
 - **Module**: `Gamification`
 - **IN**: endpoint returning accumulated point ranking per recurring match
-- **IN**: scoring per product doc rules (attendance +10, win +15, MVP +25, 3-streak +20)
+- **IN**: scoring per product doc rules (attendance +10, win +15, MVP +25)
 - **OUT**: city-wide ranking (Layer 3)
+- **RULING (human, 2026-07-03) — grouping model**: for the MVP a "group" is the single recurring `matches` row; `GroupId = matchId`. Multi-occurrence accumulation is deferred together with F1.1's deferred "recurring match instance generation". The `group_id` key is kept distinct from `match_id` in the schema so a future occurrence model can repoint it with no migration.
+- **OUT (human ruling, 2026-07-03) — 3-streak +20**: deferred. The "3 consecutive matches" rule is unreachable while a group is summarized at most once (F1.1 defers occurrence generation; F1.6 enforces `UNIQUE (match_id)`). It re-enters scope only when the recurring-occurrence model exists. F2.3 MUST NOT ship a dormant `StreakCalculator`, `Streak` point reason, `current_streak` column, or streak recompute — no dead code.
+- **OUT (human ruling, 2026-07-03) — `player_xp` lifetime accumulator**: cut from the MVP. Its only consumer is the Layer-3 city-wide leaderboard (OUT). Reintroduce it alongside that feature. F2.3 maintains only `point_transactions` (ledger) and `group_rankings` (per-group standing).
+- **OUT (human ruling, 2026-07-03) — OneOff match points**: a OneOff match has no group to accumulate into; the ranking endpoint returns `409` for a OneOff `matchId` and the worker awards it no points. Reconciles with PRODUCT's non-group-qualified point list.
+- **Note (docs reconciliation)**: PRODUCT lists a 5th rule ("+5 first match as DropIn in a new group") that SCOPE F2.3 does not enumerate. SCOPE is source of truth; the +5 DropIn bonus is NOT in the MVP. Reconcile PRODUCT when convenient.
 
 ---
 
