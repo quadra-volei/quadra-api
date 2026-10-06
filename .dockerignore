@@ -1,0 +1,18 @@
+# Keep the build context small and free of host build output and local secrets.
+**/bin/
+**/obj/
+.git/
+.claude/
+.vs/
+.idea/
+docs/
+tests/
+*.zip
+*.md
+.env
+.env.*
+**/appsettings.Development.json
+**/appsettings.Testing.json
+**/*.csproj.user
+docker-compose.yml
+fly.toml
