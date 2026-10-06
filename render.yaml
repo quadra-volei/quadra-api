@@ -15,7 +15,7 @@ services:
     runtime: docker
     plan: free
     region: virginia
-    branch: feat/auth-jwt-proprio
+    branch: dev
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /health
@@ -59,3 +59,13 @@ services:
         value: http://unused/match-window-opened
       - key: Aws__Sqs__MatchWindowClosedQueueUrl
         value: http://unused/match-window-closed
+      - key: Aws__Sqs__MatchSummaryGeneratedQueueUrl
+        value: http://unused/match-summary-generated
+      - key: Aws__Sqs__TeamsFormedQueueUrl
+        value: http://unused/teams-formed
+      - key: Aws__Sqs__MatchStartedQueueUrl
+        value: http://unused/match-started
+      - key: Aws__Sqs__MatchEndedQueueUrl
+        value: http://unused/match-ended
+      - key: Aws__Sqs__MvpAwardedQueueUrl
+        value: http://unused/mvp-awarded

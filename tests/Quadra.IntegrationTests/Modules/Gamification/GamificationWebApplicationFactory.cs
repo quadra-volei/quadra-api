@@ -1,14 +1,12 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.IdentityModel.Protocols;
-using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using NSubstitute;
 using Quadra.Infrastructure.Messaging;
+using Quadra.IntegrationTests.Modules.Auth;
 using Quadra.Modules.Auth.Persistence;
 using Quadra.Modules.Gamification.Abstractions;
 using Quadra.Modules.Gamification.Entities;
@@ -31,11 +29,6 @@ namespace Quadra.IntegrationTests.Modules.Gamification;
 /// </summary>
 public sealed class GamificationWebApplicationFactory : IAsyncLifetime
 {
-    public const string TestUserPoolId = "us-east-1_GAMIFICATION_TEST";
-    public const string TestRegion = "us-east-1";
-    public const string TestAudience = "gamification-test-client-id";
-    public static string TestIssuer => $"https://cognito-idp.{TestRegion}.amazonaws.com/{TestUserPoolId}";
-
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgis/postgis:16-3.4")
         .Build();
 
@@ -54,19 +47,10 @@ public sealed class GamificationWebApplicationFactory : IAsyncLifetime
 
                 builder.ConfigureAppConfiguration((_, config) =>
                 {
+                    // Auth module options (own JWT, fake phone verification)
+                    config.AddInMemoryCollection(TestJwtFactory.AuthSettings());
                     config.AddInMemoryCollection(new Dictionary<string, string?>
                     {
-                        ["Auth:Cognito:UserPoolId"] = TestUserPoolId,
-                        ["Auth:Cognito:Region"] = TestRegion,
-                        ["Auth:Cognito:Audience"] = TestAudience,
-                        ["Auth:Cognito:AppClientId"] = TestAudience,
-                        ["Auth:Cognito:ClockSkewSeconds"] = "30",
-                        ["Auth:Google:ClientId"] = "test-google-client",
-                        ["Auth:Google:Issuer"] = "https://accounts.google.com",
-                        ["Auth:Google:JwksUri"] = "https://accounts.google.com/.well-known/openid-configuration",
-                        ["Auth:Apple:ClientId"] = "test-apple-client",
-                        ["Auth:Apple:Issuer"] = "https://appleid.apple.com",
-                        ["Auth:Apple:JwksUri"] = "https://appleid.apple.com/.well-known/openid-configuration",
                         ["ConnectionStrings:Default"] = _postgres.GetConnectionString(),
                         // SQS — required by AddMatchesModule fail-fast
                         ["Aws:Sqs:MatchCreatedQueueUrl"] = "http://localhost:4566/000000000000/match-created",
@@ -89,29 +73,6 @@ public sealed class GamificationWebApplicationFactory : IAsyncLifetime
                 builder.ConfigureTestServices(services =>
                 {
                     ReplaceService(services, typeof(IEventPublisher), Publisher);
-
-                    services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, jwt =>
-                    {
-                        jwt.Authority = null;
-                        jwt.MetadataAddress = null!;
-                        jwt.RequireHttpsMetadata = false;
-
-                        var staticConfig = new OpenIdConnectConfiguration
-                        {
-                            Issuer = TestIssuer,
-                        };
-                        staticConfig.SigningKeys.Add(GamificationTestSigningKeys.PublicKey);
-
-                        jwt.ConfigurationManager =
-                            new StaticConfigurationManager<OpenIdConnectConfiguration>(staticConfig);
-
-                        jwt.TokenValidationParameters.ValidIssuer = TestIssuer;
-                        jwt.TokenValidationParameters.IssuerSigningKeys = new[] { GamificationTestSigningKeys.PublicKey };
-                        jwt.TokenValidationParameters.ValidateIssuerSigningKey = true;
-                        jwt.TokenValidationParameters.ValidateIssuer = true;
-                        jwt.TokenValidationParameters.ValidateLifetime = true;
-                        jwt.TokenValidationParameters.ValidateAudience = false;
-                    });
                 });
             });
 
@@ -131,7 +92,7 @@ public sealed class GamificationWebApplicationFactory : IAsyncLifetime
     public HttpClient CreateAuthenticatedClient(Guid userId)
     {
         var client = Factory.CreateClient();
-        var token = GamificationTestJwtFactory.CreateAccessToken(TestIssuer, TestAudience, userId.ToString());
+        var token = TestJwtFactory.CreateAccessToken(subject: userId.ToString());
         client.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         return client;

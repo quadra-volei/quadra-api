@@ -2,11 +2,14 @@ using Microsoft.EntityFrameworkCore;
 using Quadra.Modules.Auth.DependencyInjection;
 using Quadra.Modules.Auth.Persistence;
 using Quadra.Modules.Gamification.DependencyInjection;
+using Quadra.Modules.Gamification.Persistence;
 using Quadra.Modules.Geo.DependencyInjection;
 using Quadra.Modules.InGame.DependencyInjection;
+using Quadra.Modules.InGame.Persistence;
 using Quadra.Modules.Matches.DependencyInjection;
 using Quadra.Modules.Matches.Persistence;
 using Quadra.Modules.Profile.DependencyInjection;
+using Quadra.Modules.Profile.Persistence;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -28,8 +31,12 @@ var app = builder.Build();
 if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
 {
     using var scope = app.Services.CreateScope();
-    await scope.ServiceProvider.GetRequiredService<AuthDbContext>().Database.MigrateAsync();
-    await scope.ServiceProvider.GetRequiredService<MatchesDbContext>().Database.MigrateAsync();
+    var services = scope.ServiceProvider;
+    await services.GetRequiredService<AuthDbContext>().Database.MigrateAsync();
+    await services.GetRequiredService<MatchesDbContext>().Database.MigrateAsync();
+    await services.GetRequiredService<InGameDbContext>().Database.MigrateAsync();
+    await services.GetRequiredService<ProfileDbContext>().Database.MigrateAsync();
+    await services.GetRequiredService<GamificationDbContext>().Database.MigrateAsync();
 }
 
 if (app.Environment.IsDevelopment())

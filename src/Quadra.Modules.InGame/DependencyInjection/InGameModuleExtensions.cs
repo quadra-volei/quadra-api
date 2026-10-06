@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Quadra.Infrastructure.Contracts;
+using Quadra.Infrastructure.Persistence;
 using Quadra.Modules.InGame.Application;
 using Quadra.Modules.InGame.Contracts;
 using Quadra.Modules.InGame.Persistence;
@@ -53,7 +54,7 @@ public static class InGameModuleExtensions
                     "ConnectionStrings:InGame (or ConnectionStrings:Default) must be configured.");
 
             builder.UseNpgsql(
-                connectionString,
+                PostgresConnectionString.Normalize(connectionString),
                 npgsql => npgsql.UseNetTopologySuite());
         });
 

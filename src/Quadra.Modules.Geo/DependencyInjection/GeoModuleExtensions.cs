@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Quadra.Infrastructure.Persistence;
 using Quadra.Modules.Geo.Application;
 using Quadra.Modules.Geo.Contracts;
 using Quadra.Modules.Geo.Persistence;
@@ -34,7 +35,7 @@ public static class GeoModuleExtensions
                     "ConnectionStrings:Geo (or ConnectionStrings:Default) must be configured.");
 
             builder.UseNpgsql(
-                connectionString,
+                PostgresConnectionString.Normalize(connectionString),
                 npgsql => npgsql.UseNetTopologySuite());
         });
 
