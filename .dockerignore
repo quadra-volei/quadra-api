@@ -15,4 +15,4 @@ tests/
 **/appsettings.Testing.json
 **/*.csproj.user
 docker-compose.yml
-fly.toml
+render.yaml
