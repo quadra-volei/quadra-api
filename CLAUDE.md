@@ -110,7 +110,15 @@ dotnet ef database update --startup-project ../Quadra.Api
 
 # Format / lint
 dotnet format
+
+# Build the API container image (what Fly.io runs)
+docker build -t quadra-api .
+
+# Deploy the always-on test environment (Fly.io, see fly.toml for first-time setup)
+fly deploy
 ```
+
+> **Hosted test environment**: `Dockerfile` + `fly.toml` run the API on Fly.io as `Staging`, with `Database:MigrateOnStartup=true` (pending EF migrations are applied when the machine boots) and the fake SMS provider (code `123456`) until Twilio is configured. Secrets (`ConnectionStrings__Default`, `Auth__Jwt__SigningKey`, `Auth__Google__ClientId`) are set with `fly secrets set`, never committed. The database must support PostGIS.
 
 ---
 
