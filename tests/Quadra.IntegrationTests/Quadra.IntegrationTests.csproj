@@ -23,6 +23,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--
+      Each integration collection spins up its own Testcontainers Postgres. Running collections in
+      parallel over-subscribes Docker (container startup failures under load), so collections run
+      serially. Tests within a collection still share one container.
+    -->
+    <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Quadra.Api\Quadra.Api.csproj" />
   </ItemGroup>
 

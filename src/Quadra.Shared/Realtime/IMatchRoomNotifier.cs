@@ -12,4 +12,10 @@ public interface IMatchRoomNotifier
     /// <c>match:{matchId}</c>.
     /// </summary>
     Task NotifyPresenceUpdatedAsync(PresenceUpdatedMessage message, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Sends a <see cref="ScoreboardUpdatedMessage"/> to all clients in the SignalR group
+    /// <c>match:{matchId}</c>.
+    /// </summary>
+    Task NotifyScoreboardUpdatedAsync(ScoreboardUpdatedMessage message, CancellationToken cancellationToken);
 }

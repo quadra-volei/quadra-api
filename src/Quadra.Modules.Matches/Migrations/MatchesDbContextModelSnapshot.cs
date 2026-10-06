@@ -215,6 +215,199 @@ namespace Quadra.Modules.Matches.Migrations
                     b.ToTable("match_presences", (string)null);
                 });
 
+            modelBuilder.Entity("Quadra.Modules.Matches.Entities.MatchSummary", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<int>("DurationSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("duration_seconds");
+
+                    b.Property<DateTimeOffset>("EndedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ended_at");
+
+                    b.Property<string>("Format")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("format");
+
+                    b.Property<DateTimeOffset>("GeneratedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("generated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("GeneratedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("generated_by");
+
+                    b.Property<Guid>("MatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("match_id");
+
+                    b.Property<Guid?>("MvpPlayerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("mvp_player_id");
+
+                    b.Property<short>("MvpTotalVotes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("smallint")
+                        .HasDefaultValue((short)0)
+                        .HasColumnName("mvp_total_votes");
+
+                    b.Property<short?>("MvpVoteCount")
+                        .HasColumnType("smallint")
+                        .HasColumnName("mvp_vote_count");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<Guid>("TeamAId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("team_a_id");
+
+                    b.Property<short>("TeamASetsWon")
+                        .HasColumnType("smallint")
+                        .HasColumnName("team_a_sets_won");
+
+                    b.Property<Guid>("TeamBId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("team_b_id");
+
+                    b.Property<short>("TeamBSetsWon")
+                        .HasColumnType("smallint")
+                        .HasColumnName("team_b_sets_won");
+
+                    b.Property<Guid?>("WinnerTeamId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("winner_team_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_match_summaries_match_id");
+
+                    b.ToTable("match_summaries", (string)null);
+                });
+
+            modelBuilder.Entity("Quadra.Modules.Matches.Entities.MatchSummaryPlayer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("MatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("match_id");
+
+                    b.Property<Guid>("MatchSummaryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("match_summary_id");
+
+                    b.Property<Guid>("PlayerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("player_id");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("team_id");
+
+                    b.Property<string>("TeamName")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("team_name");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchId")
+                        .HasDatabaseName("ix_match_summary_players_match_id");
+
+                    b.HasIndex("MatchSummaryId")
+                        .HasDatabaseName("ix_match_summary_players_match_summary_id");
+
+                    b.HasIndex("MatchSummaryId", "PlayerId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_match_summary_players_summary_player");
+
+                    b.ToTable("match_summary_players", (string)null);
+                });
+
+            modelBuilder.Entity("Quadra.Modules.Matches.Entities.MatchSummarySet", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("MatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("match_id");
+
+                    b.Property<Guid>("MatchSummaryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("match_summary_id");
+
+                    b.Property<short>("SetNumber")
+                        .HasColumnType("smallint")
+                        .HasColumnName("set_number");
+
+                    b.Property<short>("TeamAPoints")
+                        .HasColumnType("smallint")
+                        .HasColumnName("team_a_points");
+
+                    b.Property<short>("TeamBPoints")
+                        .HasColumnType("smallint")
+                        .HasColumnName("team_b_points");
+
+                    b.Property<Guid?>("WinnerTeamId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("winner_team_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchId")
+                        .HasDatabaseName("ix_match_summary_sets_match_id");
+
+                    b.HasIndex("MatchSummaryId")
+                        .HasDatabaseName("ix_match_summary_sets_match_summary_id");
+
+                    b.HasIndex("MatchSummaryId", "SetNumber")
+                        .IsUnique()
+                        .HasDatabaseName("uq_match_summary_sets_summary_set_number");
+
+                    b.ToTable("match_summary_sets", (string)null);
+                });
+
             modelBuilder.Entity("Quadra.Modules.Matches.Entities.WaitingListEntry", b =>
                 {
                     b.Property<Guid>("Id")

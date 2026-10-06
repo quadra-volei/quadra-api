@@ -10,6 +10,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddAuthModule(builder.Configuration);
 builder.Services.AddMatchesModule(builder.Configuration);
+builder.Services.AddInGameModule(builder.Configuration);
+builder.Services.AddProfileModule(builder.Configuration);
+builder.Services.AddGeoModule(builder.Configuration);
+builder.Services.AddGamificationModule(builder.Configuration);
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
