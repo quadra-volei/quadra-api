@@ -46,7 +46,7 @@ public sealed class S3ProfilePhotoStorage : IProfilePhotoStorage
     }
 
     /// <inheritdoc/>
-    public async Task<string> GetReadUrlAsync(string objectKey, CancellationToken cancellationToken)
+    public async Task<string?> GetReadUrlAsync(string objectKey, CancellationToken cancellationToken)
     {
         var expiresAt = _timeProvider.GetUtcNow().AddMinutes(_options.PhotoReadUrlTtlMinutes);
 

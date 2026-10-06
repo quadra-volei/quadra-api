@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Quadra.Api.Events;
 using Quadra.Modules.Auth.DependencyInjection;
 using Quadra.Modules.Auth.Persistence;
 using Quadra.Modules.Gamification.DependencyInjection;
@@ -15,6 +16,8 @@ using Scalar.AspNetCore;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+// Before the modules: they fall back to a no-op publisher only when none is registered.
+builder.Services.AddInProcessEventHandling();
 builder.Services.AddAuthModule(builder.Configuration);
 builder.Services.AddMatchesModule(builder.Configuration);
 builder.Services.AddInGameModule(builder.Configuration);

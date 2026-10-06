@@ -6,6 +6,22 @@
 
 ## Overview
 
+> **Amendment — 2026-10-06 (Johny): no AWS-only infrastructure.** The backend now runs as a single
+> container plus a PostgreSQL/PostGIS database (hosted test environment: Render + Neon).
+> - **Events are handled in-process.** `IEventPublisher` is `InProcessEventPublisher`: when a module
+>   publishes an event, the `IEventHandler<T>` implementations in `Quadra.Api/Events` run inside the
+>   same request (profile provisioning on `UserRegistered`; player stats and group-ranking points on
+>   `MatchSummaryGenerated`). There is no SQS and no separate Background Worker. Trade-off: a handler
+>   that fails is logged and not retried (no outbox yet).
+> - **Photo storage is optional and S3-compatible.** With no bucket configured the API serves
+>   profiles without a photo and refuses uploads with 503; any S3-compatible service can be plugged
+>   in through the `Aws:S3` settings (`ServiceUrl`, `AccessKeyId`, `SecretAccessKey`).
+> - **Auth is the API's own** (see the Auth module below) — no Cognito.
+> - Not implemented yet: push notifications (the Notification Worker) and the Redis SignalR backplane.
+>
+> The sections below still describe the original AWS design (ECS workers, SQS, S3) and are kept as
+> the reference for a future scale-out; where they disagree with this note, this note wins.
+
 Modular monolith in .NET 10 (CORE), with two separate workers running on ECS:
 
 - **CORE**: ASP.NET Core API + SignalR Hub in the same process

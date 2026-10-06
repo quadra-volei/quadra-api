@@ -4,6 +4,9 @@
 # this file, asks for the values marked `sync: false`, builds the Dockerfile and deploys.
 # After that, every push to the branch below redeploys automatically.
 #
+# Nothing else is needed: events are handled inside the API (no queue, no worker) and
+# profile photos are simply disabled until an S3-compatible bucket is configured (Aws__S3__*).
+#
 # The database is NOT created here: Render's free Postgres expires after a few weeks.
 # Use any Postgres that allows the PostGIS extension (e.g. a free Neon project in a
 # US East region, close to this service) and paste its connection string when asked.
@@ -48,7 +51,7 @@ services:
       - key: Auth__PhoneVerification__Provider
         value: Fake
 
-      # Required at startup but not used yet (events go to a no-op publisher).
+      # Still required at startup by the modules, but unused: events are handled in-process.
       - key: Aws__Sqs__MatchCreatedQueueUrl
         value: http://unused/match-created
       - key: Aws__Sqs__MatchStatusChangedQueueUrl

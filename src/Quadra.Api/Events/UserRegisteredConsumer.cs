@@ -1,15 +1,16 @@
 using Microsoft.Extensions.Logging;
+using Quadra.Infrastructure.Messaging;
 using Quadra.Modules.Profile.Abstractions;
 using Quadra.Shared.Events.Auth;
 
-namespace Quadra.Workers.Background.Consumers;
+namespace Quadra.Api.Events;
 
 /// <summary>
 /// Consumes the <see cref="UserRegistered"/> event and bootstraps an empty profile for the new user
 /// by invoking the Profile-owned <see cref="IPlayerProfileProvisioner"/>. Idempotent (at-least-once
 /// delivery is safe because provisioning is a no-op when the profile already exists).
 /// </summary>
-public sealed class UserRegisteredConsumer
+public sealed class UserRegisteredConsumer : IEventHandler<UserRegistered>
 {
     private readonly IPlayerProfileProvisioner _provisioner;
     private readonly ILogger<UserRegisteredConsumer> _logger;

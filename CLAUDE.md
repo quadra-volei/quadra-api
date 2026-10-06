@@ -31,9 +31,9 @@ These decisions MUST NOT be questioned or changed by any agent. If a feature req
 | SMS OTP | Twilio Verify over REST (`HttpClient`, no SDK), behind `IPhoneVerificationService` so the provider can be swapped (e.g. Zenvia) | — |
 | Real-time | SignalR over WebSocket | 10.0 |
 | SignalR backplane | Redis | 7+ |
-| Messaging | AWS SQS | — |
-| Storage | AWS S3 | — |
-| Workers | Background Worker + Notification Worker on ECS (BackgroundService / Worker SDK) | — |
+| Messaging | **In-process events**: `IEventPublisher` → `InProcessEventPublisher` delivers each event to the `IEventHandler<T>` implementations in `Quadra.Api/Events`, inside the publishing request. No SQS, no queue. | — |
+| Storage | Optional, S3-compatible (`Aws:S3`: AWS S3, or Cloudflare R2 / any compatible service via `ServiceUrl`). With no bucket configured the API runs without photos. | — |
+| Workers | None in use. The former Background Worker consumers run in-process in the API; `Quadra.Workers.*` are empty placeholders. | — |
 | Validation | FluentValidation | latest stable |
 | DTO ↔ Entity mapping | Manual mapping (no AutoMapper) | — |
 | Logs | Serilog structured JSON | latest stable |
@@ -66,10 +66,10 @@ src/
   Quadra.Modules.Notifications/# In-app notifications
   Quadra.Modules.Gamification/ # Points, levels, achievements, ranking
   Quadra.Modules.Realtime/     # SignalR Hub (internal infra)
-  Quadra.Workers.Background/   # Heavy processing worker
-  Quadra.Workers.Notification/ # Push delivery worker
+  Quadra.Workers.Background/   # Placeholder (its event consumers moved to Quadra.Api/Events)
+  Quadra.Workers.Notification/ # Placeholder (push delivery not implemented)
   Quadra.Shared/               # Shared contracts (events, abstractions)
-  Quadra.Infrastructure/       # EF DbContext, Redis, SQS, S3
+  Quadra.Infrastructure/       # EF helpers, in-process event publisher, S3-compatible photo storage
 tests/
   Quadra.UnitTests/
   Quadra.IntegrationTests/
@@ -78,7 +78,7 @@ tests/
 ### Module boundaries (critical rule)
 
 - A module **never** accesses another module's tables directly.
-- Inter-module communication: through public interfaces exposed by the target module, or through SQS events.
+- Inter-module communication: through public interfaces exposed by the target module, or through integration events (`IEventPublisher`). Event handlers that coordinate several modules live in the host (`Quadra.Api/Events`) and only use those public interfaces.
 - If module A needs data from module B, it asks via interface. No cross-module JOINs in the database.
 - This rule is validated by the `scope-guardian` on every spec.
 
