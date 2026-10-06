@@ -19,6 +19,7 @@ public sealed class ProfileDbContext : DbContext
     public DbSet<PlayerStats> PlayerStats => Set<PlayerStats>();
     public DbSet<PlayerMatchHistoryEntry> PlayerMatchHistory => Set<PlayerMatchHistoryEntry>();
     public DbSet<PlayerCard> PlayerCards => Set<PlayerCard>();
+    public DbSet<Quadra.Modules.Profile.Feedback.FeedbackEntry> Feedback => Set<Quadra.Modules.Profile.Feedback.FeedbackEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -29,5 +30,6 @@ public sealed class ProfileDbContext : DbContext
         modelBuilder.ApplyConfiguration(new PlayerStatsConfiguration());
         modelBuilder.ApplyConfiguration(new PlayerMatchHistoryEntryConfiguration());
         modelBuilder.ApplyConfiguration(new PlayerCardConfiguration());
+        modelBuilder.ApplyConfiguration(new Quadra.Modules.Profile.Feedback.FeedbackEntryConfiguration());
     }
 }

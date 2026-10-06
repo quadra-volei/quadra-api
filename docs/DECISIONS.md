@@ -61,3 +61,11 @@ them; the backend only knew two fixed teams. The backend followed the app.
 | 32 | The human ruling of 2026-07-03 stands: **a group is one recurring match and no further occurrences are generated**. So today a ranking holds the points of a single game. | Explicit earlier decision; generating occurrences is a feature of its own. Until it exists the ranking cannot accumulate across weeks. |
 | 33 | The **match history row** now stores the match format and the set score from the player's side (`setsWon`, `setsLost` = sets of the best opposing team). Rows recorded before this have them null. | The app's "partidas recentes" row shows "4X4" and "2-1". |
 | 34 | The **player card** needs nothing new: the app's card screen reads the profile (skills, position, level), which is already real. The backend rule "card available after 3 matches" (`/profiles/me/card`) is not used by the app. | No mocked data left on that screen. |
+
+## 2026-10-06 — Feedback form
+
+| # | Decision | Why |
+| --- | --- | --- |
+| 35 | **`POST /api/v1/feedback`** (authenticated) stores the app's "Enviar feedback" form in a new `feedback` table: user, type (`Suggestion` / `Problem` / `Praise`), message (up to 1000 characters), optional app version and platform, date. Nothing is e-mailed or sent to any service; the team reads the table. | Zero cost and no new dependency. The limit and the types are the ones the app's form already has. |
+| 36 | The feature lives in the **Profile module** (its DbContext and migrations), in one file. | It is data a user sends about themselves; a module of its own for one table and one endpoint would be scaffolding. |
+| 37 | **20 messages per user per 24 h**; the next one answers `429`. | Any logged-in account can write to the table, and the test environment's fake SMS makes accounts cheap. |

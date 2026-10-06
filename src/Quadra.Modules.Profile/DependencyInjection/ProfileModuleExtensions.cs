@@ -67,6 +67,10 @@ public static class ProfileModuleExtensions
         services.AddScoped<IValidator<PhotoUploadUrlRequest>, PhotoUploadUrlRequestValidator>();
         services.AddScoped<IValidator<MatchHistoryQuery>, MatchHistoryQueryValidator>();
 
+        // "Enviar feedback" (app settings): stored in the feedback table.
+        services.AddScoped<Quadra.Modules.Profile.Feedback.SendFeedbackHandler>();
+        services.AddScoped<IValidator<Quadra.Modules.Profile.Feedback.SendFeedbackRequest>, Quadra.Modules.Profile.Feedback.SendFeedbackRequestValidator>();
+
         // S3-backed profile-photo storage (Infrastructure). Fails fast if the bucket is unconfigured.
         services.AddProfilePhotoStorage(configuration);
 
