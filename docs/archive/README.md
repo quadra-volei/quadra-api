@@ -9,3 +9,5 @@ work. Current docs are one level up.
 | `SCOPE-2026-10-06-contratos-por-feature.md` | IN/OUT contract per feature plus guardian rules | Replaced by a done / pending / out status; mixed SQS workers and a finished refactor |
 | `WORKFLOW-setup-inicial.md` | How to scaffold the repo and run the 4-agent `/feature` flow | The project exists; the setup steps no longer apply |
 | `README-pacote-de-agentes.md` | "How to install" for the agent package | Described a package to copy, not this repository |
+| `specs/` | Feature contracts (F1.1 to F2.3, FA.1 to FA.3) written when each feature was first built | Several were changed later by `DECISIONS.md`; the code is the contract now |
+| `claude-workflow/` | The four-agent `/feature` flow (agents, command, hook) | No longer used; it also loaded agent descriptions into every session |

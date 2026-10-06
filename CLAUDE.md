@@ -12,9 +12,8 @@ client lives in the sibling repo `quadra-mobile` and already consumes this API.
 | Modules, tables, events, hosting | `docs/ARCHITECTURE.md` |
 | Product vision, levels, points | `docs/PRODUCT.md` |
 
-`docs/specs/` holds the contracts written when each feature was first built; several were
-later changed by `docs/DECISIONS.md`. Where they disagree, the code and DECISIONS win.
-`docs/archive/` is history only — never treat it as current, do not read it by default.
+`docs/archive/` is history only (old specs, the AWS design, the four-agent workflow) — never
+treat it as current and do not read it by default.
 
 ## Stack (do not change without asking)
 
