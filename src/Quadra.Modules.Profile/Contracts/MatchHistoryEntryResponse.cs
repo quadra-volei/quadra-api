@@ -8,4 +8,7 @@ public sealed record MatchHistoryEntryResponse(
     Guid? TeamId,
     string Outcome,
     bool WasMvp,
-    int? DurationSeconds);
+    int? DurationSeconds,
+    string? Format = null,
+    int? SetsWon = null,
+    int? SetsLost = null);

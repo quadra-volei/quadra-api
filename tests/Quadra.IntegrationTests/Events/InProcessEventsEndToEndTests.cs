@@ -139,6 +139,11 @@ public sealed class InProcessEventsEndToEndTests : IClassFixture<InProcessEvents
 
         var history = await GetJsonAsync(mvp, "/api/v1/profiles/me/match-history");
         history.GetProperty("items").GetArrayLength().Should().Be(1);
+        // The history row carries the set score from the player's side.
+        var row = history.GetProperty("items")[0];
+        var (setsWon, setsLost) = (row.GetProperty("setsWon").GetInt32(), row.GetProperty("setsLost").GetInt32());
+        (setsWon + setsLost).Should().BeGreaterThanOrEqualTo(2);
+        (setsWon > setsLost).Should().Be(teamAPlayers.Contains(mvp.UserId));
 
         // Group ranking: all four participants are ranked with points from this match.
         var ranking = await GetJsonAsync(organizer, $"/api/v1/matches/{matchId}/ranking");
@@ -147,6 +152,17 @@ public sealed class InProcessEventsEndToEndTests : IClassFixture<InProcessEvents
             .Should().BeEquivalentTo(players.Select(p => p.UserId));
         entries.Should().OnlyContain(e =>
             e.GetProperty("totalPoints").GetInt32() > 0 && e.GetProperty("matchesCounted").GetInt32() == 1);
+
+        // "My ranking" finds that group without naming the match, with player names.
+        var mine = await GetJsonAsync(mvp, "/api/v1/rankings/mine?pageSize=4");
+        mine.GetProperty("groupId").GetGuid().Should().Be(matchId);
+        mine.GetProperty("items").EnumerateArray()
+            .Should().HaveCount(4).And.OnlyContain(e => !string.IsNullOrEmpty(e.GetProperty("displayName").GetString()));
+        mine.GetProperty("callerEntry").GetProperty("userId").GetGuid().Should().Be(mvp.UserId);
+
+        // Someone who never scored is in no ranking.
+        var newcomer = await LoginAsync("+5511977770099");
+        (await newcomer.Client.GetAsync("/api/v1/rankings/mine", Ct)).StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

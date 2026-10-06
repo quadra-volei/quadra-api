@@ -52,3 +52,12 @@ them; the backend only knew two fixed teams. The backend followed the app.
 | 28 | **Live updates: SignalR hub at `/hubs/match`** (`JoinMatchRoom` / `LeaveMatchRoom`, events `ScoreboardUpdated` / `PresenceUpdated`), **without Redis**: groups live in the memory of the single API instance. | Asked for; the free hosting runs one instance. Add the Redis backplane before running more than one. |
 | 29 | `GET /matches/{id}/detail` now carries `game` (`scoreboardState`, `mvpVotingState`, `hasSummary`). | One request tells the app which screen comes next (live scoreboard, vote, summary). |
 | 30 | The **summary of a game with rotating teams** keeps the existing shape: winner, MVP, teams and the sets with their points — but not which pair played each set, and the "sets won" pair shown is the last pair on court. | Extending the stored summary needs its own migration and screen design; the result (who won, stats, ranking) is already correct. |
+
+## 2026-10-06 — Block 4: ranking and match history
+
+| # | Decision | Why |
+| --- | --- | --- |
+| 31 | **`GET /rankings/mine`**: the ranking of the group (recurring match) where the caller scored most recently, each row with the player's name, @, position and photo. `204` when the caller is in no ranking. The per-match endpoint is unchanged. | The app's ranking screens do not say which match they are about, and the rows need names. |
+| 32 | The human ruling of 2026-07-03 stands: **a group is one recurring match and no further occurrences are generated**. So today a ranking holds the points of a single game. | Explicit earlier decision; generating occurrences is a feature of its own. Until it exists the ranking cannot accumulate across weeks. |
+| 33 | The **match history row** now stores the match format and the set score from the player's side (`setsWon`, `setsLost` = sets of the best opposing team). Rows recorded before this have them null. | The app's "partidas recentes" row shows "4X4" and "2-1". |
+| 34 | The **player card** needs nothing new: the app's card screen reads the profile (skills, position, level), which is already real. The backend rule "card available after 3 matches" (`/profiles/me/card`) is not used by the app. | No mocked data left on that screen. |

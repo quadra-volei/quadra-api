@@ -53,6 +53,16 @@ public sealed class PlayerMatchHistoryEntryConfiguration : IEntityTypeConfigurat
         builder.Property(h => h.DurationSeconds)
             .HasColumnName("duration_seconds");
 
+        builder.Property(h => h.Format)
+            .HasColumnName("format")
+            .HasMaxLength(8);
+
+        builder.Property(h => h.SetsWon)
+            .HasColumnName("sets_won");
+
+        builder.Property(h => h.SetsLost)
+            .HasColumnName("sets_lost");
+
         builder.Property(h => h.RecordedAt)
             .HasColumnName("recorded_at")
             .IsRequired();

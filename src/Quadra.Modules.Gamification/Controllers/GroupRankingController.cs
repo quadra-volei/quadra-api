@@ -65,6 +65,37 @@ public sealed class GroupRankingController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// GET /api/v1/rankings/mine — the ranking of the group where the caller scored most
+    /// recently, with player names. 204 when the caller is in no ranking yet.
+    /// </summary>
+    [HttpGet("api/v1/rankings/mine")]
+    public async Task<ActionResult<GroupRankingResponse>> GetMine(
+        [FromServices] GetMyRankingHandler handler,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryGetCallerId(out var callerId))
+        {
+            return Unauthorized();
+        }
+
+        var validation = await _validator.ValidateAsync(new GroupRankingQuery(page, pageSize), cancellationToken);
+        if (!validation.IsValid)
+        {
+            foreach (var failure in validation.Errors)
+            {
+                ModelState.AddModelError(failure.PropertyName, failure.ErrorMessage);
+            }
+
+            return ValidationProblem(ModelState);
+        }
+
+        var ranking = await handler.HandleAsync(callerId, page, pageSize, cancellationToken);
+        return ranking is null ? NoContent() : Ok(ranking);
+    }
+
     private bool TryGetCallerId(out Guid callerId)
     {
         var value = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;

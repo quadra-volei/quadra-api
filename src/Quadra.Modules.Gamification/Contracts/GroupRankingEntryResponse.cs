@@ -6,4 +6,9 @@ public sealed record GroupRankingEntryResponse(
     Guid UserId,
     int TotalPoints,
     int MatchesCounted,
-    DateTimeOffset? LastMatchDateTime);
+    DateTimeOffset? LastMatchDateTime,
+    // Who the player is — filled by GET /rankings/mine; null on the per-match endpoint.
+    string? DisplayName = null,
+    string? Handle = null,
+    string? Position = null,
+    string? PhotoUrl = null);

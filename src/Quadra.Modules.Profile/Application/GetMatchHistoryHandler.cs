@@ -42,7 +42,10 @@ public sealed class GetMatchHistoryHandler
                 h.TeamId,
                 h.Outcome.ToString(),
                 h.WasMvp,
-                h.DurationSeconds))
+                h.DurationSeconds,
+                h.Format,
+                h.SetsWon,
+                h.SetsLost))
             .ToList();
 
         var hasNextPage = (long)page * pageSize < totalCount;
