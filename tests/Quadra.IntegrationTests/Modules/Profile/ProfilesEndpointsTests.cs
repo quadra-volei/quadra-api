@@ -53,11 +53,12 @@ public sealed class ProfilesEndpointsTests
     }
 
     /// <summary>
-    /// Covers: F2.1 "provisioning" + default level/stats — after provisioning, GET returns the
-    /// placeholder name, Beginner level, null positions/photo and all-zero stats.
+    /// Covers: F2.1 "provisioning" + defaults — after provisioning, GET returns the empty shell:
+    /// placeholder display name, no handle/position/photo, Beginner level, onboarding not
+    /// completed, base skill ratings and all-zero stats.
     /// </summary>
     [Fact]
-    public async Task GET_me_after_provision_returns_placeholder_defaults()
+    public async Task GET_me_after_provision_returns_the_empty_shell()
     {
         await _fx.ResetAsync();
         var userId = Guid.NewGuid();
@@ -69,21 +70,25 @@ public sealed class ProfilesEndpointsTests
         profile.Should().NotBeNull();
         profile!.UserId.Should().Be(userId);
         profile.DisplayName.Should().Be("Player");
-        profile.PrimaryPosition.Should().BeNull();
-        profile.SecondaryPosition.Should().BeNull();
+        profile.FirstName.Should().BeEmpty();
+        profile.Handle.Should().BeNull();
+        profile.Position.Should().BeNull();
         profile.PhotoUrl.Should().BeNull();
         profile.Level.Should().Be("Beginner");
+        profile.OnboardingCompleted.Should().BeFalse();
+        profile.Skills.Should().Be(new SkillsDto(Overall: 50, Ace: 50, Block: 50, Attack: 50, Defense: 50));
         profile.Stats.Should().Be(new StatsDto(0, 0, 0, 0, 0));
     }
 
     // ═══ PUT /profiles/me ══════════════════════════════════════════════════════
 
     /// <summary>
-    /// Covers: F2.1 "photo, name, primary/secondary position" — PUT updates the editable fields and
-    /// GET reflects them; the photo reference resolves to a short-lived read URL.
+    /// Covers: F2.1 onboarding — the first PUT stores name, surname, handle (lowercased), birth
+    /// date, position, modality and the self-declared level, marks onboarding complete, derives
+    /// the skill ratings from level + position, and resolves the photo URL. GET returns the same.
     /// </summary>
     [Fact]
-    public async Task PUT_me_updates_editable_fields_and_resolves_photo_url()
+    public async Task PUT_me_completes_onboarding_with_the_mobile_fields()
     {
         await _fx.ResetAsync();
         var userId = Guid.NewGuid();
@@ -91,62 +96,176 @@ public sealed class ProfilesEndpointsTests
         var client = _fx.CreateAuthenticatedClient(userId);
 
         var photoKey = $"profiles/{userId}/photo/{Guid.NewGuid()}.jpg";
-        var request = new UpdateProfileBody("Ana Setter", "Setter", "Libero", photoKey);
+        var request = Onboarding(handle: "Ana_Lev", position: "LEV", level: "Intermediate") with
+        {
+            PhotoObjectKey = photoKey,
+        };
 
         var put = await client.PutAsJsonAsync("/api/v1/profiles/me", request, Ct);
         put.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var body = await put.Content.ReadFromJsonAsync<ProfileDto>(Ct);
-        body!.DisplayName.Should().Be("Ana Setter");
-        body.PrimaryPosition.Should().Be("Setter");
-        body.SecondaryPosition.Should().Be("Libero");
-        body.PhotoUrl.Should().Be($"https://s3.test.local/read/{photoKey}");
-
-        // Persisted: a fresh GET returns the same values.
         var reread = await client.GetFromJsonAsync<ProfileDto>("/api/v1/profiles/me", Ct);
-        reread!.DisplayName.Should().Be("Ana Setter");
-        reread.PrimaryPosition.Should().Be("Setter");
-        reread.SecondaryPosition.Should().Be("Libero");
+        foreach (var body in new[] { await put.Content.ReadFromJsonAsync<ProfileDto>(Ct), reread })
+        {
+            body!.FirstName.Should().Be("Ana");
+            body.LastName.Should().Be("Souza");
+            body.DisplayName.Should().Be("Ana Souza");
+            body.Handle.Should().Be("ana_lev");
+            body.BirthDate.Should().Be(new DateOnly(1998, 3, 14));
+            body.Position.Should().Be("LEV");
+            body.Modality.Should().Be("Indoor");
+            body.DeclaredLevel.Should().Be("Intermediate");
+            body.Level.Should().Be("Intermediate");
+            body.OnboardingCompleted.Should().BeTrue();
+            // Intermediate base 60; LEV: ACE +4, DEF +4.
+            body.Skills.Should().Be(new SkillsDto(Overall: 62, Ace: 64, Block: 60, Attack: 60, Defense: 64));
+            body.PhotoUrl.Should().Be($"https://s3.test.local/read/{photoKey}");
+            body.PhotoObjectKey.Should().Be(photoKey);
+        }
     }
 
-    /// <summary>Covers: F2.1 PUT validation — invalid position value returns 400.</summary>
-    [Fact]
-    public async Task PUT_me_with_invalid_position_returns_400()
+    /// <summary>
+    /// Covers: F2.1 onboarding — the first PUT must carry the modality and the declared level.
+    /// </summary>
+    [Theory]
+    [InlineData(null, "Beginner")]
+    [InlineData("Indoor", null)]
+    public async Task PUT_me_without_onboarding_fields_returns_400(string? modality, string? level)
     {
         await _fx.ResetAsync();
         var userId = Guid.NewGuid();
         await ProvisionAsync(userId);
         var client = _fx.CreateAuthenticatedClient(userId);
 
-        var request = new UpdateProfileBody("Valid Name", "Goalkeeper", null, null);
+        var request = Onboarding() with { Modality = modality, Level = level };
         var response = await client.PutAsJsonAsync("/api/v1/profiles/me", request, Ct);
+
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var profile = await client.GetFromJsonAsync<ProfileDto>("/api/v1/profiles/me", Ct);
+        profile!.OnboardingCompleted.Should().BeFalse();
     }
 
-    /// <summary>Covers: F2.1 PUT validation — secondary equal to primary returns 400.</summary>
+    /// <summary>
+    /// Covers: F2.1 edit (S10) — after onboarding, a PUT without modality/level edits the profile
+    /// and keeps them; trying to re-declare the level is rejected.
+    /// </summary>
     [Fact]
-    public async Task PUT_me_with_secondary_equal_primary_returns_400()
+    public async Task PUT_me_after_onboarding_edits_the_profile_but_cannot_redeclare_the_level()
+    {
+        await _fx.ResetAsync();
+        var userId = Guid.NewGuid();
+        await ProvisionAsync(userId);
+        var client = _fx.CreateAuthenticatedClient(userId);
+        (await client.PutAsJsonAsync("/api/v1/profiles/me", Onboarding(level: "Beginner"), Ct))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var edit = Onboarding(handle: "ana_new", position: "LIB") with
+        {
+            LastName = "Lima",
+            Modality = null,
+            Level = null,
+        };
+        var edited = await client.PutAsJsonAsync("/api/v1/profiles/me", edit, Ct);
+        edited.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await edited.Content.ReadFromJsonAsync<ProfileDto>(Ct);
+        body!.LastName.Should().Be("Lima");
+        body.Handle.Should().Be("ana_new");
+        body.Position.Should().Be("LIB");
+        body.Modality.Should().Be("Indoor");
+        body.DeclaredLevel.Should().Be("Beginner");
+        // Beginner base 50; LIB: DEF +10, ATA -5, BLK -5.
+        body.Skills.Should().Be(new SkillsDto(Overall: 50, Ace: 50, Block: 45, Attack: 45, Defense: 60));
+
+        var redeclare = await client.PutAsJsonAsync(
+            "/api/v1/profiles/me", edit with { Level = "Advanced" }, Ct);
+        redeclare.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    /// <summary>
+    /// Covers: F2.1 "handle uniqueness (case-insensitive)" — a handle owned by another player is
+    /// refused with 409 whatever its casing; keeping one's own handle is fine.
+    /// </summary>
+    [Fact]
+    public async Task PUT_me_with_a_handle_taken_by_another_player_returns_409()
+    {
+        await _fx.ResetAsync();
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        await ProvisionAsync(first);
+        await ProvisionAsync(second);
+        var firstClient = _fx.CreateAuthenticatedClient(first);
+        var secondClient = _fx.CreateAuthenticatedClient(second);
+
+        (await firstClient.PutAsJsonAsync("/api/v1/profiles/me", Onboarding(handle: "craque"), Ct))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var taken = await secondClient.PutAsJsonAsync("/api/v1/profiles/me", Onboarding(handle: "CRAQUE"), Ct);
+        taken.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        var ownAgain = await firstClient.PutAsJsonAsync(
+            "/api/v1/profiles/me", Onboarding(handle: "craque") with { Modality = null, Level = null }, Ct);
+        ownAgain.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    /// <summary>
+    /// Covers: F2.1 "availability-check endpoint" — free handle → available; another player's →
+    /// not available (case-insensitive); the caller's own → available; malformed → 400.
+    /// </summary>
+    [Fact]
+    public async Task GET_handle_availability_reports_free_taken_own_and_invalid()
+    {
+        await _fx.ResetAsync();
+        var owner = Guid.NewGuid();
+        var other = Guid.NewGuid();
+        await ProvisionAsync(owner);
+        await ProvisionAsync(other);
+        var ownerClient = _fx.CreateAuthenticatedClient(owner);
+        var otherClient = _fx.CreateAuthenticatedClient(other);
+        (await ownerClient.PutAsJsonAsync("/api/v1/profiles/me", Onboarding(handle: "saque_viagem"), Ct))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        const string url = "/api/v1/profiles/handle-availability?handle=";
+
+        (await otherClient.GetFromJsonAsync<HandleAvailabilityDto>(url + "livre_123", Ct))
+            .Should().Be(new HandleAvailabilityDto("livre_123", true));
+        (await otherClient.GetFromJsonAsync<HandleAvailabilityDto>(url + "Saque_Viagem", Ct))
+            .Should().Be(new HandleAvailabilityDto("saque_viagem", false));
+        (await ownerClient.GetFromJsonAsync<HandleAvailabilityDto>(url + "saque_viagem", Ct))
+            .Should().Be(new HandleAvailabilityDto("saque_viagem", true));
+        (await otherClient.GetAsync(url + "a!", Ct)).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await otherClient.GetAsync("/api/v1/profiles/handle-availability", Ct))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    /// <summary>Covers: F2.1 PUT validation — each malformed field returns 400.</summary>
+    [Theory]
+    [InlineData("position", "Setter")]
+    [InlineData("position", "lev")]
+    [InlineData("handle", "ab")]
+    [InlineData("handle", "com espaço")]
+    [InlineData("firstName", "  ")]
+    [InlineData("modality", "Grass")]
+    [InlineData("level", "Elite")]
+    [InlineData("birthDate", "2999-01-01")]
+    public async Task PUT_me_with_an_invalid_field_returns_400(string field, string value)
     {
         await _fx.ResetAsync();
         var userId = Guid.NewGuid();
         await ProvisionAsync(userId);
         var client = _fx.CreateAuthenticatedClient(userId);
 
-        var request = new UpdateProfileBody("Valid Name", "Setter", "Setter", null);
-        var response = await client.PutAsJsonAsync("/api/v1/profiles/me", request, Ct);
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
+        var valid = Onboarding();
+        var request = field switch
+        {
+            "position" => valid with { Position = value },
+            "handle" => valid with { Handle = value },
+            "firstName" => valid with { FirstName = value },
+            "modality" => valid with { Modality = value },
+            "level" => valid with { Level = value },
+            "birthDate" => valid with { BirthDate = DateOnly.Parse(value, System.Globalization.CultureInfo.InvariantCulture) },
+            _ => throw new ArgumentOutOfRangeException(nameof(field)),
+        };
 
-    /// <summary>Covers: F2.1 PUT validation — short display name returns 400.</summary>
-    [Fact]
-    public async Task PUT_me_with_short_display_name_returns_400()
-    {
-        await _fx.ResetAsync();
-        var userId = Guid.NewGuid();
-        await ProvisionAsync(userId);
-        var client = _fx.CreateAuthenticatedClient(userId);
-
-        var request = new UpdateProfileBody("a", null, null, null);
         var response = await client.PutAsJsonAsync("/api/v1/profiles/me", request, Ct);
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
@@ -163,7 +282,7 @@ public sealed class ProfilesEndpointsTests
         var client = _fx.CreateAuthenticatedClient(userId);
 
         var foreignKey = $"profiles/{Guid.NewGuid()}/photo/{Guid.NewGuid()}.jpg";
-        var request = new UpdateProfileBody("Valid Name", null, null, foreignKey);
+        var request = Onboarding() with { PhotoObjectKey = foreignKey };
         var response = await client.PutAsJsonAsync("/api/v1/profiles/me", request, Ct);
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
@@ -174,9 +293,32 @@ public sealed class ProfilesEndpointsTests
     {
         await _fx.ResetAsync();
         var client = _fx.CreateAuthenticatedClient(Guid.NewGuid());
-        var request = new UpdateProfileBody("Valid Name", null, null, null);
-        var response = await client.PutAsJsonAsync("/api/v1/profiles/me", request, Ct);
+        var response = await client.PutAsJsonAsync("/api/v1/profiles/me", Onboarding(), Ct);
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    /// <summary>
+    /// Covers: F2.1 privacy — another player's profile is public except for the birth date,
+    /// which only its owner sees.
+    /// </summary>
+    [Fact]
+    public async Task GET_by_userId_hides_the_birth_date_from_other_players()
+    {
+        await _fx.ResetAsync();
+        var target = Guid.NewGuid();
+        await ProvisionAsync(target);
+        var owner = _fx.CreateAuthenticatedClient(target);
+        (await owner.PutAsJsonAsync("/api/v1/profiles/me", Onboarding(handle: "reservado"), Ct))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var stranger = _fx.CreateAuthenticatedClient(Guid.NewGuid());
+        var seenByStranger = await stranger.GetFromJsonAsync<ProfileDto>($"/api/v1/profiles/{target}", Ct);
+        var seenByOwner = await owner.GetFromJsonAsync<ProfileDto>($"/api/v1/profiles/{target}", Ct);
+
+        seenByStranger!.Handle.Should().Be("reservado");
+        seenByStranger.BirthDate.Should().BeNull();
+        seenByStranger.PhotoObjectKey.Should().BeNull();
+        seenByOwner!.BirthDate.Should().Be(new DateOnly(1998, 3, 14));
     }
 
     // ═══ GET /profiles/{userId} ════════════════════════════════════════════════
@@ -398,7 +540,8 @@ public sealed class ProfilesEndpointsTests
         }
 
         var client = _fx.CreateAuthenticatedClient(userId);
-        var request = new UpdateProfileBody("Renamed Player", "Opposite", null, null);
+        // Declaring a lower level than the one already earned must not downgrade the player.
+        var request = Onboarding(position: "OPO", level: "Beginner");
         var put = await client.PutAsJsonAsync("/api/v1/profiles/me", request, Ct);
         put.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -469,13 +612,25 @@ public sealed class ProfilesEndpointsTests
     private sealed record ProfileDto(
         Guid UserId,
         string DisplayName,
-        string? PrimaryPosition,
-        string? SecondaryPosition,
-        string? PhotoUrl,
+        string FirstName,
+        string LastName,
+        string? Handle,
+        DateOnly? BirthDate,
+        string? Position,
+        string? Modality,
+        string? DeclaredLevel,
         string Level,
+        string? PhotoUrl,
+        string? PhotoObjectKey,
+        bool OnboardingCompleted,
+        SkillsDto Skills,
         StatsDto Stats,
         DateTimeOffset CreatedAt,
         DateTimeOffset UpdatedAt);
+
+    private sealed record SkillsDto(int Overall, int Ace, int Block, int Attack, int Defense);
+
+    private sealed record HandleAvailabilityDto(string Handle, bool Available);
 
     private sealed record StatsDto(
         int MatchesPlayed,
@@ -503,8 +658,27 @@ public sealed class ProfilesEndpointsTests
     private sealed record UploadUrlDto(string UploadUrl, string ObjectKey, DateTimeOffset ExpiresAt);
 
     private sealed record UpdateProfileBody(
-        string DisplayName,
-        string? PrimaryPosition,
-        string? SecondaryPosition,
+        string FirstName,
+        string LastName,
+        string Handle,
+        DateOnly BirthDate,
+        string Position,
+        string? Modality,
+        string? Level,
         string? PhotoObjectKey);
+
+    /// <summary>A valid onboarding request; tests override single fields with <c>with</c>.</summary>
+    private static UpdateProfileBody Onboarding(
+        string handle = "ana_souza",
+        string position = "PON",
+        string level = "Beginner") =>
+        new(
+            FirstName: "Ana",
+            LastName: "Souza",
+            Handle: handle,
+            BirthDate: new DateOnly(1998, 3, 14),
+            Position: position,
+            Modality: "Indoor",
+            Level: level,
+            PhotoObjectKey: null);
 }

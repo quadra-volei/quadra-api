@@ -57,8 +57,7 @@ public sealed class GetPlayerCardHandler
         return new PlayerCardResponse(
             card.UserId,
             card.DisplayName,
-            card.PrimaryPosition?.ToString(),
-            card.SecondaryPosition?.ToString(),
+            card.Position?.ToString(),
             card.Level.ToString(),
             new PlayerStatsResponse(
                 card.MatchesPlayed,

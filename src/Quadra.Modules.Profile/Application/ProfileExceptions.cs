@@ -1,15 +1,30 @@
 namespace Quadra.Modules.Profile.Application;
 
-/// <summary>Thrown when no profile exists for the requested user.</summary>
 public sealed class ProfileNotFoundException : Exception
 {
     public ProfileNotFoundException(Guid userId)
         : base($"No profile exists for user '{userId}'.") { }
 }
 
-/// <summary>Thrown when a supplied position string is not a valid <c>PlayerPosition</c>.</summary>
-public sealed class InvalidPositionException : Exception
+/// <summary>The handle belongs to another player. Maps to HTTP 409.</summary>
+public sealed class HandleAlreadyTakenException : Exception
 {
-    public InvalidPositionException(string value)
-        : base($"'{value}' is not a valid player position.") { }
+    public HandleAlreadyTakenException(string handle)
+        : base($"The handle '@{handle}' is already taken.") { }
+}
+
+/// <summary>
+/// The request is well-formed but not acceptable for the profile's current state (e.g. missing
+/// the fields that complete onboarding, or re-declaring the level). Maps to HTTP 400 on
+/// <see cref="Field"/>.
+/// </summary>
+public sealed class ProfileUpdateRejectedException : Exception
+{
+    public ProfileUpdateRejectedException(string field, string message)
+        : base(message)
+    {
+        Field = field;
+    }
+
+    public string Field { get; }
 }

@@ -232,7 +232,7 @@ public sealed class ApplyFinishedMatchHandlerTests
         var (profile, _) = SeedExistingProfile();
         var generatedAt = Now.AddDays(-5);
         var existing = PlayerCard.Generate(
-            UserId, profile.DisplayName, null, null, PlayerLevel.Beginner,
+            UserId, profile.DisplayName, null, PlayerLevel.Beginner,
             matchesPlayed: 3, wins: 3, losses: 0, draws: 0, mvpsReceived: 0, generatedAt);
         _cards.FindByUserIdAsync(UserId, Arg.Any<CancellationToken>())
             .Returns(new PlayerCardLookup(existing, ProfileExists: true, MatchesPlayed: 3));
@@ -260,7 +260,7 @@ public sealed class ApplyFinishedMatchHandlerTests
         var (profile, _) = SeedExistingProfile();
         var generatedAt = Now.AddDays(-1);
         var existing = PlayerCard.Generate(
-            UserId, profile.DisplayName, null, null, PlayerLevel.Beginner,
+            UserId, profile.DisplayName, null, PlayerLevel.Beginner,
             matchesPlayed: 3, wins: 2, losses: 1, draws: 0, mvpsReceived: 1, generatedAt);
         _cards.FindByUserIdAsync(UserId, Arg.Any<CancellationToken>())
             .Returns(new PlayerCardLookup(existing, ProfileExists: true, MatchesPlayed: 3));

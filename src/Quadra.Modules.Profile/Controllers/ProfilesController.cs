@@ -59,7 +59,7 @@ public sealed class ProfilesController : ControllerBase
 
         try
         {
-            return Ok(await _getProfileHandler.HandleAsync(callerId, cancellationToken));
+            return Ok(await _getProfileHandler.HandleAsync(callerId, callerId, cancellationToken));
         }
         catch (ProfileNotFoundException)
         {
@@ -73,9 +73,11 @@ public sealed class ProfilesController : ControllerBase
         Guid userId,
         CancellationToken cancellationToken)
     {
+        Guid? callerId = TryGetCallerId(out var id) ? id : null;
+
         try
         {
-            return Ok(await _getProfileHandler.HandleAsync(userId, cancellationToken));
+            return Ok(await _getProfileHandler.HandleAsync(userId, callerId, cancellationToken));
         }
         catch (ProfileNotFoundException)
         {
@@ -113,11 +115,38 @@ public sealed class ProfilesController : ControllerBase
         {
             return NotFound();
         }
-        catch (InvalidPositionException ex)
+        catch (ProfileUpdateRejectedException ex)
         {
-            ModelState.AddModelError(nameof(UpdateProfileRequest.PrimaryPosition), ex.Message);
+            ModelState.AddModelError(ex.Field, ex.Message);
             return ValidationProblem(ModelState);
         }
+        catch (HandleAlreadyTakenException ex)
+        {
+            return Conflict(new ProblemDetails { Detail = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// GET /api/v1/profiles/handle-availability?handle=… — whether the caller can use a handle
+    /// (free, or already their own). 400 when the handle is not well-formed.
+    /// </summary>
+    [HttpGet("handle-availability")]
+    public async Task<ActionResult<HandleAvailabilityResponse>> GetHandleAvailability(
+        [FromQuery] string? handle,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCallerId(out var callerId))
+        {
+            return Unauthorized();
+        }
+
+        if (!ProfileHandle.IsValid(handle))
+        {
+            ModelState.AddModelError(nameof(handle), ProfileHandle.RuleMessage);
+            return ValidationProblem(ModelState);
+        }
+
+        return Ok(await _getProfileHandler.CheckHandleAsync(handle!, callerId, cancellationToken));
     }
 
     /// <summary>POST /api/v1/profiles/me/photo/upload-url</summary>

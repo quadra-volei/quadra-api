@@ -68,7 +68,7 @@ Takes over when the match begins. Drafts teams balanced by level, allows manual 
 **Events published**: `MatchStarted`, `ScoreUpdated`, `MatchEnded`, `MvpAwarded`
 
 ### Profile
-Everything about player identity. Photo, position, automatically calculated level, match history, accumulated stats and the player card. Read-heavy — Background Worker writes, the app reads.
+Everything about player identity, in the shape the mobile app uses: name and surname, unique `@handle`, birth date, single position (`LEV`…`COR`), preferred modality, self-declared level (then recalculated), and skill ratings derived from level + position. Photo (optional), automatically calculated level, match history, accumulated stats and the player card. Read-heavy — Background Worker writes, the app reads.
 
 **Own tables**: `player_profiles`, `player_stats`, `player_match_history`, `player_cards`
 **Events consumed**: every event related to a finished match

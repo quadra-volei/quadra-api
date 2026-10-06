@@ -23,20 +23,46 @@ public sealed class PlayerProfileConfiguration : IEntityTypeConfiguration<Player
             .HasColumnName("user_id")
             .IsRequired();
 
-        builder.Property(p => p.DisplayName)
-            .HasColumnName("display_name")
-            .HasMaxLength(80)
+        // Derived from the name fields; not a column.
+        builder.Ignore(p => p.DisplayName);
+        builder.Ignore(p => p.IsOnboardingCompleted);
+
+        builder.Property(p => p.FirstName)
+            .HasColumnName("first_name")
+            .HasMaxLength(40)
+            .HasDefaultValue(string.Empty)
             .IsRequired();
 
-        builder.Property(p => p.PrimaryPosition)
-            .HasColumnName("primary_position")
-            .HasConversion<string>()
-            .HasMaxLength(24);
+        builder.Property(p => p.LastName)
+            .HasColumnName("last_name")
+            .HasMaxLength(40)
+            .HasDefaultValue(string.Empty)
+            .IsRequired();
 
-        builder.Property(p => p.SecondaryPosition)
-            .HasColumnName("secondary_position")
+        builder.Property(p => p.Handle)
+            .HasColumnName("handle")
+            .HasMaxLength(20);
+
+        builder.Property(p => p.BirthDate)
+            .HasColumnName("birth_date");
+
+        builder.Property(p => p.Position)
+            .HasColumnName("position")
             .HasConversion<string>()
-            .HasMaxLength(24);
+            .HasMaxLength(8);
+
+        builder.Property(p => p.PreferredModality)
+            .HasColumnName("preferred_modality")
+            .HasConversion<string>()
+            .HasMaxLength(16);
+
+        builder.Property(p => p.DeclaredLevel)
+            .HasColumnName("declared_level")
+            .HasConversion<string>()
+            .HasMaxLength(16);
+
+        builder.Property(p => p.OnboardingCompletedAt)
+            .HasColumnName("onboarding_completed_at");
 
         builder.Property(p => p.PhotoObjectKey)
             .HasColumnName("photo_object_key")
@@ -63,5 +89,11 @@ public sealed class PlayerProfileConfiguration : IEntityTypeConfiguration<Player
         builder.HasIndex(p => p.UserId)
             .IsUnique()
             .HasDatabaseName("uq_player_profiles_user_id");
+
+        // Handles are stored lowercase, so a plain unique index makes them case-insensitively unique.
+        builder.HasIndex(p => p.Handle)
+            .IsUnique()
+            .HasFilter("handle IS NOT NULL")
+            .HasDatabaseName("uq_player_profiles_handle");
     }
 }
