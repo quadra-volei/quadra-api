@@ -23,9 +23,7 @@ public sealed class PlayerCard
     /// <summary>Snapshot of <c>player_profiles.display_name</c> at (re)generation.</summary>
     public string DisplayName { get; private set; } = null!;
 
-    public PlayerPosition? PrimaryPosition { get; private set; }
-
-    public PlayerPosition? SecondaryPosition { get; private set; }
+    public PlayerPosition? Position { get; private set; }
 
     /// <summary>Snapshot of the derived <c>player_profiles.level</c>.</summary>
     public PlayerLevel Level { get; private set; }
@@ -55,8 +53,7 @@ public sealed class PlayerCard
     public static PlayerCard Generate(
         Guid userId,
         string displayName,
-        PlayerPosition? primaryPosition,
-        PlayerPosition? secondaryPosition,
+        PlayerPosition? position,
         PlayerLevel level,
         int matchesPlayed,
         int wins,
@@ -70,8 +67,7 @@ public sealed class PlayerCard
             Id = Guid.NewGuid(),
             UserId = userId,
             DisplayName = displayName,
-            PrimaryPosition = primaryPosition,
-            SecondaryPosition = secondaryPosition,
+            Position = position,
             Level = level,
             MatchesPlayed = matchesPlayed,
             Wins = wins,
@@ -90,8 +86,7 @@ public sealed class PlayerCard
     /// </summary>
     public void Refresh(
         string displayName,
-        PlayerPosition? primaryPosition,
-        PlayerPosition? secondaryPosition,
+        PlayerPosition? position,
         PlayerLevel level,
         int matchesPlayed,
         int wins,
@@ -101,8 +96,7 @@ public sealed class PlayerCard
         DateTimeOffset refreshedAt)
     {
         DisplayName = displayName;
-        PrimaryPosition = primaryPosition;
-        SecondaryPosition = secondaryPosition;
+        Position = position;
         Level = level;
         MatchesPlayed = matchesPlayed;
         Wins = wins;

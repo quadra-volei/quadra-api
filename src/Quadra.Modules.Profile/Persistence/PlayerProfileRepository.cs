@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Quadra.Modules.Profile.Entities;
 
 namespace Quadra.Modules.Profile.Persistence;
@@ -47,6 +48,30 @@ public sealed class PlayerProfileRepository : IPlayerProfileRepository
     }
 
     /// <inheritdoc/>
+    public async Task<bool> TryUpdateAsync(PlayerProfile profile, CancellationToken cancellationToken)
+    {
+        _context.PlayerProfiles.Update(profile);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateException ex) when (
+            ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            return false;
+        }
+    }
+
+    public async Task<bool> IsHandleTakenAsync(
+        string handle,
+        Guid exceptUserId,
+        CancellationToken cancellationToken)
+    {
+        return await _context.PlayerProfiles
+            .AnyAsync(p => p.Handle == handle && p.UserId != exceptUserId, cancellationToken);
+    }
+
     public async Task<bool> ExistsAsync(Guid userId, CancellationToken cancellationToken)
     {
         return await _context.PlayerProfiles

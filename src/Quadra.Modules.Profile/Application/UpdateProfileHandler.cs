@@ -3,12 +3,14 @@ using Quadra.Infrastructure.Storage;
 using Quadra.Modules.Profile.Contracts;
 using Quadra.Modules.Profile.Entities;
 using Quadra.Modules.Profile.Persistence;
+using Quadra.Modules.Profile.Validation;
 
 namespace Quadra.Modules.Profile.Application;
 
 /// <summary>
-/// Applies the caller-editable profile fields (display name, positions, photo reference).
-/// Stats and level are never touched here.
+/// Applies <c>PUT /api/v1/profiles/me</c>. The first accepted update completes onboarding: it
+/// must carry the preferred modality and the self-declared level, which is then locked. Later
+/// updates edit the profile; the level can no longer be declared.
 /// </summary>
 public sealed class UpdateProfileHandler
 {
@@ -36,41 +38,76 @@ public sealed class UpdateProfileHandler
     {
         var found = await _profiles.FindByUserIdAsync(callerId, cancellationToken)
             ?? throw new ProfileNotFoundException(callerId);
+        var profile = found.Profile;
 
-        var primary = ParsePosition(request.PrimaryPosition);
-        var secondary = ParsePosition(request.SecondaryPosition);
+        // The validator has already checked the formats; these parses cannot fail.
+        var position = Enum.Parse<PlayerPosition>(request.Position);
+        PlayerModality? modality = request.Modality is null ? null : Enum.Parse<PlayerModality>(request.Modality);
+        PlayerLevel? declaredLevel = request.Level is null ? null : Enum.Parse<PlayerLevel>(request.Level);
+
+        var completesOnboarding = !profile.IsOnboardingCompleted;
+        if (completesOnboarding)
+        {
+            if (modality is null)
+            {
+                throw new ProfileUpdateRejectedException(
+                    nameof(UpdateProfileRequest.Modality), "Modality is required to complete onboarding.");
+            }
+
+            if (declaredLevel is null)
+            {
+                throw new ProfileUpdateRejectedException(
+                    nameof(UpdateProfileRequest.Level), "Level is required to complete onboarding.");
+            }
+        }
+        else if (declaredLevel is not null && declaredLevel != profile.DeclaredLevel)
+        {
+            throw new ProfileUpdateRejectedException(
+                nameof(UpdateProfileRequest.Level), "Level can only be declared during onboarding.");
+        }
+
+        var handle = ProfileHandle.Normalize(request.Handle);
+        if (await _profiles.IsHandleTakenAsync(handle, callerId, cancellationToken))
+        {
+            throw new HandleAlreadyTakenException(handle);
+        }
+
         var now = _timeProvider.GetUtcNow();
 
-        found.Profile.UpdateDetails(
-            request.DisplayName.Trim(),
-            primary,
-            secondary,
+        profile.UpdateDetails(
+            request.FirstName.Trim(),
+            request.LastName.Trim(),
+            handle,
+            request.BirthDate,
+            position,
             request.PhotoObjectKey,
             now);
 
-        await _profiles.UpdateAsync(found.Profile, cancellationToken);
+        if (modality is { } preferredModality)
+        {
+            profile.SetPreferredModality(preferredModality, now);
+        }
 
-        _logger.LogInformation("Profile updated for {UserId}.", callerId);
+        if (completesOnboarding)
+        {
+            profile.CompleteOnboarding(declaredLevel!.Value, now);
+            profile.SetLevel(PlayerLevelCalculator.Calculate(found.Stats, profile.DeclaredLevel), now);
+        }
+
+        // False when another player claimed the handle between the check above and this save.
+        if (!await _profiles.TryUpdateAsync(profile, cancellationToken))
+        {
+            throw new HandleAlreadyTakenException(handle);
+        }
+
+        _logger.LogInformation(
+            "Profile updated for {UserId}. {OnboardingCompleted}",
+            callerId,
+            completesOnboarding);
 
         var photoUrl = await GetProfileHandler.ResolvePhotoUrlAsync(
-            found.Profile.PhotoObjectKey, _photoStorage, cancellationToken);
+            profile.PhotoObjectKey, _photoStorage, cancellationToken);
 
-        return GetProfileHandler.MapToResponse(found.Profile, found.Stats, photoUrl);
-    }
-
-    private static PlayerPosition? ParsePosition(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        if (Enum.TryParse<PlayerPosition>(value, ignoreCase: false, out var parsed)
-            && Enum.IsDefined(parsed))
-        {
-            return parsed;
-        }
-
-        throw new InvalidPositionException(value);
+        return GetProfileHandler.MapToResponse(profile, found.Stats, photoUrl, includePrivate: true);
     }
 }

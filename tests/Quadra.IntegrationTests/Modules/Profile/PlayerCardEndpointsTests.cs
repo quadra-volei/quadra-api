@@ -82,7 +82,7 @@ public sealed class PlayerCardEndpointsTests
         await _fx.ResetAsync();
         var userId = Guid.NewGuid();
         await ProvisionAsync(userId);
-        await SetPositionsAsync(userId, "Setter", "Libero");
+        await CompleteOnboardingAsync(userId, position: "LEV");
         await ApplyMatchAsync(userId, "Win", daysAgo: 6);
         await ApplyMatchAsync(userId, "Win", daysAgo: 5);
         await ApplyMatchAsync(userId, "Loss", daysAgo: 4);
@@ -95,8 +95,7 @@ public sealed class PlayerCardEndpointsTests
         card.Should().NotBeNull();
         card!.UserId.Should().Be(userId);
         card.DisplayName.Should().Be("Card Player");
-        card.PrimaryPosition.Should().Be("Setter");
-        card.SecondaryPosition.Should().Be("Libero");
+        card.Position.Should().Be("LEV");
         card.Level.Should().Be("Beginner");
         card.Stats.Should().Be(new StatsDto(MatchesPlayed: 3, Wins: 2, Losses: 1, Draws: 0, MvpsReceived: 0));
         card.IsPremium.Should().BeFalse("the MVP premium reader is the free-tier stub");
@@ -230,13 +229,21 @@ public sealed class PlayerCardEndpointsTests
             await provisioner.EnsureProfileAsync(userId, Ct);
         });
 
-    private Task SetPositionsAsync(Guid userId, string primary, string? secondary) =>
+    private Task CompleteOnboardingAsync(Guid userId, string position) =>
         _fx.WithScopeAsync(async sp =>
         {
             var handler = sp.GetRequiredService<Quadra.Modules.Profile.Application.UpdateProfileHandler>();
             await handler.HandleAsync(
                 userId,
-                new Quadra.Modules.Profile.Contracts.UpdateProfileRequest("Card Player", primary, secondary, null),
+                new Quadra.Modules.Profile.Contracts.UpdateProfileRequest(
+                    FirstName: "Card",
+                    LastName: "Player",
+                    Handle: "card_" + userId.ToString("N")[..12],
+                    BirthDate: new DateOnly(1995, 5, 20),
+                    Position: position,
+                    Modality: "Indoor",
+                    Level: "Beginner",
+                    PhotoObjectKey: null),
                 Ct);
         });
 
@@ -271,8 +278,7 @@ public sealed class PlayerCardEndpointsTests
     private sealed record CardDto(
         Guid UserId,
         string DisplayName,
-        string? PrimaryPosition,
-        string? SecondaryPosition,
+        string? Position,
         string Level,
         StatsDto Stats,
         bool IsPremium,

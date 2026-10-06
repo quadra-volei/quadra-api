@@ -69,13 +69,14 @@ public sealed class ApplyFinishedMatchHandler : IPlayerStatsWriter
             profile = PlayerProfile.Provision(participation.PlayerId, now);
             stats = PlayerStats.Empty(participation.PlayerId, now);
             stats.Recompute(counts.Wins, counts.Losses, counts.Draws, counts.MvpsReceived, now);
-            profile.SetLevel(PlayerLevelCalculator.Calculate(stats), now);
+            profile.SetLevel(PlayerLevelCalculator.Calculate(stats, profile.DeclaredLevel), now);
             await _profiles.AddAsync(profile, stats, cancellationToken);
         }
         else
         {
             found.Stats.Recompute(counts.Wins, counts.Losses, counts.Draws, counts.MvpsReceived, now);
-            found.Profile.SetLevel(PlayerLevelCalculator.Calculate(found.Stats), now);
+            found.Profile.SetLevel(
+                PlayerLevelCalculator.Calculate(found.Stats, found.Profile.DeclaredLevel), now);
             await _profiles.UpdateAsync(found.Profile, cancellationToken);
             profile = found.Profile;
             stats = found.Stats;
@@ -115,8 +116,7 @@ public sealed class ApplyFinishedMatchHandler : IPlayerStatsWriter
             card = PlayerCard.Generate(
                 userId,
                 profile.DisplayName,
-                profile.PrimaryPosition,
-                profile.SecondaryPosition,
+                profile.Position,
                 profile.Level,
                 stats.MatchesPlayed,
                 stats.Wins,
@@ -129,8 +129,7 @@ public sealed class ApplyFinishedMatchHandler : IPlayerStatsWriter
         {
             existing.Refresh(
                 profile.DisplayName,
-                profile.PrimaryPosition,
-                profile.SecondaryPosition,
+                profile.Position,
                 profile.Level,
                 stats.MatchesPlayed,
                 stats.Wins,

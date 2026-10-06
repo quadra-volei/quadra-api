@@ -2,13 +2,10 @@ using Quadra.Infrastructure.Storage;
 using Quadra.Modules.Profile.Contracts;
 using Quadra.Modules.Profile.Entities;
 using Quadra.Modules.Profile.Persistence;
+using Quadra.Modules.Profile.Validation;
 
 namespace Quadra.Modules.Profile.Application;
 
-/// <summary>
-/// Loads a player's profile, stats and (short-lived) photo read URL, keyed on user id.
-/// Serves both <c>GET /profiles/me</c> and <c>GET /profiles/{userId}</c>.
-/// </summary>
 public sealed class GetProfileHandler
 {
     private readonly IPlayerProfileRepository _profiles;
@@ -20,16 +17,36 @@ public sealed class GetProfileHandler
         _photoStorage = photoStorage;
     }
 
-    public async Task<PlayerProfileResponse> HandleAsync(Guid userId, CancellationToken cancellationToken)
+    /// <summary>
+    /// Returns the profile of <paramref name="userId"/>. <paramref name="callerId"/> decides
+    /// whether owner-only fields (birth date, photo object key) are included.
+    /// </summary>
+    public async Task<PlayerProfileResponse> HandleAsync(
+        Guid userId,
+        Guid? callerId,
+        CancellationToken cancellationToken)
     {
         var found = await _profiles.FindByUserIdAsync(userId, cancellationToken)
             ?? throw new ProfileNotFoundException(userId);
 
         var photoUrl = await ResolvePhotoUrlAsync(found.Profile.PhotoObjectKey, _photoStorage, cancellationToken);
-        return MapToResponse(found.Profile, found.Stats, photoUrl);
+        return MapToResponse(found.Profile, found.Stats, photoUrl, includePrivate: callerId == userId);
     }
 
-    /// <summary>Resolves a short-lived read URL for the photo, or <c>null</c> when no photo is set.</summary>
+    /// <summary>
+    /// Whether <paramref name="handle"/> can be used by <paramref name="callerId"/>: free, or
+    /// already their own. The handle must already be valid.
+    /// </summary>
+    public async Task<HandleAvailabilityResponse> CheckHandleAsync(
+        string handle,
+        Guid callerId,
+        CancellationToken cancellationToken)
+    {
+        var normalized = ProfileHandle.Normalize(handle);
+        var taken = await _profiles.IsHandleTakenAsync(normalized, callerId, cancellationToken);
+        return new HandleAvailabilityResponse(normalized, Available: !taken);
+    }
+
     internal static async Task<string?> ResolvePhotoUrlAsync(
         string? photoObjectKey,
         IProfilePhotoStorage photoStorage,
@@ -40,16 +57,34 @@ public sealed class GetProfileHandler
             : await photoStorage.GetReadUrlAsync(photoObjectKey, cancellationToken);
     }
 
-    /// <summary>Manual mapping from entities to the response DTO. Reused by the update handler.</summary>
-    public static PlayerProfileResponse MapToResponse(PlayerProfile profile, PlayerStats stats, string? photoUrl)
+    public static PlayerProfileResponse MapToResponse(
+        PlayerProfile profile,
+        PlayerStats stats,
+        string? photoUrl,
+        bool includePrivate)
     {
+        var skills = PlayerSkillCalculator.Calculate(profile.DeclaredLevel, profile.Position);
+
         return new PlayerProfileResponse(
             profile.UserId,
             profile.DisplayName,
-            profile.PrimaryPosition?.ToString(),
-            profile.SecondaryPosition?.ToString(),
-            photoUrl,
+            profile.FirstName,
+            profile.LastName,
+            profile.Handle,
+            includePrivate ? profile.BirthDate : null,
+            profile.Position?.ToString(),
+            profile.PreferredModality?.ToString(),
+            profile.DeclaredLevel?.ToString(),
             profile.Level.ToString(),
+            photoUrl,
+            includePrivate ? profile.PhotoObjectKey : null,
+            profile.IsOnboardingCompleted,
+            new PlayerSkillsResponse(
+                skills.Overall,
+                skills.Ace,
+                skills.Block,
+                skills.Attack,
+                skills.Defense),
             new PlayerStatsResponse(
                 stats.MatchesPlayed,
                 stats.Wins,

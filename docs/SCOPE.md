@@ -51,16 +51,19 @@ Frontend is NOT in this phase — backend only. Specs describe **API contracts**
 
 ### F1.3 — In-Game: Teams
 - **Module**: `InGame`
+- **IN**: **2, 3 or 4 teams** per the Organizer's choice, with configurable players-per-team (frontend S12 organizer view / S13)
 - **IN**: team draft balanced by player level (queries `Profile` via interface)
 - **IN**: manual team adjustment by the Organizer
 - **OUT**: balancing by preferred position (push to v2)
 - **OUT**: history of who played with whom
+- **OUT**: team formats beyond 4 teams
 
 ### F1.4 — In-Game: Scoreboard
 - **Module**: `InGame`
 - **IN**: set-by-set scoreboard (best of 3 or 5)
 - **IN**: real-time point/set recording (via SignalR through `Realtime` module)
 - **IN**: match state (`NotStarted | InProgress | Ended`)
+- **IN**: for 3+ teams, per-set roster — Organizer picks which two teams play each set; winning team stays on court for the next set (frontend S13.5)
 - **OUT**: individual stats per play (serve, defense, attack) — these come in v2 (US 1.1 of PDF)
 - **OUT**: point replay / rewind
 
@@ -91,13 +94,22 @@ Frontend is NOT in this phase — backend only. Specs describe **API contracts**
 
 ### F2.1 — Player Profile
 - **Module**: `Profile`
-- **IN**: photo (S3 object reference), name, primary position, secondary position — position catalog: `Setter | OutsideHitter | Opposite | MiddleBlocker | Libero`
-- **IN**: automatically calculated level — MVP computes **`Beginner | Intermediate`** only (see `PRODUCT.md` level table). `Advanced` and `Elite` are **deferred**: Advanced's "vote average" is undefined and Elite depends on the Layer-3 global ranking
-- **IN**: aggregated stats: matches played, wins, losses, draws, MVPs received (draws included because F1.6 permits a null-winner match)
-- **IN**: match history with pagination (own table `player_match_history`)
+- **IN**: photo (S3 object reference), `firstName`, `lastName`, `handle` (unique `@` identifier, used across the app), `birthDate` (visible only to the owner), `position`, `preferredModality` (`Indoor` 6x6 / `Beach` 2x2)
+- **IN**: `handle` uniqueness validation (case-insensitive) + availability-check endpoint
+- **IN**: position enum — `LEV` (Levantador), `PON` (Ponteiro), `OPO` (Oposto), `CEN` (Central), `LIB` (Líbero), `COR` (Coringa / joker — plays any position)
+- **IN**: level — **self-declared at onboarding** (`Beginner | Intermediate | Advanced`, set once), then **automatically recalculated** from recorded matches using the product doc criteria; the level never drops below the declared one
+- **IN**: onboarding state — the profile is an empty shell until the first `PUT /profiles/me` (which must carry modality + declared level); `onboardingCompleted` tells the app whether to show onboarding
+- **IN**: skill ratings `ACE | BLK | ATA | DEF` (1–99) and `GERAL` (their average) — derived, never edited: a base from the declared level (Beginner 50, Intermediate 60, Advanced 70) plus a per-position adjustment, all defined in one place (`PlayerSkillCalculator`)
+- **IN**: aggregated stats: matches played, wins, losses, draws, MVPs received
+- **IN**: match history with pagination
+- **OUT**: secondary position — dropped (single position only in MVP, per frontend S4); revisit in v2
 - **OUT**: manual stat editing (everything derived from events)
 - **OUT (deferred, not cut)**: `frequency` stat — no formula is defined in PRODUCT/SCOPE; excluded from the MVP until specified, re-added when defined
-- **OUT (deferred, not cut)**: `Advanced` / `Elite` level tiers — see above
+- **OUT (deferred, not cut)**: *earning* `Advanced` / `Elite` from play — their criteria are undefined (see `PRODUCT.md`); today a player is `Advanced` only by declaring it and nobody is `Elite`
+- **OUT (deferred, not cut)**: skill ratings growing with play (attendance, wins, MVPs, streaks) — planned, not yet defined numerically
+- **OUT**: changing the phone number from the profile (it is the login identity, owned by Auth)
+
+> Aligned with frontend SCOPE S4 (onboarding) and S10 (edit profile). Implemented in this shape (decision 2026-10-06, Johny: "follow the mobile"); it supersedes the earlier display-name / primary+secondary-position model.
 
 ### F2.2 — Player Card (data)
 - **Module**: `Profile` (data) + `Gamification` (premium check)
@@ -181,6 +193,28 @@ These are not "user stories" but must exist for the MVP to work:
 - **Notification Worker**: SQS consumer delivering push to devices (FCM/APNS via OneSignal or similar — provider choice outside this spec)
 - **Background Worker**: SQS consumer to distribute XP, update rankings, generate card data
 - **Real-time Hub**: SignalR for live scoreboard and presence updates
+
+---
+
+## Pending refactors (already-implemented features)
+
+> These features are **already implemented**. The changes below are NOT greenfield —
+> each needs a deliberate change-set (entity + migration + contracts + handlers + tests),
+> so they are tracked here for a future refactor instead of being applied inline when
+> the frontend SCOPE changed.
+
+### R1 — F1.1 Match Creation: align with frontend S11
+Frontend S11 (Criar partida) needs fields the current `Match` aggregate does not have:
+
+| Field | Type | Value |
+| --- | --- | --- |
+| `format` | enum `2x2 \| 4x4 \| 6x6` | high — Explore filters / matchmaking |
+| `level` | enum `Beginner \| Intermediate \| Advanced` | high — filters / team balancing |
+| `visibility` | enum `Open \| InviteOnly` | medium — "Partida aberta"; partially overlaps existing Regular/DropIn slot logic |
+| `coverImage` | S3 object reference (optional) | low — cosmetic |
+
+- **Impact when done**: `Match` entity + `Create` factory, `CreateMatchRequest` / `CreateMatchCommand` / `CreateMatchHandler` / `MatchResponse` / `MatchConfiguration`, a new **additive** EF migration (nullable/defaulted columns — safe), the `F1.1-match-creation.md` spec, and existing F1.1 tests.
+- **Already present in F1.1 (no change needed)**: `type` (Recurring/OneOff), `frequency`, `dayOfWeek`, confirmation window — the frontend mockup simply doesn't render them yet (frontend DESIGN GAP, not a backend gap).
 
 ---
 

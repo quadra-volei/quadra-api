@@ -7,8 +7,7 @@ namespace Quadra.Modules.Profile.Contracts;
 public sealed record PlayerCardResponse(
     Guid UserId,
     string DisplayName,
-    string? PrimaryPosition,
-    string? SecondaryPosition,
+    string? Position,
     string Level,
     PlayerStatsResponse Stats,
     bool IsPremium,
