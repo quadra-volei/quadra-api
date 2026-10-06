@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Quadra.Infrastructure.Persistence;
 using Quadra.Infrastructure.Realtime;
 using Quadra.Modules.Matches.Application;
 using Quadra.Modules.Matches.Contracts;
@@ -63,7 +64,7 @@ public static class MatchesModuleExtensions
                     "ConnectionStrings:Matches (or ConnectionStrings:Default) must be configured.");
 
             builder.UseNpgsql(
-                connectionString,
+                PostgresConnectionString.Normalize(connectionString),
                 npgsql => npgsql.UseNetTopologySuite());
         });
 

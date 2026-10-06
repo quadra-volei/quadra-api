@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Quadra.Infrastructure.Messaging;
+using Quadra.Infrastructure.Persistence;
 using Quadra.Modules.Auth.Application;
 using Quadra.Modules.Auth.Authentication;
 using Quadra.Modules.Auth.Configuration;
@@ -144,7 +145,7 @@ public static class AuthModuleExtensions
                 ?? throw new InvalidOperationException(
                     "ConnectionStrings:Auth (or ConnectionStrings:Default) must be configured.");
 
-            builder.UseNpgsql(authConnection);
+            builder.UseNpgsql(PostgresConnectionString.Normalize(authConnection));
         });
 
         services.AddScoped<IUserRepository, UserRepository>();
