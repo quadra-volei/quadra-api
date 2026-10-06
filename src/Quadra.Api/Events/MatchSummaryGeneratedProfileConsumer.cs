@@ -57,6 +57,12 @@ public sealed class MatchSummaryGeneratedProfileConsumer : IEventHandler<MatchSu
             }
         }
 
+        // Sets won per team across the game (teams may rotate, so not just the last pair).
+        var setsByTeam = result.Sets
+            .Where(s => s.WinnerTeamId is not null)
+            .GroupBy(s => s.WinnerTeamId!.Value)
+            .ToDictionary(g => g.Key, g => g.Count());
+
         foreach (var playerId in @event.ParticipantPlayerIds)
         {
             Guid? teamId = teamByPlayer.TryGetValue(playerId, out var resolvedTeamId)
@@ -72,7 +78,12 @@ public sealed class MatchSummaryGeneratedProfileConsumer : IEventHandler<MatchSu
                 Outcome: DetermineOutcome(teamId, result.WinnerTeamId),
                 WasMvp: @event.MvpPlayerId == playerId,
                 DurationSeconds: @event.DurationSeconds,
-                FinishedAt: @event.GeneratedAt);
+                FinishedAt: @event.GeneratedAt,
+                Format: descriptor.Format,
+                SetsWon: teamId is { } mine ? setsByTeam.GetValueOrDefault(mine) : null,
+                SetsLost: teamId is { } own
+                    ? setsByTeam.Where(t => t.Key != own).Select(t => t.Value).DefaultIfEmpty(0).Max()
+                    : null);
 
             await _statsWriter.ApplyFinishedMatchAsync(participation, cancellationToken);
         }

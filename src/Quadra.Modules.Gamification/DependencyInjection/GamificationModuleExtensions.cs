@@ -48,6 +48,9 @@ public static class GamificationModuleExtensions
         services.AddScoped<IMatchPointsWriter, ApplyFinishedMatchPointsHandler>();
 
         services.AddScoped<GetGroupRankingHandler>();
+        services.AddScoped<GetMyRankingHandler>();
+        // Player identities for the ranking rows; Profile registers the real reader.
+        services.TryAddScoped<Quadra.Shared.Contracts.IPlayerSummaryReader, Quadra.Infrastructure.Contracts.NoOpPlayerSummaryReader>();
 
         services.AddScoped<IValidator<GroupRankingQuery>, GroupRankingQueryValidator>();
 

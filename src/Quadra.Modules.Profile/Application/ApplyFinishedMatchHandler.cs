@@ -53,6 +53,7 @@ public sealed class ApplyFinishedMatchHandler : IPlayerStatsWriter
             participation.DurationSeconds,
             participation.FinishedAt,
             now);
+        entry.SetScore(participation.Format, participation.SetsWon, participation.SetsLost);
 
         await _history.UpsertAsync(entry, cancellationToken);
 

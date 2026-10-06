@@ -78,6 +78,17 @@ public sealed class GroupRankingRepository : IGroupRankingRepository
     }
 
     /// <inheritdoc/>
+    public async Task<Guid?> FindLatestGroupIdAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        return await _context.GroupRankings
+            .AsNoTracking()
+            .Where(r => r.UserId == userId)
+            .OrderByDescending(r => r.LastMatchDateTime)
+            .Select(r => (Guid?)r.GroupId)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async Task<int?> GetRankAsync(Guid groupId, Guid userId, CancellationToken cancellationToken)
     {
         var caller = await _context.GroupRankings

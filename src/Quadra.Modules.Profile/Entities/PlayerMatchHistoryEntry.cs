@@ -31,6 +31,13 @@ public sealed class PlayerMatchHistoryEntry
 
     public int? DurationSeconds { get; private set; }
 
+    /// <summary>Match format (2X2 | 4X4 | 6X6). Null on rows recorded before it was tracked.</summary>
+    public string? Format { get; private set; }
+
+    public int? SetsWon { get; private set; }
+
+    public int? SetsLost { get; private set; }
+
     /// <summary>The originating summary's <c>GeneratedAt</c>.</summary>
     public DateTimeOffset RecordedAt { get; private set; }
 
@@ -68,6 +75,14 @@ public sealed class PlayerMatchHistoryEntry
     /// <summary>
     /// Re-writes the snapshot values on an existing row (redelivered finished-match event).
     /// </summary>
+    /// <summary>Records the set score from the player's side, with the match format.</summary>
+    public void SetScore(string? format, int? setsWon, int? setsLost)
+    {
+        Format = format;
+        SetsWon = setsWon;
+        SetsLost = setsLost;
+    }
+
     public void UpdateSnapshot(
         string matchName,
         DateTimeOffset matchDateTime,
