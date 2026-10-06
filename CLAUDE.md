@@ -1,152 +1,98 @@
-# CLAUDE.md — Quadra Backend
+# CLAUDE.md — Quadra API
 
-> This file is loaded automatically by Claude Code in every session.
-> It keeps the project's technical context so no agent has to "remember" decisions.
+Backend of **Quadra**, a volleyball app (match organization, live game, ranking). The mobile
+client lives in the sibling repo `quadra-mobile` and already consumes this API.
 
----
+## Where things are
 
-## Project
+| Need | Read |
+| --- | --- |
+| What is done, pending, out of the MVP | `docs/SCOPE.md` |
+| Why something is the way it is | `docs/DECISIONS.md` (source of truth for decisions) |
+| Modules, tables, events, hosting | `docs/ARCHITECTURE.md` |
+| Product vision, levels, points | `docs/PRODUCT.md` |
 
-**Quadra** — backend for a volleyball app with gamification, match organization and community. Current focus: **backend only**. Frontend (React Native) comes later — agents MUST NOT specify screens, components or UI flows.
+`docs/specs/` holds the contracts written when each feature was first built; several were
+later changed by `docs/DECISIONS.md`. Where they disagree, the code and DECISIONS win.
+`docs/archive/` is history only — never treat it as current, do not read it by default.
 
-To understand the product, read in this order:
-1. `docs/PRODUCT.md` — product vision and MVP layers
-2. `docs/SCOPE.md` — **the MVP constitution**. Every scope decision goes through here.
-3. `docs/ARCHITECTURE.md` — technical architecture (modules, AWS infra)
+## Stack (do not change without asking)
 
----
+- .NET 10 / C# 14, ASP.NET Core with **Controllers** (no Minimal APIs)
+- EF Core 10 on **PostgreSQL + PostGIS** (Neon in the hosted environment)
+- Auth: **own JWT** (HS256 access token + rotating refresh token stored hashed), Google ID
+  token validated server-side, SMS OTP behind `IPhoneVerificationService` (Twilio Verify over
+  `HttpClient`; fake provider with a fixed 6-digit code until Twilio is configured, refused in
+  Production)
+- Events: **in-process** (`IEventPublisher` → `InProcessEventPublisher` → `IEventHandler<T>` in
+  `src/Quadra.Api/Events`). No queue, no worker process
+- Real-time: SignalR hub `/hubs/match`, single instance, no backplane
+- Photos: S3-compatible storage through signed URLs (Cloudflare R2), optional — with no bucket
+  configured the API runs without photos
+- Address search: Geo proxy `/api/v1/places` (Google Places when a key is set, Photon otherwise)
+- FluentValidation, manual DTO mapping (no AutoMapper), Serilog JSON
+- Tests: xUnit + FluentAssertions + NSubstitute; integration with WebApplicationFactory +
+  Testcontainers (real Postgres)
+- Hosting: one Docker container on Render (`Dockerfile` + `render.yaml`), environment
+  `Staging`, redeployed on every push to `dev`; migrations run on startup
 
-## Locked stack
-
-These decisions MUST NOT be questioned or changed by any agent. If a feature requires changing the stack, stop and ask the human.
-
-| Layer | Decision | Version |
-| --- | --- | --- |
-| Runtime | .NET (LTS) | 10.0 |
-| Language | C# | 14 |
-| API | ASP.NET Core with **traditional Controllers** (not Minimal APIs) | 10.0 |
-| ORM | **Entity Framework Core** (no Dapper in MVP) | 10.0 |
-| Database | PostgreSQL with PostGIS extension | 16+ |
-| Auth | **Own JWT** issued by the Auth module (HS256 access token + rotating refresh token). Google ID tokens validated server-side. No AWS Cognito. | — |
-| SMS OTP | Twilio Verify over REST (`HttpClient`, no SDK), behind `IPhoneVerificationService` so the provider can be swapped (e.g. Zenvia) | — |
-| Address search | Geo module proxy (`/api/v1/places`) behind `IPlaceSearchService`: Google Places API (New) when `Places:GoogleApiKey` is set, the public Photon (OpenStreetMap) geocoder otherwise; `HttpClient`, no SDK | — |
-| Real-time | SignalR over WebSocket | 10.0 |
-| SignalR backplane | Redis | 7+ |
-| Messaging | **In-process events**: `IEventPublisher` → `InProcessEventPublisher` delivers each event to the `IEventHandler<T>` implementations in `Quadra.Api/Events`, inside the publishing request. No SQS, no queue. | — |
-| Storage | Optional, S3-compatible (`Aws:S3`: AWS S3, or Cloudflare R2 / any compatible service via `ServiceUrl`). With no bucket configured the API runs without photos. | — |
-| Workers | None in use. The former Background Worker consumers run in-process in the API; `Quadra.Workers.*` are empty placeholders. | — |
-| Validation | FluentValidation | latest stable |
-| DTO ↔ Entity mapping | Manual mapping (no AutoMapper) | — |
-| Logs | Serilog structured JSON | latest stable |
-| Unit tests | xUnit + FluentAssertions + NSubstitute | — |
-| Integration tests | xUnit + WebApplicationFactory + Testcontainers (real Postgres) | — |
-
-### Non-negotiable code rules
-
-- **Nullable reference types enabled** in every project (`<Nullable>enable</Nullable>`).
-- **Async/await mandatory** for any I/O. Forbidden: `.Result`, `.Wait()`, `.GetAwaiter().GetResult()`.
-- **CancellationToken** propagated through every public async method.
-- **Records** for immutable DTOs; **classes** for EF entities.
-- No new NuGet package is added without explicit justification in the spec.
-- No use of `dynamic` or reflection without justification.
-
----
-
-## Modular monolith structure
-
-The backend is ONE deployable project (CORE), internally organized into isolated modules. Each module has clear boundaries.
+## Layout
 
 ```
-src/
-  Quadra.Api/                  # ASP.NET host, Program.cs, Controllers
-  Quadra.Modules.Auth/         # Login (SMS OTP, Google), own JWT issuance + validation, refresh tokens
-  Quadra.Modules.Matches/      # Match lifecycle
-  Quadra.Modules.InGame/       # Teams, live scoreboard
-  Quadra.Modules.Profile/      # Identity, stats, player card
-  Quadra.Modules.Geo/          # Geographic queries (PostGIS)
-  Quadra.Modules.Notifications/# In-app notifications
-  Quadra.Modules.Gamification/ # Points, levels, achievements, ranking
-  Quadra.Modules.Realtime/     # SignalR Hub (internal infra)
-  Quadra.Workers.Background/   # Placeholder (its event consumers moved to Quadra.Api/Events)
-  Quadra.Workers.Notification/ # Placeholder (push delivery not implemented)
-  Quadra.Shared/               # Shared contracts (events, abstractions)
-  Quadra.Infrastructure/       # EF helpers, in-process event publisher, S3-compatible photo storage
-tests/
-  Quadra.UnitTests/
-  Quadra.IntegrationTests/
+src/Quadra.Api/                 host, Program.cs, Events/ (cross-module event handlers)
+src/Quadra.Modules.<Name>/      Auth, Matches, InGame, Profile, Geo, Gamification, Realtime
+src/Quadra.Modules.Notifications/  empty (not implemented)
+src/Quadra.Workers.*/           empty placeholders, not deployed
+src/Quadra.Shared/              events and cross-module interfaces
+src/Quadra.Infrastructure/      EF helpers, event publisher, photo storage
+tests/Quadra.UnitTests/  tests/Quadra.IntegrationTests/
 ```
 
-### Module boundaries (critical rule)
-
-- A module **never** accesses another module's tables directly.
-- Inter-module communication: through public interfaces exposed by the target module, or through integration events (`IEventPublisher`). Event handlers that coordinate several modules live in the host (`Quadra.Api/Events`) and only use those public interfaces.
-- If module A needs data from module B, it asks via interface. No cross-module JOINs in the database.
-- This rule is validated by the `scope-guardian` on every spec.
-
----
-
-## Project commands
+## Commands
 
 ```bash
-# Build
-dotnet build
-
-# Run unit tests
+dotnet build                                   # warnings are errors
 dotnet test tests/Quadra.UnitTests
-
-# Run integration tests (Docker must be running for Testcontainers)
-dotnet test tests/Quadra.IntegrationTests
-
-# Run all
-dotnet test
-
-# Start API locally
-dotnet run --project src/Quadra.Api
-
-# Add EF migration (run from inside the module that owns the entity)
-dotnet ef migrations add <Name> --startup-project ../Quadra.Api
-
-# Apply migrations
-dotnet ef database update --startup-project ../Quadra.Api
-
-# Format / lint
+dotnet test tests/Quadra.IntegrationTests      # needs Docker (Testcontainers)
+dotnet run --project src/Quadra.Api            # http://localhost:5075
+docker compose up -d postgres                  # local database
 dotnet format
 
-# Build the API container image (what Render runs)
-docker build -t quadra-api .
+# from inside the module that owns the entity
+dotnet ef migrations add <Name> --startup-project ../Quadra.Api
+dotnet ef database update --startup-project ../Quadra.Api
 ```
 
-> **Hosted test environment**: `Dockerfile` + `render.yaml` (a Render Blueprint) run the API on Render's free plan as `Staging`; every push to `dev` redeploys. `Database:MigrateOnStartup=true` applies pending EF migrations when the service boots, and the fake SMS provider (code `123456`) is used until Twilio is configured. Secrets (`ConnectionStrings__Default`, `Auth__Google__ClientId`; `Auth__Jwt__SigningKey` is generated by Render) live in the Render dashboard, never in the repo. The database is external and must support PostGIS; connection strings may be `postgresql://` URLs or Npgsql `Host=…;` strings. The free plan sleeps after ~15 idle minutes (first request then takes up to a minute).
+## Branches
 
----
+- Start every change from `dev` and merge it back into `dev`. Never commit straight to `dev`
+  or `main`.
+- A push to `dev` redeploys the hosted API. Build and tests must pass before merging.
+- Commit messages in Portuguese, `tipo(modulo): resumo` (as in `git log`).
 
-## Development workflow (summary)
+## Conventions
 
-Every feature goes through 4 agents in sequence. Use the slash command `/feature`:
+- **Module boundary**: a module never reads another module's tables. Use the interfaces in
+  `Quadra.Shared` or an event; handlers that coordinate modules live in `Quadra.Api/Events`.
+  Only exception: Geo reads `matches` read-only.
+- Each module registers itself through `Add<Module>Module(IServiceCollection, …)`.
+- Nullable enabled everywhere. Async for all I/O, `CancellationToken` on every public async
+  method; never `.Result` / `.Wait()`.
+- Records for DTOs, classes for EF entities. Thin controllers.
+- Tables `snake_case_plural`, columns `snake_case`, routes `/api/v1/<resource>`.
+- A change that alters behavior the app relies on gets a line in `docs/DECISIONS.md` and, if
+  it changes what is done or pending, in `docs/SCOPE.md`.
 
-1. **spec-writer** → produces technical contract from informal description
-2. **scope-guardian** → approves or rejects based on `docs/SCOPE.md` and module boundaries
-3. **implementer** → writes code following the spec
-4. **test-writer** → writes and runs tests; only delivers diff when all pass
+## Do NOT
 
-See `docs/WORKFLOW.md` for details.
-
----
-
-## Anti-patterns to avoid (blacklist)
-
-These patterns show up often in AI-generated code and break this project:
-
-- Service Locator / `IServiceProvider.GetService` outside composition root
-- Generic repositories that become a DbContext facade
-- AutoMapper used on things that deserve explicit mapping
-- Generic `catch (Exception)` without rethrow or specific handling
-- DTOs that turn into disguised EF entities (anemic model)
-- Controllers with 200 lines of business logic (keep them thin)
-- DI configuration scattered around — every module registration goes through `Add<Module>Module(IServiceCollection)`
-
----
-
-## When context is missing
-
-If an agent is unsure about stack, structure or scope: **stop and ask**. Never invent a new technical decision.
+- Do not write secrets, keys, passwords or connection strings in any file. They live in the
+  Render dashboard.
+- Do not bring back AWS-only pieces (Cognito, SQS, ECS workers) or add Redis, MongoDB or a
+  queue. The `Aws:Sqs:*` settings and the Redis packages still present are leftovers, not a
+  direction.
+- Do not add a NuGet package, change the stack or add a feature listed as out of the MVP
+  without asking.
+- Do not generate future occurrences of a recurring match (ruling of 2026-07-03).
+- No generic repositories, no service locator outside the composition root, no
+  `catch (Exception)` that swallows.
+- When unsure about scope or stack, stop and ask instead of inventing a decision.
