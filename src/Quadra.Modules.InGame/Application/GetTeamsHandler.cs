@@ -42,8 +42,7 @@ public sealed class GetTeamsHandler
 
         // 3. Retrieve player levels.
         var allPlayerIds = teams
-            .SelectMany(t => t.Members)
-            .Select(m => m.PlayerId)
+            .SelectMany(t => t.PlayerIds)
             .ToList();
 
         var levelMap = await _playerLevelReader.GetPlayerLevelsAsync(allPlayerIds, cancellationToken);

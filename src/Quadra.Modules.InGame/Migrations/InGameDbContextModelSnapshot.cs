@@ -183,6 +183,12 @@ namespace Quadra.Modules.InGame.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("match_id");
 
+                    b.Property<bool>("RotatesTeams")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("rotates_teams");
+
                     b.Property<DateTimeOffset?>("StartedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("started_at");
@@ -258,6 +264,10 @@ namespace Quadra.Modules.InGame.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("is_deciding_set");
 
+                    b.Property<Guid?>("LastPointTeamId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("last_point_team_id");
+
                     b.Property<Guid>("MatchId")
                         .HasColumnType("uuid")
                         .HasColumnName("match_id");
@@ -284,11 +294,19 @@ namespace Quadra.Modules.InGame.Migrations
                         .HasDefaultValue("InProgress")
                         .HasColumnName("status");
 
+                    b.Property<Guid?>("TeamAId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("team_a_id");
+
                     b.Property<short>("TeamAPoints")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("smallint")
                         .HasDefaultValue((short)0)
                         .HasColumnName("team_a_points");
+
+                    b.Property<Guid?>("TeamBId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("team_b_id");
 
                     b.Property<short>("TeamBPoints")
                         .ValueGeneratedOnAdd()
@@ -376,6 +394,12 @@ namespace Quadra.Modules.InGame.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
+
+                    b.Property<bool>("IsGuest")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_guest");
 
                     b.Property<Guid>("MatchId")
                         .HasColumnType("uuid")

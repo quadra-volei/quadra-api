@@ -67,12 +67,18 @@ public sealed class GetScoreboardHandler
                     IsDecidingSet: s.IsDecidingSet,
                     WinnerTeamId: s.WinnerTeamId,
                     StartedAt: s.StartedAt,
-                    FinishedAt: s.FinishedAt))
+                    FinishedAt: s.FinishedAt,
+                    TeamAId: s.TeamAId ?? scoreboard.TeamAId,
+                    TeamBId: s.TeamBId ?? scoreboard.TeamBId,
+                    CanUndo: s.Status == SetStatus.InProgress && s.LastPointTeamId is not null))
                 .ToList(),
             StartedAt: scoreboard.StartedAt,
             EndedAt: scoreboard.EndedAt,
             CreatedAt: scoreboard.CreatedAt,
-            UpdatedAt: scoreboard.UpdatedAt);
+            UpdatedAt: scoreboard.UpdatedAt,
+            RotatesTeams: scoreboard.RotatesTeams,
+            AwaitingNextSet: scoreboard.State == ScoreboardState.InProgress
+                && scoreboard.Sets.All(s => s.Status == SetStatus.Finished));
     }
 
     /// <summary>

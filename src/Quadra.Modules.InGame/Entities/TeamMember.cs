@@ -24,12 +24,23 @@ public sealed class TeamMember
     /// <summary>App-layer FK to <c>users.id</c>. No DDL FK (module boundary rule).</summary>
     public Guid PlayerId { get; private set; }
 
+    /// <summary>
+    /// True when <see cref="PlayerId"/> is a guest of the match (a player without an account)
+    /// instead of a user: guests play, but have no profile, no vote and no stats.
+    /// </summary>
+    public bool IsGuest { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
 
     /// <summary>
     /// Factory method — the only way to create a new <see cref="TeamMember"/> instance.
     /// </summary>
-    public static TeamMember Create(Guid teamId, Guid matchId, Guid playerId, DateTimeOffset now)
+    public static TeamMember Create(
+        Guid teamId,
+        Guid matchId,
+        Guid playerId,
+        DateTimeOffset now,
+        bool isGuest = false)
     {
         return new TeamMember
         {
@@ -37,6 +48,7 @@ public sealed class TeamMember
             TeamId = teamId,
             MatchId = matchId,
             PlayerId = playerId,
+            IsGuest = isGuest,
             CreatedAt = now,
         };
     }

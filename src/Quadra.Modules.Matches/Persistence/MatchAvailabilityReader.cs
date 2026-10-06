@@ -64,6 +64,14 @@ public sealed class MatchAvailabilityReader : IMatchAvailabilityReader
                     Regular: g.Where(c => c.PlayerType == PlayerType.Regular).Sum(c => c.Count),
                     DropIn: g.Where(c => c.PlayerType == PlayerType.DropIn).Sum(c => c.Count)));
 
+        // Guests (players without an account) occupy slots like confirmed players do.
+        var guestCounts = await _context.Guests
+            .AsNoTracking()
+            .Where(g => ids.Contains(g.MatchId))
+            .GroupBy(g => g.MatchId)
+            .Select(g => new { MatchId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(g => g.MatchId, g => g.Count, cancellationToken);
+
         var result = new Dictionary<Guid, MatchAvailability>(matches.Count);
 
         foreach (var match in matches)
@@ -72,7 +80,7 @@ public sealed class MatchAvailabilityReader : IMatchAvailabilityReader
                 ? c
                 : (Regular: 0, DropIn: 0);
 
-            var confirmedCount = counts.Regular + counts.DropIn;
+            var confirmedCount = counts.Regular + counts.DropIn + guestCounts.GetValueOrDefault(match.Id);
             var openSlots = Math.Max(0, match.MaxPlayers - confirmedCount);
 
             // DropIn capacity: base drop-in slots plus (once the window is Closed) any released

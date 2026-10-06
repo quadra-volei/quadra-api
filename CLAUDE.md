@@ -29,6 +29,7 @@ These decisions MUST NOT be questioned or changed by any agent. If a feature req
 | Database | PostgreSQL with PostGIS extension | 16+ |
 | Auth | **Own JWT** issued by the Auth module (HS256 access token + rotating refresh token). Google ID tokens validated server-side. No AWS Cognito. | — |
 | SMS OTP | Twilio Verify over REST (`HttpClient`, no SDK), behind `IPhoneVerificationService` so the provider can be swapped (e.g. Zenvia) | — |
+| Address search | Geo module proxy (`/api/v1/places`) behind `IPlaceSearchService`: Google Places API (New) when `Places:GoogleApiKey` is set, the public Photon (OpenStreetMap) geocoder otherwise; `HttpClient`, no SDK | — |
 | Real-time | SignalR over WebSocket | 10.0 |
 | SignalR backplane | Redis | 7+ |
 | Messaging | **In-process events**: `IEventPublisher` → `InProcessEventPublisher` delivers each event to the `IEventHandler<T>` implementations in `Quadra.Api/Events`, inside the publishing request. No SQS, no queue. | — |

@@ -18,4 +18,6 @@ public sealed record ScoreboardResponse(
     DateTimeOffset? StartedAt,
     DateTimeOffset? EndedAt,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    bool RotatesTeams = false,      // more than two teams: TeamA/TeamB are the pair of the current set
+    bool AwaitingNextSet = false);  // in progress with no open set: the organizer picks who plays next

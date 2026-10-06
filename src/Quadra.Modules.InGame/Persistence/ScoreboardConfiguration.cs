@@ -44,6 +44,11 @@ public sealed class ScoreboardConfiguration : IEntityTypeConfiguration<Scoreboar
             .HasColumnName("team_b_id")
             .IsRequired();
 
+        builder.Property(s => s.RotatesTeams)
+            .HasColumnName("rotates_teams")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.Property(s => s.TeamASetsWon)
             .HasColumnName("team_a_sets_won")
             .HasColumnType("smallint")

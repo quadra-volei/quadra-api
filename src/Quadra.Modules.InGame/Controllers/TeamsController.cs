@@ -33,6 +33,7 @@ public sealed class TeamsController : ControllerBase
     [HttpPost("draft")]
     public async Task<ActionResult<TeamsResponse>> DraftTeams(
         Guid matchId,
+        [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] DraftTeamsRequest? request,
         CancellationToken cancellationToken)
     {
         if (!TryGetCallerId(out var callerId))
@@ -42,8 +43,13 @@ public sealed class TeamsController : ControllerBase
 
         try
         {
-            var response = await _draftHandler.HandleAsync(matchId, callerId, cancellationToken);
+            var response = await _draftHandler.HandleAsync(
+                matchId, callerId, request ?? new DraftTeamsRequest(), cancellationToken);
             return Ok(response);
+        }
+        catch (InvalidDraftOptionsException ex)
+        {
+            return BadRequest(new ProblemDetails { Detail = ex.Message });
         }
         catch (MatchNotFoundException)
         {

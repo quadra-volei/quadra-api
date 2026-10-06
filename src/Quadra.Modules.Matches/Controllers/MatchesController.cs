@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Quadra.Modules.Matches.Application;
@@ -25,6 +26,11 @@ public sealed class MatchesController : ControllerBase
     private readonly UpdateMyPresenceHandler _updateMyPresenceHandler;
     private readonly GetPresenceListHandler _getPresenceListHandler;
     private readonly RemovePresenceHandler _removePresenceHandler;
+    private readonly GetMatchDetailHandler _getDetailHandler;
+    private readonly ListMyMatchesHandler _listMineHandler;
+    private readonly AddMatchGuestHandler _addGuestHandler;
+    private readonly RemoveMatchGuestHandler _removeGuestHandler;
+    private readonly IValidator<AddGuestRequest> _addGuestValidator;
     private readonly IValidator<CreateMatchRequest> _createValidator;
     private readonly IValidator<ListMatchesQuery> _listValidator;
     private readonly IValidator<AddPresenceRequest> _addPresenceValidator;
@@ -39,6 +45,11 @@ public sealed class MatchesController : ControllerBase
         UpdateMyPresenceHandler updateMyPresenceHandler,
         GetPresenceListHandler getPresenceListHandler,
         RemovePresenceHandler removePresenceHandler,
+        GetMatchDetailHandler getDetailHandler,
+        ListMyMatchesHandler listMineHandler,
+        AddMatchGuestHandler addGuestHandler,
+        RemoveMatchGuestHandler removeGuestHandler,
+        IValidator<AddGuestRequest> addGuestValidator,
         IValidator<CreateMatchRequest> createValidator,
         IValidator<ListMatchesQuery> listValidator,
         IValidator<AddPresenceRequest> addPresenceValidator,
@@ -52,6 +63,11 @@ public sealed class MatchesController : ControllerBase
         _updateMyPresenceHandler = updateMyPresenceHandler;
         _getPresenceListHandler = getPresenceListHandler;
         _removePresenceHandler = removePresenceHandler;
+        _getDetailHandler = getDetailHandler;
+        _listMineHandler = listMineHandler;
+        _addGuestHandler = addGuestHandler;
+        _removeGuestHandler = removeGuestHandler;
+        _addGuestValidator = addGuestValidator;
         _createValidator = createValidator;
         _listValidator = listValidator;
         _addPresenceValidator = addPresenceValidator;
@@ -95,7 +111,15 @@ public sealed class MatchesController : ControllerBase
             Frequency: request.Frequency,
             DayOfWeek: request.DayOfWeek,
             WindowOpensAt: request.WindowOpensAt,
-            WindowClosesAt: request.WindowClosesAt);
+            WindowClosesAt: request.WindowClosesAt,
+            Format: request.Format,
+            Level: request.Level,
+            DurationMinutes: request.DurationMinutes,
+            Visibility: request.Visibility,
+            InviteMode: request.InviteMode,
+            PriceMonthly: request.PriceMonthly,
+            RecurrenceDays: request.RecurrenceDays,
+            ConfirmationOpensHoursBefore: request.ConfirmationOpensHoursBefore);
 
         var match = await _createHandler.HandleAsync(command, cancellationToken);
         var response = ToResponse(match);
@@ -265,6 +289,14 @@ public sealed class MatchesController : ControllerBase
         {
             return NotFound(new ProblemDetails { Detail = ex.Message });
         }
+        catch (MatchInviteRequiredException ex)
+        {
+            return Problem(statusCode: StatusCodes.Status403Forbidden, detail: ex.Message);
+        }
+        catch (PresenceAlreadyExistsException ex)
+        {
+            return Conflict(new ProblemDetails { Detail = ex.Message });
+        }
         catch (PresenceWindowNotOpenException ex)
         {
             return Conflict(new ProblemDetails { Detail = ex.Message });
@@ -335,6 +367,132 @@ public sealed class MatchesController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// GET /api/v1/matches/mine — the caller's upcoming matches (organized, joined or waiting).
+    /// </summary>
+    [HttpGet("mine")]
+    public async Task<ActionResult<MyMatchesResponse>> ListMine(CancellationToken cancellationToken)
+    {
+        if (!TryGetCallerId(out var callerId))
+        {
+            return Unauthorized();
+        }
+
+        return Ok(await _listMineHandler.HandleAsync(callerId, cancellationToken));
+    }
+
+    /// <summary>
+    /// GET /api/v1/matches/{id}/detail — the match with its organizer, roster, guests, waiting
+    /// list and the caller's own standing.
+    /// </summary>
+    [HttpGet("{id:guid}/detail")]
+    public async Task<ActionResult<MatchDetailResponse>> GetDetail(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCallerId(out var callerId))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            return Ok(await _getDetailHandler.HandleAsync(id, callerId, cancellationToken));
+        }
+        catch (MatchNotFoundException)
+        {
+            return NotFound();
+        }
+    }
+
+    /// <summary>
+    /// POST /api/v1/matches/{id}/guests — the organizer fills a slot with a player who has no
+    /// account.
+    /// </summary>
+    [HttpPost("{id:guid}/guests")]
+    public async Task<ActionResult<MatchGuestResponse>> AddGuest(
+        Guid id,
+        [FromBody] AddGuestRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCallerId(out var callerId))
+        {
+            return Unauthorized();
+        }
+
+        var validation = await _addGuestValidator.ValidateAsync(request, cancellationToken);
+        if (!validation.IsValid)
+        {
+            foreach (var failure in validation.Errors)
+            {
+                ModelState.AddModelError(failure.PropertyName, failure.ErrorMessage);
+            }
+
+            return ValidationProblem(ModelState);
+        }
+
+        try
+        {
+            var guest = await _addGuestHandler.HandleAsync(id, callerId, request, cancellationToken);
+            return StatusCode(
+                StatusCodes.Status201Created,
+                new MatchGuestResponse(guest.Id, guest.Name, guest.Position, guest.CreatedAt));
+        }
+        catch (MatchNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (MatchAccessDeniedException)
+        {
+            return Forbid();
+        }
+        catch (InvalidMatchStatusTransitionException ex)
+        {
+            return Conflict(new ProblemDetails { Detail = ex.Message });
+        }
+        catch (MatchFullException ex)
+        {
+            return Conflict(new ProblemDetails { Detail = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// DELETE /api/v1/matches/{id}/guests/{guestId} — the organizer removes a guest.
+    /// </summary>
+    [HttpDelete("{id:guid}/guests/{guestId:guid}")]
+    public async Task<IActionResult> RemoveGuest(
+        Guid id,
+        Guid guestId,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCallerId(out var callerId))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            await _removeGuestHandler.HandleAsync(id, callerId, guestId, cancellationToken);
+            return NoContent();
+        }
+        catch (MatchNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (MatchGuestNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (MatchAccessDeniedException)
+        {
+            return Forbid();
+        }
+        catch (InvalidMatchStatusTransitionException ex)
+        {
+            return Conflict(new ProblemDetails { Detail = ex.Message });
+        }
+    }
+
     // --- Private helpers ---
 
     private bool TryGetCallerId(out Guid callerId)
@@ -354,26 +512,5 @@ public sealed class MatchesController : ControllerBase
             CreatedAt: p.CreatedAt,
             UpdatedAt: p.UpdatedAt);
 
-    private static MatchResponse ToResponse(Match m) =>
-        new(
-            Id: m.Id,
-            OrganizerId: m.OrganizerId,
-            Name: m.Name,
-            Description: m.Description,
-            Address: m.Address,
-            Latitude: m.Location.Y,
-            Longitude: m.Location.X,
-            DateTime: m.DateTime,
-            MaxPlayers: m.MaxPlayers,
-            RegularSlots: m.RegularSlots,
-            DropInSlots: m.DropInSlots,
-            Price: m.Price,
-            Type: m.Type.ToString(),
-            Frequency: m.Frequency?.ToString(),
-            DayOfWeek: m.DayOfWeek.HasValue ? (int)m.DayOfWeek.Value : null,
-            WindowOpensAt: m.WindowOpensAt,
-            WindowClosesAt: m.WindowClosesAt,
-            Status: m.Status.ToString(),
-            CreatedAt: m.CreatedAt,
-            UpdatedAt: m.UpdatedAt);
+    private static MatchResponse ToResponse(Match m) => MatchMapper.ToResponse(m);
 }

@@ -185,7 +185,7 @@ public sealed class TeamsEndpointsTests : IClassFixture<InGameWebApplicationFact
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
-        body.GetProperty("detail").GetString().Should().Contain("Closed");
+        body.GetProperty("detail").GetString().Should().Contain("confirmations have opened");
     }
 
     // ─── POST /teams/draft — 409 no confirmed players ────────────────────────

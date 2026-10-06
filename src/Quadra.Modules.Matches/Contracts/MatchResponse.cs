@@ -1,7 +1,8 @@
 namespace Quadra.Modules.Matches.Contracts;
 
 /// <summary>
-/// Read model returned by match endpoints.
+/// A match. The invite code of a private match is never part of this payload — it is only
+/// returned to the organizer by the detail endpoint.
 /// </summary>
 public sealed record MatchResponse(
     Guid Id,
@@ -23,4 +24,11 @@ public sealed record MatchResponse(
     DateTimeOffset WindowClosesAt,
     string Status,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    string? Format = null,
+    string? Level = null,
+    int? DurationMinutes = null,
+    string Visibility = "Open",
+    string? InviteMode = null,
+    decimal? PriceMonthly = null,
+    IReadOnlyList<int>? RecurrenceDays = null);

@@ -100,7 +100,7 @@ public sealed class DraftTeamsHandlerTests
     // ─── 409: Wrong Match Status ─────────────────────────────────────────────
 
     /// <summary>
-    /// Covers: F1.3 — 409 when match status is not Closed (Draft).
+    /// Covers: F1.3 — 409 when confirmations have not opened yet (Draft).
     /// </summary>
     [Fact]
     public async Task HandleAsync_throws_InvalidMatchStatusForTeamsException_when_match_is_Draft()
@@ -112,17 +112,17 @@ public sealed class DraftTeamsHandlerTests
         var act = async () => await sut.HandleAsync(matchId, OrganizerUserId, CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidMatchStatusForTeamsException>()
-            .WithMessage("*Closed*");
+            .WithMessage("*confirmations have opened*");
     }
 
     /// <summary>
-    /// Covers: F1.3 — 409 when match status is not Closed (Open).
+    /// Covers: F1.3 — 409 once the game is under way or over (InProgress).
     /// </summary>
     [Fact]
-    public async Task HandleAsync_throws_InvalidMatchStatusForTeamsException_when_match_is_Open()
+    public async Task HandleAsync_throws_InvalidMatchStatusForTeamsException_when_match_is_InProgress()
     {
         var matchId = Guid.NewGuid();
-        SetupMatch(matchId, OrganizerUserId, status: "Open");
+        SetupMatch(matchId, OrganizerUserId, status: "InProgress");
 
         var sut = CreateSut();
         var act = async () => await sut.HandleAsync(matchId, OrganizerUserId, CancellationToken.None);

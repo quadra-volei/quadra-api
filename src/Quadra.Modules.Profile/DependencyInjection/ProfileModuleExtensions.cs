@@ -60,6 +60,9 @@ public static class ProfileModuleExtensions
         // registered via TryAddScoped, so team drafting now balances on real levels.
         services.AddScoped<IPlayerLevelReader, PlayerLevelReader>();
 
+        // Player identities for other modules (match rosters, rankings).
+        services.AddScoped<IPlayerSummaryReader, PlayerSummaryReader>();
+
         services.AddScoped<IValidator<UpdateProfileRequest>, UpdateProfileRequestValidator>();
         services.AddScoped<IValidator<PhotoUploadUrlRequest>, PhotoUploadUrlRequestValidator>();
         services.AddScoped<IValidator<MatchHistoryQuery>, MatchHistoryQueryValidator>();

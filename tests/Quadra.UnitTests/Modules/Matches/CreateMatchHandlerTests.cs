@@ -22,7 +22,7 @@ public sealed class CreateMatchHandlerTests
     private readonly TimeProvider _timeProvider = new FixedTimeProvider(FixedNow);
 
     private CreateMatchHandler CreateSut() =>
-        new(_repository, _eventPublisher, _timeProvider);
+        new(_repository, _eventPublisher, _timeProvider, MatchTestSupport.Synchronizer(_repository, _timeProvider));
 
     private static CreateMatchCommand BuildValidOneOffCommand(Guid? organizerId = null) =>
         new(

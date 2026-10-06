@@ -65,11 +65,13 @@ public sealed class EndScoreboardHandler
         var now = _timeProvider.GetUtcNow();
 
         // 5. Winner derived from sets won so far; null if equal.
-        Guid? winnerTeamId = scoreboard.TeamASetsWon > scoreboard.TeamBSetsWon
-            ? scoreboard.TeamAId
-            : scoreboard.TeamBSetsWon > scoreboard.TeamASetsWon
-                ? scoreboard.TeamBId
-                : null;
+        Guid? winnerTeamId = scoreboard.RotatesTeams
+            ? scoreboard.LeaderBySets()
+            : scoreboard.TeamASetsWon > scoreboard.TeamBSetsWon
+                ? scoreboard.TeamAId
+                : scoreboard.TeamBSetsWon > scoreboard.TeamASetsWon
+                    ? scoreboard.TeamBId
+                    : null;
 
         // 6. Mark the current unfinished set (if any) as abandoned.
         var currentSet = scoreboard.Sets
