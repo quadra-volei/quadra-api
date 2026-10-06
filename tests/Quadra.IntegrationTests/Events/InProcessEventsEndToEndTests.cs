@@ -105,9 +105,11 @@ public sealed class InProcessEventsEndToEndTests : IClassFixture<InProcessEvents
         }
 
         // Everyone votes for the same MVP (who votes for someone else).
+        // The voting was opened by the game ending (MatchEnded handled in-process): opening it
+        // again by hand is refused.
         (await organizer.Client.PostAsJsonAsync(
             $"/api/v1/matches/{matchId}/mvp-voting", new { DeadlineAt = (DateTimeOffset?)null }, Ct))
-            .StatusCode.Should().Be(HttpStatusCode.Created);
+            .StatusCode.Should().Be(HttpStatusCode.Conflict);
         foreach (var voter in players)
         {
             var voted = voter == mvp ? players[0] : mvp;

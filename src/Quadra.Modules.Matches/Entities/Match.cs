@@ -229,7 +229,8 @@ public sealed class Match
 
     /// <summary>
     /// Transitions the match to <see cref="MatchStatus.Ended"/> when the immutable summary is finalized (F1.6).
-    /// Valid from <see cref="MatchStatus.Closed"/> or <see cref="MatchStatus.InProgress"/>.
+    /// Valid from <see cref="MatchStatus.Open"/> (a game played while confirmations were still
+    /// open), <see cref="MatchStatus.Closed"/> or <see cref="MatchStatus.InProgress"/>.
     /// No-op when already <see cref="MatchStatus.Ended"/>.
     /// Throws <see cref="InvalidMatchStatusTransitionException"/> when the match is <see cref="MatchStatus.Cancelled"/>.
     /// </summary>
@@ -241,10 +242,10 @@ public sealed class Match
             return false;
         }
 
-        if (Status is not (MatchStatus.Closed or MatchStatus.InProgress))
+        if (Status is not (MatchStatus.Open or MatchStatus.Closed or MatchStatus.InProgress))
         {
             throw new InvalidMatchStatusTransitionException(
-                $"Cannot end a match with status '{Status}'. Only Closed or InProgress matches can be ended.");
+                $"Cannot end a match with status '{Status}'. Only Open, Closed or InProgress matches can be ended.");
         }
 
         Status = MatchStatus.Ended;

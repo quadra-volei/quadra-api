@@ -18,6 +18,8 @@ public sealed class GetMatchDetailHandler
     private readonly IMatchGuestRepository _guestRepository;
     private readonly IPlayerSummaryReader _playerSummaryReader;
     private readonly MatchWindowSynchronizer _windowSynchronizer;
+    private readonly IMatchResultReader _matchResultReader;
+    private readonly IMatchSummaryRepository _summaryRepository;
 
     public GetMatchDetailHandler(
         IMatchRepository matchRepository,
@@ -25,8 +27,12 @@ public sealed class GetMatchDetailHandler
         IWaitingListRepository waitingListRepository,
         IMatchGuestRepository guestRepository,
         IPlayerSummaryReader playerSummaryReader,
-        MatchWindowSynchronizer windowSynchronizer)
+        MatchWindowSynchronizer windowSynchronizer,
+        IMatchResultReader matchResultReader,
+        IMatchSummaryRepository summaryRepository)
     {
+        _matchResultReader = matchResultReader;
+        _summaryRepository = summaryRepository;
         _matchRepository = matchRepository;
         _presenceRepository = presenceRepository;
         _waitingListRepository = waitingListRepository;
@@ -60,6 +66,7 @@ public sealed class GetMatchDetailHandler
         var myPresence = presences.FirstOrDefault(p => p.PlayerId == callerId);
         var myWaiting = waitingList.FirstOrDefault(w => w.PlayerId == callerId);
         var isOrganizer = match.OrganizerId == callerId;
+        var game = await _matchResultReader.GetMatchResultAsync(matchId, cancellationToken);
 
         return new MatchDetailResponse(
             Match: MatchMapper.ToResponse(match),
@@ -89,6 +96,12 @@ public sealed class GetMatchDetailHandler
                 ? null
                 : new MyPresenceResponse(myPresence.PlayerType.ToString(), myPresence.Status.ToString()),
             MyWaitingListPosition: myWaiting?.Position,
-            CanJoin: myPresence is null && match.AllowsSelfEnrollment(callerId, inviteCode: null));
+            CanJoin: myPresence is null && match.AllowsSelfEnrollment(callerId, inviteCode: null),
+            Game: game is null
+                ? null
+                : new MatchGameResponse(
+                    game.ScoreboardState,
+                    game.MvpVotingState,
+                    await _summaryRepository.ExistsForMatchAsync(matchId, cancellationToken)));
     }
 }

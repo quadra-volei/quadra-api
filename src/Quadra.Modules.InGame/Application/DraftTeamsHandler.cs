@@ -9,7 +9,8 @@ using Quadra.Shared.Events.InGame;
 namespace Quadra.Modules.InGame.Application;
 
 /// <summary>
-/// Orchestrates the automatic snake-draft team balancing for a match.
+/// Orchestrates the team draw for a match: 2 to 4 teams, balanced by level (snake draft) or
+/// random, with the match guests playing alongside the confirmed players.
 /// </summary>
 public sealed class DraftTeamsHandler
 {
@@ -39,11 +40,27 @@ public sealed class DraftTeamsHandler
         _logger = logger;
     }
 
+    public const int MinTeams = 2;
+    public const int MaxTeams = 4;
+
+    public Task<TeamsResponse> HandleAsync(Guid matchId, Guid callerId, CancellationToken cancellationToken) =>
+        HandleAsync(matchId, callerId, new DraftTeamsRequest(), cancellationToken);
+
     public async Task<TeamsResponse> HandleAsync(
         Guid matchId,
         Guid callerId,
+        DraftTeamsRequest options,
         CancellationToken cancellationToken)
     {
+        var teamCount = options.TeamCount ?? MinTeams;
+        var random = string.Equals(options.Mode, "Random", StringComparison.OrdinalIgnoreCase);
+        if (teamCount is < MinTeams or > MaxTeams
+            || options.PerTeam is < 1
+            || (options.Mode is not null && !random && !string.Equals(options.Mode, "Balanced", StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidDraftOptionsException();
+        }
+
         // 1. Verify match exists.
         var matchSummary = await _matchReader.FindMatchSummaryAsync(matchId, cancellationToken)
             ?? throw new MatchNotFoundException(matchId);
@@ -54,16 +71,19 @@ public sealed class DraftTeamsHandler
             throw new MatchAccessDeniedException(matchId, callerId);
         }
 
-        // 3. Verify match is Closed.
-        if (matchSummary.Status != "Closed")
+        // 3. Confirmations must have opened (teams drawn while the window is still open only
+        //    count who confirmed so far; drawing again replaces them).
+        if (matchSummary.Status is not ("Open" or "Closed"))
         {
             throw new InvalidMatchStatusForTeamsException(
-                "Teams can only be drafted after the confirmation window closes. Match must be in Closed status.");
+                "Teams can only be drafted once confirmations have opened and before the game is over.");
         }
 
         // 4. Load confirmed players.
         var playerIds = await _confirmedPlayersReader.GetConfirmedPlayerIdsAsync(matchId, cancellationToken);
-        if (playerIds.Count == 0)
+        var guestIds = (await _confirmedPlayersReader.GetGuestIdsAsync(matchId, cancellationToken) ?? [])
+            .ToHashSet();
+        if (playerIds.Count + guestIds.Count == 0)
         {
             throw new NoConfirmedPlayersException(matchId);
         }
@@ -73,14 +93,14 @@ public sealed class DraftTeamsHandler
 
         // 6. Apply snake-draft algorithm.
         var now = _timeProvider.GetUtcNow();
-        var teams = BuildDraft(matchId, playerIds, levelMap, now);
+        var teams = BuildDraft(matchId, playerIds, guestIds, levelMap, teamCount, options.PerTeam, random, now);
 
         // 7. Persist (delete existing + insert new) in a single transaction.
         await _teamRepository.ReplaceTeamsAsync(matchId, teams, cancellationToken);
 
         _logger.LogInformation(
-            "Teams drafted for MatchId={MatchId}. TeamACount={TeamACount}, TeamBCount={TeamBCount}.",
-            matchId, teams[0].Members.Count, teams[1].Members.Count);
+            "Teams drafted for MatchId={MatchId}. Teams={TeamCount}, Sizes={Sizes}.",
+            matchId, teams.Count, string.Join("/", teams.Select(t => t.Members.Count)));
 
         // 8. Publish event after commit.
         var @event = new TeamsFormed(
@@ -88,7 +108,7 @@ public sealed class DraftTeamsHandler
             Teams: teams.Select(t => new TeamFormedEntry(
                 TeamId: t.Id,
                 TeamName: t.Name,
-                PlayerIds: t.Members.Select(m => m.PlayerId).ToList())).ToList(),
+                PlayerIds: t.PlayerIds.ToList())).ToList(),
             OccurredAt: now);
 
         await _eventPublisher.PublishAsync(@event, cancellationToken);
@@ -98,50 +118,52 @@ public sealed class DraftTeamsHandler
     }
 
     /// <summary>
-    /// Applies the snake-draft balancing algorithm.
-    /// Players are sorted by level descending (Elite=3, Advanced=2, Intermediate=1, Beginner=0),
-    /// with a stable secondary sort on PlayerId for determinism in ties.
-    /// Assignment: pick 1 → A, pick 2 → B, pick 3 → B, pick 4 → A, ...
+    /// Deals the players into <paramref name="teamCount"/> teams ("Team A", "Team B", …).
+    ///
+    /// Balanced: players sorted by level descending (Elite=3 … Beginner=0, guests count as
+    /// Beginner) with the id as a stable tie-break, dealt in a snake — A,B,B,A,… for two teams,
+    /// A,B,C,C,B,A,… for three — so no team keeps the first pick of every round.
+    /// Random: shuffled, then dealt the same way.
+    /// With a per-team cap and more players than slots, who sits out is picked at random.
     /// </summary>
     private static IReadOnlyList<Team> BuildDraft(
         Guid matchId,
         IReadOnlyList<Guid> playerIds,
+        IReadOnlySet<Guid> guestIds,
         IReadOnlyDictionary<Guid, string> levelMap,
+        int teamCount,
+        int? perTeam,
+        bool random,
         DateTimeOffset now)
     {
-        var sorted = playerIds
-            .OrderByDescending(id => LevelScore(levelMap.GetValueOrDefault(id, "Beginner")))
-            .ThenBy(id => id)
-            .ToList();
-
-        var teamA = Team.Create(matchId, "Team A", now);
-        var teamB = Team.Create(matchId, "Team B", now);
-
-        // Snake draft: A, B, B, A, A, B, B, A, ...
-        // Round 0: A gets pick (0-indexed: 0), B gets picks 1
-        // The pattern by pick index: 0→A, 1→B, 2→B, 3→A, 4→A, 5→B, 6→B, 7→A, ...
-        // Expressed as: block = index / 2; if (block % 2 == 0) first pick of block → A else B
-        // Simpler formula: position in round-of-2: (index / 2) % 2 == 0 means [A,B], else [B,A]
-        for (var i = 0; i < sorted.Count; i++)
+        var everyone = playerIds.Concat(guestIds).Distinct().ToList();
+        var slots = perTeam is { } size ? size * teamCount : everyone.Count;
+        if (random || everyone.Count > slots)
         {
-            var blockIndex = i / 2;
-            var positionInBlock = i % 2;
-            Team target;
-            if (blockIndex % 2 == 0)
-            {
-                // Even block: first slot → A, second slot → B
-                target = positionInBlock == 0 ? teamA : teamB;
-            }
-            else
-            {
-                // Odd block: first slot → B, second slot → A
-                target = positionInBlock == 0 ? teamB : teamA;
-            }
-
-            target.AddMember(sorted[i], now);
+            Random.Shared.Shuffle(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(everyone));
         }
 
-        return [teamA, teamB];
+        var playing = everyone.Take(slots);
+        var ordered = random
+            ? playing.ToList()
+            : playing
+                .OrderByDescending(id => LevelScore(levelMap.GetValueOrDefault(id, "Beginner")))
+                .ThenBy(id => id)
+                .ToList();
+
+        var teams = Enumerable.Range(0, teamCount)
+            .Select(i => Team.Create(matchId, $"Team {(char)('A' + i)}", now))
+            .ToList();
+
+        for (var i = 0; i < ordered.Count; i++)
+        {
+            var round = i / teamCount;
+            var position = i % teamCount;
+            var target = teams[round % 2 == 0 ? position : teamCount - 1 - position];
+            target.AddMember(ordered[i], now, isGuest: guestIds.Contains(ordered[i]));
+        }
+
+        return teams;
     }
 
     private static int LevelScore(string level) => level switch
@@ -166,7 +188,8 @@ public sealed class DraftTeamsHandler
                     TeamId: m.TeamId,
                     PlayerId: m.PlayerId,
                     PlayerLevel: levelMap.GetValueOrDefault(m.PlayerId, "Beginner"),
-                    CreatedAt: m.CreatedAt)).ToList(),
+                    CreatedAt: m.CreatedAt,
+                    IsGuest: m.IsGuest)).ToList(),
                 CreatedAt: t.CreatedAt,
                 UpdatedAt: t.UpdatedAt)).ToList());
     }

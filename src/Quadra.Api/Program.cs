@@ -12,6 +12,7 @@ using Quadra.Modules.Matches.DependencyInjection;
 using Quadra.Modules.Matches.Persistence;
 using Quadra.Modules.Profile.DependencyInjection;
 using Quadra.Modules.Profile.Persistence;
+using Quadra.Modules.Realtime;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -25,6 +26,9 @@ builder.Services.AddInGameModule(builder.Configuration);
 builder.Services.AddProfileModule(builder.Configuration);
 builder.Services.AddGeoModule(builder.Configuration);
 builder.Services.AddGamificationModule(builder.Configuration);
+
+// Live match updates over SignalR. Registered after the modules: it replaces their no-op notifier.
+builder.Services.AddRealtimeModule();
 builder.Services.AddHostedService<MatchWindowSweeper>();
 builder.Services.AddOpenApi();
 
@@ -57,6 +61,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
     .AllowAnonymous();
 
 app.MapControllers();
+app.MapRealtimeHubs();
 
 await app.RunAsync();
 

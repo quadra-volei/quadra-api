@@ -39,6 +39,13 @@ public sealed class InvalidMatchStatusForTeamsException : Exception
 /// <summary>
 /// Thrown when a draft is requested but the match has no confirmed players.
 /// </summary>
+/// <summary>Thrown when the draft options are out of range (2–4 teams, at least 1 per team, known mode).</summary>
+public sealed class InvalidDraftOptionsException : Exception
+{
+    public InvalidDraftOptionsException()
+        : base("Teams must be 2 to 4, with at least 1 player per team, drawn Balanced or Random.") { }
+}
+
 public sealed class NoConfirmedPlayersException : Exception
 {
     public NoConfirmedPlayersException(Guid matchId)

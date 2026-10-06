@@ -59,6 +59,15 @@ public sealed class ScoreboardSetConfiguration : IEntityTypeConfiguration<Scoreb
         builder.Property(s => s.WinnerTeamId)
             .HasColumnName("winner_team_id");
 
+        builder.Property(s => s.TeamAId)
+            .HasColumnName("team_a_id");
+
+        builder.Property(s => s.TeamBId)
+            .HasColumnName("team_b_id");
+
+        builder.Property(s => s.LastPointTeamId)
+            .HasColumnName("last_point_team_id");
+
         builder.Property(s => s.StartedAt)
             .HasColumnName("started_at")
             .IsRequired()

@@ -73,9 +73,14 @@ public static class InGameModuleExtensions
         services.AddScoped<StartScoreboardHandler>();
         services.AddScoped<RecordPointHandler>();
         services.AddScoped<EndScoreboardHandler>();
+        services.AddScoped<UndoPointHandler>();
+        services.AddScoped<EndSetHandler>();
+        services.AddScoped<OpenNextSetHandler>();
         services.AddScoped<GetScoreboardHandler>();
 
         services.AddScoped<OpenMvpVotingHandler>();
+        // Reacts to the game ending (in-process event) by opening the voting.
+        services.AddScoped<Quadra.Infrastructure.Messaging.IEventHandler<Quadra.Shared.Events.InGame.MatchEnded>, OpenMvpVotingOnMatchEnded>();
         services.AddScoped<CastMvpVoteHandler>();
         services.AddScoped<CloseMvpVotingHandler>();
         services.AddScoped<GetMvpVotingHandler>();

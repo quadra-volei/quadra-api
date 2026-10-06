@@ -104,26 +104,9 @@ public sealed class RecordPointHandler
                 ? scoreboard.TeamAId
                 : scoreboard.TeamBId;
 
-            currentSet.Finish(setWinnerTeamId, now);
-            scoreboard.RegisterSetWon(setWinnerTeamId);
-
-            // 10. Evaluate the game.
-            var setsToWin = VolleyballScoringRules.SetsToWin(scoreboard.Format);
-            if (scoreboard.TeamASetsWon >= setsToWin || scoreboard.TeamBSetsWon >= setsToWin)
-            {
-                var gameWinnerTeamId = scoreboard.TeamASetsWon > scoreboard.TeamBSetsWon
-                    ? scoreboard.TeamAId
-                    : scoreboard.TeamBId;
-
-                scoreboard.End(gameWinnerTeamId, now);
-                gameEnded = true;
-            }
-            else
-            {
-                var nextSetNumber = scoreboard.CurrentSetNumber + 1;
-                var isDeciding = VolleyballScoringRules.IsDecidingSet(scoreboard.Format, nextSetNumber);
-                scoreboard.OpenSet(nextSetNumber, isDeciding, now);
-            }
+            // 10. Close the set: the game ends, the next set opens, or (teams rotating) the
+            //     organizer picks who plays next.
+            gameEnded = ScoreboardProgression.CompleteSet(scoreboard, currentSet, setWinnerTeamId, now);
         }
 
         // 11. Persist all changes inside a single transaction.

@@ -62,9 +62,9 @@ public sealed class CastMvpVoteHandler
 
         // 5. Build the participant set from the match's team members.
         var teams = await _teamRepository.ListByMatchAsync(matchId, cancellationToken);
+        // Guests have no account: they neither vote nor can be voted for.
         var participantIds = teams
-            .SelectMany(t => t.Members)
-            .Select(m => m.PlayerId)
+            .SelectMany(t => t.PlayerIds)
             .ToHashSet();
 
         // 6. Caller must be a participant.

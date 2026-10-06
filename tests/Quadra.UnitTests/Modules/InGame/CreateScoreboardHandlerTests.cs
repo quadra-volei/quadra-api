@@ -76,10 +76,9 @@ public sealed class CreateScoreboardHandlerTests
 
     // ─── 409: match not Closed ───────────────────────────────────────────────
 
-    /// <summary>Covers: F1.4 — 409 when the match status is not Closed.</summary>
+    /// <summary>Covers: F1.4 — 409 before confirmations open or once the game is under way.</summary>
     [Theory]
     [InlineData("Draft")]
-    [InlineData("Open")]
     [InlineData("InProgress")]
     public async Task HandleAsync_throws_InvalidState_when_match_is_not_Closed(string status)
     {

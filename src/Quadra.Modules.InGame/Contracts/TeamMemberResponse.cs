@@ -8,4 +8,5 @@ public sealed record TeamMemberResponse(
     Guid TeamId,
     Guid PlayerId,
     string PlayerLevel,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    bool IsGuest = false);      // a guest of the match (no account): PlayerId is the guest id

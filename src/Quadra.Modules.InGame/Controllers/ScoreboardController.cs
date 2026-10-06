@@ -25,12 +25,19 @@ public sealed class ScoreboardController : ControllerBase
     private readonly IValidator<CreateScoreboardRequest> _createValidator;
     private readonly IValidator<RecordPointRequest> _recordPointValidator;
 
+    private readonly UndoPointHandler _undoPointHandler;
+    private readonly EndSetHandler _endSetHandler;
+    private readonly OpenNextSetHandler _openNextSetHandler;
+
     public ScoreboardController(
         CreateScoreboardHandler createHandler,
         StartScoreboardHandler startHandler,
         RecordPointHandler recordPointHandler,
         EndScoreboardHandler endHandler,
         GetScoreboardHandler getHandler,
+        UndoPointHandler undoPointHandler,
+        EndSetHandler endSetHandler,
+        OpenNextSetHandler openNextSetHandler,
         IValidator<CreateScoreboardRequest> createValidator,
         IValidator<RecordPointRequest> recordPointValidator)
     {
@@ -39,6 +46,9 @@ public sealed class ScoreboardController : ControllerBase
         _recordPointHandler = recordPointHandler;
         _endHandler = endHandler;
         _getHandler = getHandler;
+        _undoPointHandler = undoPointHandler;
+        _endSetHandler = endSetHandler;
+        _openNextSetHandler = openNextSetHandler;
         _createValidator = createValidator;
         _recordPointValidator = recordPointValidator;
     }
@@ -70,8 +80,13 @@ public sealed class ScoreboardController : ControllerBase
 
         try
         {
-            var response = await _createHandler.HandleAsync(matchId, callerId, format, cancellationToken);
+            var response = await _createHandler.HandleAsync(
+                matchId, callerId, format, cancellationToken, request.TeamAId, request.TeamBId);
             return CreatedAtAction(nameof(GetScoreboard), new { matchId }, response);
+        }
+        catch (TeamNotInScoreboardException ex)
+        {
+            return BadRequest(new ProblemDetails { Detail = ex.Message });
         }
         catch (MatchNotFoundException)
         {
@@ -186,6 +201,64 @@ public sealed class ScoreboardController : ControllerBase
     }
 
     /// <summary>POST /api/v1/matches/{matchId}/scoreboard/end</summary>
+    /// <summary>DELETE /api/v1/matches/{matchId}/scoreboard/sets/{setNumber}/points/last — undo the last point.</summary>
+    [HttpDelete("sets/{setNumber:int}/points/last")]
+    public Task<ActionResult<ScoreboardResponse>> UndoPoint(Guid matchId, int setNumber, CancellationToken cancellationToken) =>
+        RunSetOperationAsync(callerId => _undoPointHandler.HandleAsync(matchId, setNumber, callerId, cancellationToken));
+
+    /// <summary>POST /api/v1/matches/{matchId}/scoreboard/sets/{setNumber}/end — end the set early; the leader takes it.</summary>
+    [HttpPost("sets/{setNumber:int}/end")]
+    public Task<ActionResult<ScoreboardResponse>> EndSet(Guid matchId, int setNumber, CancellationToken cancellationToken) =>
+        RunSetOperationAsync(callerId => _endSetHandler.HandleAsync(matchId, setNumber, callerId, cancellationToken));
+
+    /// <summary>POST /api/v1/matches/{matchId}/scoreboard/sets — open the next set between two teams.</summary>
+    [HttpPost("sets")]
+    public Task<ActionResult<ScoreboardResponse>> OpenNextSet(
+        Guid matchId,
+        [FromBody] OpenNextSetRequest request,
+        CancellationToken cancellationToken) =>
+        RunSetOperationAsync(callerId => _openNextSetHandler.HandleAsync(
+            matchId, request.TeamAId, request.TeamBId, callerId, cancellationToken));
+
+    /// <summary>Runs an organizer set operation with the error mapping they all share.</summary>
+    private async Task<ActionResult<ScoreboardResponse>> RunSetOperationAsync(
+        Func<Guid, Task<ScoreboardResponse>> operation)
+    {
+        if (!TryGetCallerId(out var callerId))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            return Ok(await operation(callerId));
+        }
+        catch (MatchNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (MatchAccessDeniedException)
+        {
+            return Forbid();
+        }
+        catch (ScoreboardNotFoundException ex)
+        {
+            return NotFound(new ProblemDetails { Detail = ex.Message });
+        }
+        catch (TeamNotInScoreboardException ex)
+        {
+            return NotFound(new ProblemDetails { Detail = ex.Message });
+        }
+        catch (SetNotCurrentException ex)
+        {
+            return Conflict(new ProblemDetails { Detail = ex.Message });
+        }
+        catch (InvalidScoreboardStateException ex)
+        {
+            return Conflict(new ProblemDetails { Detail = ex.Message });
+        }
+    }
+
     [HttpPost("end")]
     public async Task<ActionResult<ScoreboardResponse>> EndScoreboard(
         Guid matchId,

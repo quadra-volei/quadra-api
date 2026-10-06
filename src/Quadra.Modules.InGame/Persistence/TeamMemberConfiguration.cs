@@ -19,6 +19,11 @@ public sealed class TeamMemberConfiguration : IEntityTypeConfiguration<TeamMembe
             .HasColumnName("id")
             .HasDefaultValueSql("gen_random_uuid()");
 
+        builder.Property(m => m.IsGuest)
+            .HasColumnName("is_guest")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.Property(m => m.TeamId)
             .HasColumnName("team_id")
             .IsRequired();

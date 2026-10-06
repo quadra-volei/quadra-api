@@ -27,4 +27,14 @@ public sealed class ConfirmedPlayersReader : IConfirmedPlayersReader
             .Select(p => p.PlayerId)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyList<Guid>> GetGuestIdsAsync(Guid matchId, CancellationToken cancellationToken)
+    {
+        return await _context.Guests
+            .AsNoTracking()
+            .Where(g => g.MatchId == matchId)
+            .OrderBy(g => g.CreatedAt)
+            .Select(g => g.Id)
+            .ToListAsync(cancellationToken);
+    }
 }

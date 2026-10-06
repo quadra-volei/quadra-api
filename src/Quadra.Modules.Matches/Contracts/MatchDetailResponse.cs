@@ -21,7 +21,17 @@ public sealed record MatchDetailResponse(
     int OpenSlots,
     MyPresenceResponse? MyPresence,
     int? MyWaitingListPosition,
-    bool CanJoin);
+    bool CanJoin,
+    MatchGameResponse? Game = null);
+
+/// <summary>
+/// Where the game of this match is, so a client knows what comes next (live scoreboard, MVP
+/// vote, summary). Null until a scoreboard exists.
+/// </summary>
+/// <param name="ScoreboardState">NotStarted | InProgress | Ended.</param>
+/// <param name="MvpVotingState">None | Open | Closed.</param>
+/// <param name="HasSummary">The organizer already generated the match summary.</param>
+public sealed record MatchGameResponse(string ScoreboardState, string MvpVotingState, bool HasSummary);
 
 /// <summary>A player's public identity inside a match payload.</summary>
 public sealed record MatchPlayerResponse(

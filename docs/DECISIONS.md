@@ -33,3 +33,22 @@ Format: date · decision · why.
 | 17 | Search is **restricted to Brazil** and biased to the user's position; Google uses session tokens. | Better suggestions; Google bills a typing session plus its details call as one request. |
 | 18 | A suggestion may already carry coordinates (OpenStreetMap) or not (Google → one `GET /places/{id}` when picked). Provider failure answers 503 and the app falls back to the typed text. | One contract for both providers; the create flow never blocks on the search. |
 | 19 | No NuGet package added: both providers are called with `HttpClient`. | Stack rule. |
+
+## 2026-10-06 — Block 3: in-game (teams, live scoreboard, MVP, summary)
+
+The app plays a pickup game ("racha") with **2 to 4 teams** where each set is played by two of
+them; the backend only knew two fixed teams. The backend followed the app.
+
+| # | Decision | Why |
+| --- | --- | --- |
+| 20 | **Teams: 2 to 4** (`POST /teams/draft` body `{teamCount, perTeam, mode}`), named Team A…D. `mode` is `Balanced` (snake draft by level, default) or `Random`. With `perTeam` and more players than slots, who sits out is random. No body = the previous behaviour (two balanced teams). | Matches the team-count / per-team / draw-mode controls of the app. A random bench is the only choice that does not always exclude the weakest. |
+| 21 | **Guests are drawn into the teams** (`isGuest` on the member), counted as Beginner. They are left out of everything that needs an account: `TeamsFormed`, MVP voting (cannot vote or be voted), summary participants, stats and ranking. | A guest fills a slot on court; they have no profile to rate or reward. |
+| 22 | Teams can be drawn and the scoreboard created while the match is **Open or Closed** (before: only Closed). A game played while confirmations were still open can be ended and summarized. | The window closes at the start time; organizers draw teams some minutes before. |
+| 23 | **Each set records the pair that played it.** With two teams nothing changes (the next set opens by itself). With more than two (`rotatesTeams`), after a set the game waits (`awaitingNextSet`) until the organizer picks the next pair: `POST /scoreboard/sets {teamAId, teamBId}`. The first pair is chosen when the scoreboard is created. | "Winner stays, next team comes in" — the S13.5 screen of the app. |
+| 24 | With rotating teams the game ends when **any team reaches the sets of the format** (2 in best of 3), whoever it beat; the deciding set (to 15) is a set between two teams that are both one win away. Ending the game by hand gives it to the team with the most sets (tie = no winner). | The natural generalization: with two teams it is exactly the previous rule. |
+| 25 | **End a set early** — `POST /scoreboard/sets/{n}/end`: whoever is ahead takes it (a tie cannot be ended). | Pickup games play shorter sets (to 15, by time). This avoids configuring a target per match. |
+| 26 | **Undo** — `DELETE /scoreboard/sets/{n}/points/last`: takes back the last point only, one level, and never a point that already closed the set. | Fixes a mis-tap without keeping a point-by-point history. Ceiling: a mis-tap on set point cannot be undone. |
+| 27 | **MVP voting opens by itself when the game ends** (24 h deadline). The manual open endpoint still exists and answers 409 when the voting is already there. | The app has no "open voting" step; players go straight from the final point to the vote. |
+| 28 | **Live updates: SignalR hub at `/hubs/match`** (`JoinMatchRoom` / `LeaveMatchRoom`, events `ScoreboardUpdated` / `PresenceUpdated`), **without Redis**: groups live in the memory of the single API instance. | Asked for; the free hosting runs one instance. Add the Redis backplane before running more than one. |
+| 29 | `GET /matches/{id}/detail` now carries `game` (`scoreboardState`, `mvpVotingState`, `hasSummary`). | One request tells the app which screen comes next (live scoreboard, vote, summary). |
+| 30 | The **summary of a game with rotating teams** keeps the existing shape: winner, MVP, teams and the sets with their points — but not which pair played each set, and the "sets won" pair shown is the last pair on court. | Extending the stored summary needs its own migration and screen design; the result (who won, stats, ranking) is already correct. |
