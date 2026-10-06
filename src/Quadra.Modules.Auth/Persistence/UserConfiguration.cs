@@ -7,7 +7,7 @@ namespace Quadra.Modules.Auth.Persistence;
 
 /// <summary>
 /// Fluent API mapping for the <see cref="User"/> aggregate. Enforces the indexes and
-/// length constraints described in the FA.2 spec.
+/// length constraints, including one account per phone number and per external identity.
 /// </summary>
 public sealed class UserConfiguration : IEntityTypeConfiguration<User>
 {
@@ -23,11 +23,6 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .HasColumnName("id")
             .HasDefaultValueSql("gen_random_uuid()");
 
-        builder.Property(u => u.CognitoSub)
-            .HasColumnName("cognito_sub")
-            .HasMaxLength(64)
-            .IsRequired();
-
         var providerConverter = new ValueConverter<IdentityProvider, string>(
             v => v.ToString().ToLowerInvariant(),
             v => ParseProvider(v));
@@ -38,6 +33,10 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .HasConversion(providerConverter)
             .IsRequired();
 
+        builder.Property(u => u.ExternalSubject)
+            .HasColumnName("external_subject")
+            .HasMaxLength(255);
+
         builder.Property(u => u.PhoneNumber)
             .HasColumnName("phone_number")
             .HasMaxLength(20);
@@ -45,16 +44,6 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.Email)
             .HasColumnName("email")
             .HasMaxLength(320);
-
-        var statusConverter = new ValueConverter<UserConfirmationStatus, string>(
-            v => v.ToString(),
-            v => Enum.Parse<UserConfirmationStatus>(v));
-
-        builder.Property(u => u.ConfirmationStatus)
-            .HasColumnName("confirmation_status")
-            .HasMaxLength(32)
-            .HasConversion(statusConverter)
-            .IsRequired();
 
         builder.Property(u => u.CreatedAt)
             .HasColumnName("created_at")
@@ -66,9 +55,10 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .HasDefaultValueSql("now()")
             .IsRequired();
 
-        builder.HasIndex(u => u.CognitoSub)
+        builder.HasIndex(u => new { u.Provider, u.ExternalSubject })
             .IsUnique()
-            .HasDatabaseName("ix_users_cognito_sub");
+            .HasFilter("external_subject IS NOT NULL")
+            .HasDatabaseName("ix_users_provider_external_subject");
 
         builder.HasIndex(u => u.PhoneNumber)
             .IsUnique()

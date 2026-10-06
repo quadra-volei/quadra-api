@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Quadra.Infrastructure.DependencyInjection;
+using Quadra.Infrastructure.Persistence;
 using Quadra.Modules.Profile.Abstractions;
 using Quadra.Modules.Profile.Application;
 using Quadra.Modules.Profile.Contracts;
@@ -37,7 +38,7 @@ public static class ProfileModuleExtensions
                     "ConnectionStrings:Profile (or ConnectionStrings:Default) must be configured.");
 
             builder.UseNpgsql(
-                connectionString,
+                PostgresConnectionString.Normalize(connectionString),
                 npgsql => npgsql.UseNetTopologySuite());
         });
 

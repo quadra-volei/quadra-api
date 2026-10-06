@@ -1,0 +1,71 @@
+# Render Blueprint for the Quadra API — the free, always-reachable test environment.
+#
+# First deploy: Render dashboard → New → Blueprint → pick this repository. Render reads
+# this file, asks for the values marked `sync: false`, builds the Dockerfile and deploys.
+# After that, every push to the branch below redeploys automatically.
+#
+# The database is NOT created here: Render's free Postgres expires after a few weeks.
+# Use any Postgres that allows the PostGIS extension (e.g. a free Neon project in a
+# US East region, close to this service) and paste its connection string when asked.
+# Both `postgresql://…` URLs and Npgsql `Host=…;` strings are accepted.
+
+services:
+  - type: web
+    name: quadra-api
+    runtime: docker
+    plan: free
+    region: virginia
+    branch: dev
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # The port the container listens on (the .NET image default).
+      - key: PORT
+        value: "8080"
+
+      # Staging, not Production: the fake SMS provider below is refused in Production.
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Staging
+
+      # Apply pending EF migrations when the service boots.
+      - key: Database__MigrateOnStartup
+        value: "true"
+
+      # Secrets — typed into the Render dashboard, never committed.
+      - key: ConnectionStrings__Default
+        sync: false
+      - key: Auth__Google__ClientId
+        sync: false
+      # Random 256-bit key created by Render on the first deploy.
+      - key: Auth__Jwt__SigningKey
+        generateValue: true
+
+      # TEMPORARY until the Twilio account exists: no SMS is sent and the code is
+      # always 123456, so anyone who knows it can log in as any phone number.
+      # Switch to Twilio (plus its three credentials) before sharing the app.
+      - key: Auth__PhoneVerification__Provider
+        value: Fake
+
+      # Required at startup but not used yet (events go to a no-op publisher).
+      - key: Aws__Sqs__MatchCreatedQueueUrl
+        value: http://unused/match-created
+      - key: Aws__Sqs__MatchStatusChangedQueueUrl
+        value: http://unused/match-status-changed
+      - key: Aws__Sqs__PresenceConfirmedQueueUrl
+        value: http://unused/presence-confirmed
+      - key: Aws__Sqs__MatchWindowOpenedQueueUrl
+        value: http://unused/match-window-opened
+      - key: Aws__Sqs__MatchWindowClosedQueueUrl
+        value: http://unused/match-window-closed
+      - key: Aws__Sqs__MatchSummaryGeneratedQueueUrl
+        value: http://unused/match-summary-generated
+      - key: Aws__Sqs__TeamsFormedQueueUrl
+        value: http://unused/teams-formed
+      - key: Aws__Sqs__MatchStartedQueueUrl
+        value: http://unused/match-started
+      - key: Aws__Sqs__MatchEndedQueueUrl
+        value: http://unused/match-ended
+      - key: Aws__Sqs__MvpAwardedQueueUrl
+        value: http://unused/mvp-awarded

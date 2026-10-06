@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Quadra.Infrastructure.Persistence;
 using Quadra.Modules.Gamification.Abstractions;
 using Quadra.Modules.Gamification.Application;
 using Quadra.Modules.Gamification.Contracts;
@@ -37,7 +38,7 @@ public static class GamificationModuleExtensions
                 ?? throw new InvalidOperationException(
                     "ConnectionStrings:Gamification (or ConnectionStrings:Default) must be configured.");
 
-            builder.UseNpgsql(connectionString);
+            builder.UseNpgsql(PostgresConnectionString.Normalize(connectionString));
         });
 
         services.AddScoped<IPointTransactionRepository, PointTransactionRepository>();

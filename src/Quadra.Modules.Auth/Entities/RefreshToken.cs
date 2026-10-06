@@ -1,10 +1,10 @@
 namespace Quadra.Modules.Auth.Entities;
 
 /// <summary>
-/// A persisted handle to a Cognito refresh token. Only the SHA-256 hash (hex) of the raw token is
-/// stored in <see cref="TokenHash"/> — the raw token is returned to the client once and never
-/// persisted, so a DB leak cannot replay sessions. A non-null <see cref="RevokedAt"/> or an elapsed
-/// <see cref="ExpiresAt"/> renders the row unusable.
+/// A persisted handle to a refresh token issued by this API. Only the SHA-256 hash (hex) of the
+/// raw token is stored in <see cref="TokenHash"/> — the raw token is returned to the client once
+/// and never persisted, so a DB leak cannot replay sessions. A non-null <see cref="RevokedAt"/>
+/// or an elapsed <see cref="ExpiresAt"/> renders the row unusable.
 /// </summary>
 public sealed class RefreshToken
 {
@@ -12,14 +12,12 @@ public sealed class RefreshToken
     {
         // EF Core materialization.
         TokenHash = null!;
-        CognitoSub = null!;
     }
 
     private RefreshToken(
         Guid id,
         Guid userId,
         string tokenHash,
-        string cognitoSub,
         string? deviceId,
         DateTimeOffset issuedAt,
         DateTimeOffset expiresAt)
@@ -27,7 +25,6 @@ public sealed class RefreshToken
         Id = id;
         UserId = userId;
         TokenHash = tokenHash;
-        CognitoSub = cognitoSub;
         DeviceId = deviceId;
         IssuedAt = issuedAt;
         ExpiresAt = expiresAt;
@@ -40,8 +37,6 @@ public sealed class RefreshToken
 
     public string TokenHash { get; private set; }
 
-    public string CognitoSub { get; private set; }
-
     public string? DeviceId { get; private set; }
 
     public DateTimeOffset IssuedAt { get; private set; }
@@ -52,26 +47,23 @@ public sealed class RefreshToken
 
     /// <summary>
     /// Issues a new refresh-token row. <paramref name="tokenHash"/> is the SHA-256 hex of the raw
-    /// Cognito refresh token computed by the caller.
+    /// refresh token computed by the caller.
     /// </summary>
     public static RefreshToken Issue(
         Guid id,
         Guid userId,
         string tokenHash,
-        string cognitoSub,
         string? deviceId,
         DateTimeOffset issuedAt,
         DateTimeOffset expiresAt)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tokenHash);
-        ArgumentException.ThrowIfNullOrWhiteSpace(cognitoSub);
 
-        return new RefreshToken(id, userId, tokenHash, cognitoSub, deviceId, issuedAt, expiresAt);
+        return new RefreshToken(id, userId, tokenHash, deviceId, issuedAt, expiresAt);
     }
 
     /// <summary>
-    /// Marks the token as revoked (rotation or explicit revocation). Idempotent: keeps the first
-    /// revocation timestamp.
+    /// Marks the token as revoked (logout). Idempotent: keeps the first revocation timestamp.
     /// </summary>
     public void Revoke(DateTimeOffset now)
     {

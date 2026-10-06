@@ -1,5 +1,17 @@
 # Spec: JWT Validation Middleware
 
+> ## Amendment — 2026-10-05: own JWT (supersedes the Cognito details below)
+>
+> Johny decided to drop AWS Cognito. The middleware now validates tokens **issued by this API**:
+>
+> - **Algorithm / key**: HS256 with the symmetric key in `Auth:Jwt:SigningKey` (≥ 32 bytes; supplied by environment/secret store — `Auth__Jwt__SigningKey`). The algorithm is pinned; `alg: none` and any other algorithm are rejected. No OIDC discovery / JWKS download.
+> - **Validated**: signature, `iss` = `Auth:Jwt:Issuer`, `aud` = `Auth:Jwt:Audience`, `exp`/`nbf` with `Auth:Jwt:ClockSkewSeconds`.
+> - **Claims**: `sub` is the local `users.id` (mapped to `ClaimTypes.NameIdentifier`); `role` maps to `ClaimTypes.Role` (replaces `custom:role`). There is no `client_id` check and no `cognito:username`.
+> - **Options**: `JwtOptions` + `JwtOptionsValidator` replace `CognitoJwtOptions` + `CognitoJwtOptionsValidator`; the key committed for local development (prefix `dev-only-`) is refused outside Development/Testing.
+> - **Unchanged**: the `/hubs/*` `access_token` query-string rule, the 401 JSON body, `AddAuthModule` / `UseAuthModule`.
+>
+> Everything below is the original Cognito-based spec, kept for history.
+
 ## Origin
 - User Story / Feature from SCOPE: FA.1 — JWT Validation Middleware
 - Layer: Cross-cutting (Auth, MVP)

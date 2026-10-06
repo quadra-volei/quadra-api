@@ -1,9 +1,15 @@
+using Microsoft.EntityFrameworkCore;
 using Quadra.Modules.Auth.DependencyInjection;
+using Quadra.Modules.Auth.Persistence;
 using Quadra.Modules.Gamification.DependencyInjection;
+using Quadra.Modules.Gamification.Persistence;
 using Quadra.Modules.Geo.DependencyInjection;
 using Quadra.Modules.InGame.DependencyInjection;
+using Quadra.Modules.InGame.Persistence;
 using Quadra.Modules.Matches.DependencyInjection;
+using Quadra.Modules.Matches.Persistence;
 using Quadra.Modules.Profile.DependencyInjection;
+using Quadra.Modules.Profile.Persistence;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,6 +25,20 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
+// Opt-in (Database:MigrateOnStartup=true): apply pending EF migrations before serving traffic.
+// Meant for the single-instance hosted environment, where nobody runs `dotnet ef` by hand.
+// Leave it off when more than one instance can start at the same time.
+if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
+{
+    using var scope = app.Services.CreateScope();
+    var services = scope.ServiceProvider;
+    await services.GetRequiredService<AuthDbContext>().Database.MigrateAsync();
+    await services.GetRequiredService<MatchesDbContext>().Database.MigrateAsync();
+    await services.GetRequiredService<InGameDbContext>().Database.MigrateAsync();
+    await services.GetRequiredService<ProfileDbContext>().Database.MigrateAsync();
+    await services.GetRequiredService<GamificationDbContext>().Database.MigrateAsync();
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -33,6 +53,6 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
 
 app.MapControllers();
 
-app.Run();
+await app.RunAsync();
 
 public partial class Program;

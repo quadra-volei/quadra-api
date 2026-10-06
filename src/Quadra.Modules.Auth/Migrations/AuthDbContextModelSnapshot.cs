@@ -30,12 +30,6 @@ namespace Quadra.Modules.Auth.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
-                    b.Property<string>("CognitoSub")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("cognito_sub");
-
                     b.Property<string>("DeviceId")
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)")
@@ -67,9 +61,6 @@ namespace Quadra.Modules.Auth.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CognitoSub")
-                        .HasDatabaseName("ix_refresh_tokens_cognito_sub");
-
                     b.HasIndex("ExpiresAt")
                         .HasDatabaseName("ix_refresh_tokens_expires_at");
 
@@ -91,18 +82,6 @@ namespace Quadra.Modules.Auth.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
-                    b.Property<string>("CognitoSub")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("cognito_sub");
-
-                    b.Property<string>("ConfirmationStatus")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("confirmation_status");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -113,6 +92,11 @@ namespace Quadra.Modules.Auth.Migrations
                         .HasMaxLength(320)
                         .HasColumnType("character varying(320)")
                         .HasColumnName("email");
+
+                    b.Property<string>("ExternalSubject")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("external_subject");
 
                     b.Property<string>("PhoneNumber")
                         .HasMaxLength(20)
@@ -133,10 +117,6 @@ namespace Quadra.Modules.Auth.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CognitoSub")
-                        .IsUnique()
-                        .HasDatabaseName("ix_users_cognito_sub");
-
                     b.HasIndex("CreatedAt")
                         .HasDatabaseName("ix_users_created_at");
 
@@ -147,6 +127,11 @@ namespace Quadra.Modules.Auth.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_users_phone_number")
                         .HasFilter("phone_number IS NOT NULL");
+
+                    b.HasIndex("Provider", "ExternalSubject")
+                        .IsUnique()
+                        .HasDatabaseName("ix_users_provider_external_subject")
+                        .HasFilter("external_subject IS NOT NULL");
 
                     b.ToTable("users", (string)null);
                 });
