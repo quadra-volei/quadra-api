@@ -1,9 +1,10 @@
 using Microsoft.Extensions.Logging;
+using Quadra.Infrastructure.Messaging;
 using Quadra.Modules.Gamification.Abstractions;
 using Quadra.Shared.Contracts;
 using Quadra.Shared.Events.Matches;
 
-namespace Quadra.Workers.Background.Consumers;
+namespace Quadra.Api.Events;
 
 /// <summary>
 /// Consumes the <see cref="MatchSummaryGenerated"/> event — the single authoritative "finished
@@ -13,7 +14,7 @@ namespace Quadra.Workers.Background.Consumers;
 /// Gamification-owned <see cref="IMatchPointsWriter"/>. For a OneOff match it awards nothing.
 /// Idempotent under at-least-once delivery.
 /// </summary>
-public sealed class MatchSummaryGeneratedRankingConsumer
+public sealed class MatchSummaryGeneratedRankingConsumer : IEventHandler<MatchSummaryGenerated>
 {
     private readonly IMatchGroupReader _matchGroupReader;
     private readonly IMatchResultReader _matchResultReader;

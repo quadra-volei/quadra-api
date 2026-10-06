@@ -1,9 +1,10 @@
 using Microsoft.Extensions.Logging;
+using Quadra.Infrastructure.Messaging;
 using Quadra.Modules.Profile.Abstractions;
 using Quadra.Shared.Contracts;
 using Quadra.Shared.Events.Matches;
 
-namespace Quadra.Workers.Background.Consumers;
+namespace Quadra.Api.Events;
 
 /// <summary>
 /// Consumes the <see cref="MatchSummaryGenerated"/> event — the single authoritative "finished
@@ -12,7 +13,7 @@ namespace Quadra.Workers.Background.Consumers;
 /// name/date and <see cref="IMatchResultReader"/> for team + outcome) and hands it to the
 /// Profile-owned <see cref="IPlayerStatsWriter"/>. Idempotent under at-least-once delivery.
 /// </summary>
-public sealed class MatchSummaryGeneratedProfileConsumer
+public sealed class MatchSummaryGeneratedProfileConsumer : IEventHandler<MatchSummaryGenerated>
 {
     private readonly IMatchDescriptorReader _matchDescriptorReader;
     private readonly IMatchResultReader _matchResultReader;

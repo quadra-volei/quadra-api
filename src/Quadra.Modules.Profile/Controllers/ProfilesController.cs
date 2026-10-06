@@ -3,6 +3,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Quadra.Infrastructure.Storage;
 using Quadra.Modules.Profile.Application;
 using Quadra.Modules.Profile.Contracts;
 using Quadra.Modules.Profile.Validation;
@@ -136,10 +137,20 @@ public sealed class ProfilesController : ControllerBase
             return ValidationFailure(validation);
         }
 
-        var response = await _createPhotoUploadUrlHandler.HandleAsync(
-            callerId, request.ContentType, cancellationToken);
+        try
+        {
+            var response = await _createPhotoUploadUrlHandler.HandleAsync(
+                callerId, request.ContentType, cancellationToken);
 
-        return StatusCode(StatusCodes.Status201Created, response);
+            return StatusCode(StatusCodes.Status201Created, response);
+        }
+        catch (ProfilePhotoStorageUnavailableException)
+        {
+            // No object storage in this environment: photos are optional, everything else works.
+            return Problem(
+                statusCode: StatusCodes.Status503ServiceUnavailable,
+                title: "Profile photos are not available in this environment.");
+        }
     }
 
     /// <summary>GET /api/v1/profiles/me/match-history</summary>
