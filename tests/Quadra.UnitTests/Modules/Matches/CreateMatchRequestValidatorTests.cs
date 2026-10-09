@@ -373,18 +373,21 @@ public sealed class CreateMatchRequestValidatorTests
     }
 
     /// <summary>
-    /// Covers: the window comes in exactly one form — neither both nor none.
+    /// Covers: the window comes in at most one form; half of the explicit form is refused;
+    /// none at all is valid (confirmations open from creation).
     /// </summary>
     [Fact]
-    public async Task Window_must_come_in_exactly_one_form()
+    public async Task Window_comes_in_one_form_or_not_at_all()
     {
         var both = MobileOneOff() with { WindowOpensAt = FutureWindowOpens, WindowClosesAt = FutureWindowCloses };
         var none = MobileOneOff() with { ConfirmationOpensHoursBefore = null };
+        var half = none with { WindowOpensAt = FutureWindowOpens };
 
         (await _sut.ValidateAsync(both, CancellationToken.None)).Errors
             .Should().Contain(e => e.PropertyName == nameof(CreateMatchRequest.WindowOpensAt));
-        (await _sut.ValidateAsync(none, CancellationToken.None)).Errors
-            .Should().Contain(e => e.PropertyName == nameof(CreateMatchRequest.WindowOpensAt));
+        (await _sut.ValidateAsync(half, CancellationToken.None)).Errors
+            .Should().Contain(e => e.PropertyName == nameof(CreateMatchRequest.WindowClosesAt));
+        (await _sut.ValidateAsync(none, CancellationToken.None)).IsValid.Should().BeTrue();
     }
 
     [Theory]

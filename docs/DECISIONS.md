@@ -90,3 +90,9 @@ them; the backend only knew two fixed teams. The backend followed the app.
 | # | Decision | Why |
 | --- | --- | --- |
 | 38 | **Only who played votes for the MVP (a member of a drawn team), plus the organizer even when they did not play.** Anyone else gets `403`. The organizer still cannot be voted for unless they played. | Owner's test: a confirmed player who sat out could not vote (intended), but the organizer runs the match and watches it from the scoreboard, so they vote too. |
+
+## 2026-10-09 — Confirmations open from creation
+
+| # | Decision | Why |
+| --- | --- | --- |
+| 39 | **`POST /matches` with no confirmation window opens confirmations at creation and closes them at the start of the match** (the match is created `Open`). The mobile form stopped sending `confirmationOpensHoursBefore`. Both window forms of #4 are still accepted, never together; half of the explicit form is refused. Matches created before this keep the window they were created with. | Owner's call (2026-10-09): people confirm as soon as the match exists; the "opens N hours before" question only produced matches nobody could confirm yet. |

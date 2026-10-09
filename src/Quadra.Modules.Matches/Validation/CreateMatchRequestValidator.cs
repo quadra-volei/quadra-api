@@ -7,7 +7,8 @@ namespace Quadra.Modules.Matches.Validation;
 /// <summary>
 /// FluentValidation rules for <see cref="CreateMatchRequest"/>. The confirmation window comes
 /// either as explicit <c>WindowOpensAt</c>/<c>WindowClosesAt</c> or as
-/// <c>ConfirmationOpensHoursBefore</c> — exactly one of the two forms.
+/// <c>ConfirmationOpensHoursBefore</c> — never both. With neither, confirmations are open
+/// from creation.
 /// </summary>
 public sealed class CreateMatchRequestValidator : AbstractValidator<CreateMatchRequest>
 {
@@ -123,8 +124,10 @@ public sealed class CreateMatchRequestValidator : AbstractValidator<CreateMatchR
             .LessThanOrEqualTo(99999.99m)
             .When(x => x.PriceMonthly.HasValue);
 
-        // Confirmation window, explicit form.
-        When(x => x.ConfirmationOpensHoursBefore is null, () =>
+        // Confirmation window, explicit form. With no window at all, confirmations are open
+        // from creation until the match starts (CreateMatchHandler).
+        When(x => x.ConfirmationOpensHoursBefore is null
+            && (x.WindowOpensAt is not null || x.WindowClosesAt is not null), () =>
         {
             RuleFor(x => x.WindowOpensAt)
                 .NotNull()

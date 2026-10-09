@@ -3,10 +3,11 @@ namespace Quadra.Modules.Matches.Contracts;
 /// <summary>
 /// Request body for <c>POST /api/v1/matches</c>.
 ///
-/// The confirmation window is given in one of two ways: explicit
+/// The confirmation window is optional. Without it (the mobile form) confirmations are open
+/// from creation until <see cref="DateTime"/>. It can be given in one of two ways: explicit
 /// <see cref="WindowOpensAt"/> + <see cref="WindowClosesAt"/>, or
-/// <see cref="ConfirmationOpensHoursBefore"/> (the mobile form), which opens the window that
-/// many hours before <see cref="DateTime"/> and closes it at <see cref="DateTime"/>.
+/// <see cref="ConfirmationOpensHoursBefore"/>, which opens the window that many hours before
+/// <see cref="DateTime"/> and closes it at <see cref="DateTime"/>.
 /// </summary>
 /// <param name="RegularSlots">Slots confirmable during the window; the rest are drop-in slots.</param>
 /// <param name="DayOfWeek">ISO day (1–7) of a recurring match. Optional when <see cref="RecurrenceDays"/> is sent.</param>
