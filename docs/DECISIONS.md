@@ -84,3 +84,9 @@ them; the backend only knew two fixed teams. The backend followed the app.
 | 35 | **`POST /api/v1/feedback`** (authenticated) stores the app's "Enviar feedback" form in a new `feedback` table: user, type (`Suggestion` / `Problem` / `Praise`), message (up to 1000 characters), optional app version and platform, date. Nothing is e-mailed or sent to any service; the team reads the table. | Zero cost and no new dependency. The limit and the types are the ones the app's form already has. |
 | 36 | The feature lives in the **Profile module** (its DbContext and migrations), in one file. | It is data a user sends about themselves; a module of its own for one table and one endpoint would be scaffolding. |
 | 37 | **20 messages per user per 24 h**; the next one answers `429`. | Any logged-in account can write to the table, and the test environment's fake SMS makes accounts cheap. |
+
+## 2026-10-09 — MVP vote: who votes
+
+| # | Decision | Why |
+| --- | --- | --- |
+| 38 | **Only who played votes for the MVP (a member of a drawn team), plus the organizer even when they did not play.** Anyone else gets `403`. The organizer still cannot be voted for unless they played. | Owner's test: a confirmed player who sat out could not vote (intended), but the organizer runs the match and watches it from the scoreboard, so they vote too. |

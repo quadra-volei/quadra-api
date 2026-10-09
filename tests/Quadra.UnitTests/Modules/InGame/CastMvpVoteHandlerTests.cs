@@ -38,9 +38,9 @@ public sealed class CastMvpVoteHandlerTests
         new(_matchReader, _votingRepository, _teamRepository, _timeProvider,
             NullLogger<CastMvpVoteHandler>.Instance);
 
-    private void SetupMatch() =>
+    private void SetupMatch(Guid? organizerId = null) =>
         _matchReader.FindMatchSummaryAsync(MatchId, Arg.Any<CancellationToken>())
-            .Returns(new MatchSummary(MatchId, Guid.NewGuid(), "Closed"));
+            .Returns(new MatchSummary(MatchId, organizerId ?? Guid.NewGuid(), "Closed"));
 
     private void SetupOpenVoting(DateTimeOffset? deadline = null)
     {
@@ -121,6 +121,23 @@ public sealed class CastMvpVoteHandlerTests
 
         var act = async () => await CreateSut().HandleAsync(MatchId, Voter, Candidate, CancellationToken.None);
         await act.Should().ThrowAsync<NotAParticipantException>();
+    }
+
+    /// <summary>The organizer may vote even when they were on no team.</summary>
+    [Fact]
+    public async Task HandleAsync_organizer_who_did_not_play_may_vote()
+    {
+        SetupMatch(organizerId: Voter);
+        var voting = MvpVoting.Open(MatchId, FixedNow.AddHours(24), FixedNow);
+        _votingRepository.FindByMatchAsync(MatchId, Arg.Any<CancellationToken>()).Returns(voting);
+        SetupParticipants(Candidate); // Voter organizes but is NOT on a team
+        _votingRepository.CastVoteAsync(
+                voting.Id, MatchId, Voter, Candidate, FixedNow, Arg.Any<CancellationToken>())
+            .Returns(MvpVote.Create(voting.Id, MatchId, Voter, Candidate, FixedNow));
+
+        var response = await CreateSut().HandleAsync(MatchId, Voter, Candidate, CancellationToken.None);
+
+        response.VotedPlayerId.Should().Be(Candidate);
     }
 
     /// <summary>Covers: F1.5 AC-1 — a self-vote is rejected with 409.</summary>

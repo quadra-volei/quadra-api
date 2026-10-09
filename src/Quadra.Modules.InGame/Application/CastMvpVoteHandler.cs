@@ -8,8 +8,8 @@ using Quadra.Shared.Contracts;
 namespace Quadra.Modules.InGame.Application;
 
 /// <summary>
-/// Casts (or replaces, while Open) the caller's single MVP vote. Only match participants may vote,
-/// and never for themselves.
+/// Casts (or replaces, while Open) the caller's single MVP vote. Only who played (a team member)
+/// may vote, plus the organizer even when they sat out; never for themselves.
 /// </summary>
 public sealed class CastMvpVoteHandler
 {
@@ -40,7 +40,7 @@ public sealed class CastMvpVoteHandler
         CancellationToken cancellationToken)
     {
         // 1. Verify match exists.
-        _ = await _matchReader.FindMatchSummaryAsync(matchId, cancellationToken)
+        var match = await _matchReader.FindMatchSummaryAsync(matchId, cancellationToken)
             ?? throw new MatchNotFoundException(matchId);
 
         // 2. Load voting session.
@@ -67,8 +67,8 @@ public sealed class CastMvpVoteHandler
             .SelectMany(t => t.PlayerIds)
             .ToHashSet();
 
-        // 6. Caller must be a participant.
-        if (!participantIds.Contains(callerId))
+        // 6. Caller must have played, or be the organizer (who may vote without playing).
+        if (!participantIds.Contains(callerId) && match.OrganizerId != callerId)
         {
             throw new NotAParticipantException();
         }
