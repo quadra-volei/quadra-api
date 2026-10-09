@@ -37,13 +37,14 @@ public sealed class CreateMatchHandler
             : null;
 
         // "Opens N hours before" form: the window runs up to the start of the match. When that
-        // moment is already past, the window is simply open from now.
+        // moment is already past, the window is simply open from now. With no window sent at
+        // all (the mobile form), confirmations are open from creation until the start.
         var windowOpensAt = command.ConfirmationOpensHoursBefore is { } hoursBefore
             ? command.DateTime.AddHours(-hoursBefore)
-            : command.WindowOpensAt!.Value;
+            : command.WindowOpensAt ?? now;
         var windowClosesAt = command.ConfirmationOpensHoursBefore is not null
             ? command.DateTime
-            : command.WindowClosesAt!.Value;
+            : command.WindowClosesAt ?? command.DateTime;
 
         var match = Match.Create(
             organizerId: command.OrganizerId,
