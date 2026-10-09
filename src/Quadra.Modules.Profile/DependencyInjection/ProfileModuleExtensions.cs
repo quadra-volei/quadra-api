@@ -71,6 +71,10 @@ public static class ProfileModuleExtensions
         services.AddScoped<Quadra.Modules.Profile.Feedback.SendFeedbackHandler>();
         services.AddScoped<IValidator<Quadra.Modules.Profile.Feedback.SendFeedbackRequest>, Quadra.Modules.Profile.Feedback.SendFeedbackRequestValidator>();
 
+        // "Rede" feed: posts with an optional photo and match.
+        services.AddScoped<Quadra.Modules.Profile.Posts.PostsHandler>();
+        services.AddScoped<IValidator<Quadra.Modules.Profile.Posts.CreatePostRequest>, Quadra.Modules.Profile.Posts.CreatePostRequestValidator>();
+
         // S3-backed profile-photo storage (Infrastructure). Fails fast if the bucket is unconfigured.
         services.AddProfilePhotoStorage(configuration);
 

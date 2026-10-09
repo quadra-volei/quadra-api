@@ -96,3 +96,11 @@ them; the backend only knew two fixed teams. The backend followed the app.
 | # | Decision | Why |
 | --- | --- | --- |
 | 39 | **`POST /matches` with no confirmation window opens confirmations at creation and closes them at the start of the match** (the match is created `Open`). The mobile form stopped sending `confirmationOpensHoursBefore`. Both window forms of #4 are still accepted, never together; half of the explicit form is refused. Matches created before this keep the window they were created with. | Owner's call (2026-10-09): people confirm as soon as the match exists; the "opens N hours before" question only produced matches nobody could confirm yet. |
+
+## 2026-10-09 — Rede: first posts
+
+| # | Decision | Why |
+| --- | --- | --- |
+| 40 | **The "Rede" social feed is now in scope** (Johny, 2026-10-09), built in small approved steps. Step 1: `posts` table and `GET / POST / DELETE /api/v1/posts`. A post is a text (up to 500) and/or one photo, optionally tied to a match; **one feed with everyone's posts**, newest first, paged by `before`. Only the author deletes. 20 posts per user per day. | The earlier "never part of the MVP" ruling on the social feed was reversed by the owner. No follows yet, so there is nothing to filter the feed by. |
+| 41 | Posts live in the **Profile module** (`Posts/Posts.cs`, one file like Feedback). **A post can only be tied to a finished match in the author's own history**; the match name is copied onto the post. | The author's name and photo and the played matches are already Profile tables, so no cross-module read is needed. |
+| 42 | **A post's photo is uploaded through the profile-photo URL** (`POST profiles/me/photo/upload-url`), so its key sits under `profiles/{userId}/`; `POST /posts` refuses a key under another user. Deleting a post leaves the object in the bucket. | One upload path is enough for one photo per post. Posts get their own prefix and cleanup when video or several photos arrive. |

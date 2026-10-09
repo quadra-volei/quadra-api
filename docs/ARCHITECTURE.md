@@ -15,7 +15,7 @@ External services, all behind interfaces and all optional at startup except the 
 | --- | --- | --- |
 | Twilio Verify | SMS code | `IPhoneVerificationService`, `Auth:PhoneVerification` |
 | Google Identity | Validating Google ID tokens | `Auth:Google` |
-| Cloudflare R2 (S3-compatible) | Profile photos by signed URL | `Aws:S3` |
+| Cloudflare R2 (S3-compatible) | Profile and post photos by signed URL | `Aws:S3` |
 | Google Places / Photon | Address search | `IPlaceSearchService`, `Places` |
 
 ## Modules
@@ -27,7 +27,7 @@ Each module is a project `src/Quadra.Modules.<Name>/` with its own DbContext and
 | Auth | Login, JWT issuance and validation, refresh tokens | `users`, `refresh_tokens` |
 | Matches | Match lifecycle, presence, waiting list, guests, summary | `matches`, `match_presences`, `waiting_list`, `match_guests`, `match_summaries`, `match_summary_players`, `match_summary_sets` |
 | InGame | Teams, scoreboard, MVP vote | `teams`, `team_members`, `scoreboards`, `scoreboard_sets`, `mvp_votings`, `mvp_votes` |
-| Profile | Player identity, stats, history, card, feedback | `player_profiles`, `player_stats`, `player_match_history`, `player_cards`, `feedback` |
+| Profile | Player identity, stats, history, card, feedback, posts (Rede feed) | `player_profiles`, `player_stats`, `player_match_history`, `player_cards`, `feedback`, `posts` |
 | Gamification | Points and group ranking | `point_transactions`, `group_rankings` |
 | Geo | Nearby matches and address search | none (reads `matches` read-only) |
 | Realtime | SignalR hub `/hubs/match` | none (groups in memory) |
