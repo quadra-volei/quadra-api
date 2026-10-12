@@ -415,6 +415,10 @@ namespace Quadra.Modules.Profile.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("match_name");
 
+                    b.Property<DateTimeOffset?>("MatchStartsAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("match_starts_at");
+
                     b.Property<string>("PhotoObjectKey")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)")
@@ -437,6 +441,36 @@ namespace Quadra.Modules.Profile.Migrations
                         .HasDatabaseName("ix_posts_author_id_created_at");
 
                     b.ToTable("posts", (string)null);
+                });
+
+            modelBuilder.Entity("Quadra.Modules.Profile.Posts.PostLike", b =>
+                {
+                    b.Property<Guid>("PostId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("post_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("PostId", "UserId");
+
+                    b.ToTable("post_likes", (string)null);
+                });
+
+            modelBuilder.Entity("Quadra.Modules.Profile.Posts.PostLike", b =>
+                {
+                    b.HasOne("Quadra.Modules.Profile.Posts.Post", null)
+                        .WithMany()
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }
