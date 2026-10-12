@@ -8,11 +8,13 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Quadra.Infrastructure.Storage;
 using Quadra.Modules.Profile.Entities;
 using Quadra.Modules.Profile.Persistence;
+using Quadra.Shared.Contracts;
 
 namespace Quadra.Modules.Profile.Posts;
 
 // The whole first version of the "Rede" feed: a player publishes a text and/or one photo,
-// optionally tied to a match they played, and everyone reads one feed, newest first.
+// optionally tied to a match they played or to one still to come (an invite), and everyone
+// reads one feed, newest first.
 // No follows, likes or comments yet.
 
 /// <summary>One post. Rows are inserted and deleted, never edited.</summary>
@@ -36,8 +38,14 @@ public sealed class Post
     /// <summary>App-layer FK to <c>matches.id</c>. No DDL FK (module boundary rule).</summary>
     public Guid? MatchId { get; private set; }
 
-    /// <summary>The match's name when the post was written (snapshot from the author's history).</summary>
+    /// <summary>The match's name when the post was written (snapshot).</summary>
     public string? MatchName { get; private set; }
+
+    /// <summary>
+    /// When the match is scheduled (snapshot). Still in the future on a post that invites to
+    /// the match. Null on posts written before it was tracked.
+    /// </summary>
+    public DateTimeOffset? MatchStartsAt { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
 
@@ -47,6 +55,7 @@ public sealed class Post
         string? photoObjectKey,
         Guid? matchId,
         string? matchName,
+        DateTimeOffset? matchStartsAt,
         DateTimeOffset now) =>
         new()
         {
@@ -56,6 +65,7 @@ public sealed class Post
             PhotoObjectKey = string.IsNullOrWhiteSpace(photoObjectKey) ? null : photoObjectKey,
             MatchId = matchId,
             MatchName = matchName,
+            MatchStartsAt = matchStartsAt,
             CreatedAt = now,
         };
 }
@@ -73,6 +83,7 @@ public sealed class PostConfiguration : IEntityTypeConfiguration<Post>
         builder.Property(p => p.PhotoObjectKey).HasColumnName("photo_object_key").HasMaxLength(Post.PhotoObjectKeyMaxLength);
         builder.Property(p => p.MatchId).HasColumnName("match_id");
         builder.Property(p => p.MatchName).HasColumnName("match_name").HasMaxLength(Post.MatchNameMaxLength);
+        builder.Property(p => p.MatchStartsAt).HasColumnName("match_starts_at");
         builder.Property(p => p.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()").IsRequired();
 
         // The feed reads newest first; the daily limit counts one author's recent posts; the
@@ -89,12 +100,16 @@ public sealed class PostConfiguration : IEntityTypeConfiguration<Post>
 /// The <c>objectKey</c> returned by <c>POST /api/v1/profiles/me/photo/upload-url</c>, after the
 /// app uploaded the photo to it.
 /// </param>
-/// <param name="MatchId">A finished match from the author's own history.</param>
+/// <param name="MatchId">
+/// A finished match from the author's own history, or an open match still to come that the
+/// author organizes or confirmed presence in (the post then invites to it).
+/// </param>
 public sealed record CreatePostRequest(string? Text, string? PhotoObjectKey = null, Guid? MatchId = null);
 
 public sealed record PostAuthorResponse(Guid UserId, string DisplayName, string? Handle, string? PhotoUrl);
 
-public sealed record PostMatchResponse(Guid Id, string Name);
+/// <param name="StartsAt">When the match is scheduled; in the future on an invite.</param>
+public sealed record PostMatchResponse(Guid Id, string Name, DateTimeOffset? StartsAt);
 
 public sealed record PostResponse(
     Guid Id,
@@ -134,8 +149,8 @@ public enum CreatePostFailure
     /// <summary>The photo key was not issued to this user.</summary>
     PhotoNotOwned,
 
-    /// <summary>The match is not in the author's history.</summary>
-    MatchNotPlayed,
+    /// <summary>The match is neither in the author's history nor one they may invite to.</summary>
+    MatchNotAllowed,
 }
 
 /// <summary>Creates, lists and deletes posts.</summary>
@@ -149,12 +164,18 @@ public sealed class PostsHandler
 
     private readonly ProfileDbContext _context;
     private readonly IProfilePhotoStorage _photoStorage;
+    private readonly IMatchInviteReader _matchInvites;
     private readonly TimeProvider _timeProvider;
 
-    public PostsHandler(ProfileDbContext context, IProfilePhotoStorage photoStorage, TimeProvider timeProvider)
+    public PostsHandler(
+        ProfileDbContext context,
+        IProfilePhotoStorage photoStorage,
+        IMatchInviteReader matchInvites,
+        TimeProvider timeProvider)
     {
         _context = context;
         _photoStorage = photoStorage;
+        _matchInvites = matchInvites;
         _timeProvider = timeProvider;
     }
 
@@ -181,19 +202,29 @@ public sealed class PostsHandler
         }
 
         string? matchName = null;
+        DateTimeOffset? matchStartsAt = null;
         if (request.MatchId is { } matchId)
         {
-            matchName = await _context.PlayerMatchHistory
+            var played = await _context.PlayerMatchHistory
                 .Where(h => h.UserId == callerId && h.MatchId == matchId)
-                .Select(h => h.MatchName)
+                .Select(h => new { h.MatchName, h.MatchDateTime })
                 .FirstOrDefaultAsync(cancellationToken);
-            if (matchName is null)
+            if (played is not null)
             {
-                return (null, CreatePostFailure.MatchNotPlayed);
+                (matchName, matchStartsAt) = (played.MatchName, played.MatchDateTime);
+            }
+            else if (await _matchInvites.FindInvitableAsync(matchId, callerId, cancellationToken) is { } invite)
+            {
+                (matchName, matchStartsAt) = (invite.Name, invite.DateTime);
+            }
+            else
+            {
+                return (null, CreatePostFailure.MatchNotAllowed);
             }
         }
 
-        var post = Post.Create(callerId, request.Text, request.PhotoObjectKey, request.MatchId, matchName, now);
+        var post = Post.Create(
+            callerId, request.Text, request.PhotoObjectKey, request.MatchId, matchName, matchStartsAt, now);
         _context.Posts.Add(post);
         await _context.SaveChangesAsync(cancellationToken);
 
@@ -284,7 +315,7 @@ public sealed class PostsHandler
                 authorPhotoUrl),
             post.Text,
             photoUrl,
-            post.MatchId is { } matchId ? new PostMatchResponse(matchId, post.MatchName ?? string.Empty) : null,
+            post.MatchId is { } matchId ? new PostMatchResponse(matchId, post.MatchName ?? string.Empty, post.MatchStartsAt) : null,
             post.CreatedAt,
             Mine: post.AuthorId == callerId);
     }
@@ -353,7 +384,7 @@ public sealed class PostsController : ControllerBase
                 detail: "The photo was not uploaded by this user."),
             _ => Problem(
                 statusCode: StatusCodes.Status422UnprocessableEntity,
-                detail: "A post can only be tied to a finished match the author played."),
+                detail: "A post can only be tied to a match the author played, or to an open match still to come that they organize or confirmed."),
         };
     }
 

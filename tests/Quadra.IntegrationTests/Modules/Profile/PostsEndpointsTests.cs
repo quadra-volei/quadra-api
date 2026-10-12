@@ -85,9 +85,9 @@ public sealed class PostsEndpointsTests
         var author = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
         await SeedAsync(
-            Post.Create(author, "primeiro", null, null, null, now.AddMinutes(-3)),
-            Post.Create(author, "segundo", null, null, null, now.AddMinutes(-2)),
-            Post.Create(author, "terceiro", null, null, null, now.AddMinutes(-1)));
+            Post.Create(author, "primeiro", null, null, null, null, now.AddMinutes(-3)),
+            Post.Create(author, "segundo", null, null, null, null, now.AddMinutes(-2)),
+            Post.Create(author, "terceiro", null, null, null, null, now.AddMinutes(-1)));
         var client = _fx.CreateAuthenticatedClient(author);
 
         var first = await client.GetFromJsonAsync<JsonElement>($"{Url}?limit=2", Ct);
@@ -127,7 +127,7 @@ public sealed class PostsEndpointsTests
     {
         await ResetAsync();
         var author = Guid.NewGuid();
-        var post = Post.Create(author, "meu", null, null, null, DateTimeOffset.UtcNow);
+        var post = Post.Create(author, "meu", null, null, null, null, DateTimeOffset.UtcNow);
         await SeedAsync(post);
 
         (await _fx.CreateAuthenticatedClient(Guid.NewGuid()).DeleteAsync($"{Url}/{post.Id}", Ct))
@@ -144,7 +144,7 @@ public sealed class PostsEndpointsTests
         await ResetAsync();
         var author = Guid.NewGuid();
         await SeedAsync(Enumerable.Range(0, PostsHandler.DailyLimit)
-            .Select(i => (object)Post.Create(author, $"post {i}", null, null, null, DateTimeOffset.UtcNow.AddMinutes(-i)))
+            .Select(i => (object)Post.Create(author, $"post {i}", null, null, null, null, DateTimeOffset.UtcNow.AddMinutes(-i)))
             .ToArray());
 
         (await _fx.CreateAuthenticatedClient(author).PostAsJsonAsync(Url, new { text = "mais um" }, Ct))

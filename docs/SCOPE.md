@@ -24,7 +24,7 @@ Carta do Jogador = PlayerCard · Janela de Confirmação = ConfirmationWindow.
 | Player card (F2.2) | Card data after 3 matches; premium flag is a stub that always answers `false` | `profiles/me/card` |
 | Group ranking (F2.3) | Points per recurring match: attendance +10, win +15, MVP +25 | `matches/{id}/ranking`, `rankings/mine` |
 | Feedback | Stores the app's feedback form, 20 per user per day | `POST feedback` |
-| Rede: posts (step 1) | Text and/or one photo, optionally tied to a finished match the author played; one feed with everyone's posts; the author deletes; 20 per user per day | `GET posts`, `POST posts`, `DELETE posts/{id}` |
+| Rede: posts (step 1) | Text and/or one photo, optionally tied to a finished match the author played or inviting to an open match still to come (organizer or confirmed player); one feed with everyone's posts; the author deletes; 20 per user per day | `GET posts`, `POST posts`, `DELETE posts/{id}` |
 
 ## Pending
 
@@ -66,8 +66,9 @@ Human rulings (do not implement without a new decision):
 - **Separate signup** (`POST auth/signup`), passwords, account linking between providers.
 
 Rede (social feed, in scope since 2026-10-09, DECISIONS #40): each next step waits for the
-owner's approval. Not built yet: a match's posts, likes and comments, several photos, video,
-posts on a profile, follows or friends, friends ranking, reporting a post.
+owner's approval. Not built yet: likes and comments, follows or friends with the "Amigos" / "Para você" tabs,
+automatic activity cards, a match's posts, several photos, video,
+posts on a profile, friends ranking, reporting a post.
 
 Never part of the MVP (Layer 3):
 

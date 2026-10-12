@@ -89,6 +89,9 @@ public sealed class ProfileWebApplicationFactory : IAsyncLifetime
         await authCtx.Database.MigrateAsync();
         var profileCtx = scope.ServiceProvider.GetRequiredService<ProfileDbContext>();
         await profileCtx.Database.MigrateAsync();
+        // Posts ask the Matches module whether a match can be invited to.
+        await scope.ServiceProvider.GetRequiredService<Quadra.Modules.Matches.Persistence.MatchesDbContext>()
+            .Database.MigrateAsync();
     }
 
     public async ValueTask DisposeAsync()

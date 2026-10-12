@@ -415,6 +415,10 @@ namespace Quadra.Modules.Profile.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("match_name");
 
+                    b.Property<DateTimeOffset?>("MatchStartsAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("match_starts_at");
+
                     b.Property<string>("PhotoObjectKey")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)")
