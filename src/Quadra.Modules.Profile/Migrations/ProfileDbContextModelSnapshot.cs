@@ -442,6 +442,36 @@ namespace Quadra.Modules.Profile.Migrations
 
                     b.ToTable("posts", (string)null);
                 });
+
+            modelBuilder.Entity("Quadra.Modules.Profile.Posts.PostLike", b =>
+                {
+                    b.Property<Guid>("PostId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("post_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("PostId", "UserId");
+
+                    b.ToTable("post_likes", (string)null);
+                });
+
+            modelBuilder.Entity("Quadra.Modules.Profile.Posts.PostLike", b =>
+                {
+                    b.HasOne("Quadra.Modules.Profile.Posts.Post", null)
+                        .WithMany()
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
 #pragma warning restore 612, 618
         }
     }

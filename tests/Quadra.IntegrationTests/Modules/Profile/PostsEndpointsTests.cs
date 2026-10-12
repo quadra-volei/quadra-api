@@ -32,7 +32,7 @@ public sealed class PostsEndpointsTests
     {
         await _fx.ResetAsync();
         await _fx.WithScopeAsync(sp => sp.GetRequiredService<ProfileDbContext>()
-            .Database.ExecuteSqlRawAsync("TRUNCATE TABLE posts;", Ct));
+            .Database.ExecuteSqlRawAsync("TRUNCATE TABLE posts CASCADE;", Ct));
     }
 
     private Task SeedAsync(params object[] rows) =>
@@ -149,6 +149,44 @@ public sealed class PostsEndpointsTests
 
         (await _fx.CreateAuthenticatedClient(author).PostAsJsonAsync(Url, new { text = "mais um" }, Ct))
             .StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+    }
+
+    [Fact]
+    public async Task Liking_is_per_player_idempotent_and_shows_in_the_feed()
+    {
+        await ResetAsync();
+        var author = Guid.NewGuid();
+        var fan = Guid.NewGuid();
+        var post = Post.Create(author, "curte aí", null, null, null, null, DateTimeOffset.UtcNow);
+        await SeedAsync(post);
+        var likeUrl = $"{Url}/{post.Id}/like";
+        var fanClient = _fx.CreateAuthenticatedClient(fan);
+
+        (await fanClient.PutAsync(likeUrl, null, Ct)).StatusCode.Should().Be(HttpStatusCode.OK);
+        var again = await (await fanClient.PutAsync(likeUrl, null, Ct)).Content.ReadFromJsonAsync<JsonElement>(Ct);
+        again.GetProperty("likeCount").GetInt32().Should().Be(1);
+        again.GetProperty("likedByMe").GetBoolean().Should().BeTrue();
+        await _fx.CreateAuthenticatedClient(author).PutAsync(likeUrl, null, Ct);
+
+        var fanView = (await fanClient.GetFromJsonAsync<JsonElement>(Url, Ct)).GetProperty("items")[0];
+        fanView.GetProperty("likeCount").GetInt32().Should().Be(2);
+        fanView.GetProperty("likedByMe").GetBoolean().Should().BeTrue();
+        var strangerView = (await _fx.CreateAuthenticatedClient(Guid.NewGuid())
+            .GetFromJsonAsync<JsonElement>(Url, Ct)).GetProperty("items")[0];
+        strangerView.GetProperty("likeCount").GetInt32().Should().Be(2);
+        strangerView.GetProperty("likedByMe").GetBoolean().Should().BeFalse();
+
+        var unliked = await (await fanClient.DeleteAsync(likeUrl, Ct)).Content.ReadFromJsonAsync<JsonElement>(Ct);
+        unliked.GetProperty("likeCount").GetInt32().Should().Be(1);
+        unliked.GetProperty("likedByMe").GetBoolean().Should().BeFalse();
+
+        (await fanClient.PutAsync($"{Url}/{Guid.NewGuid()}/like", null, Ct))
+            .StatusCode.Should().Be(HttpStatusCode.NotFound);
+        // Deleting the post takes its likes along.
+        (await _fx.CreateAuthenticatedClient(author).DeleteAsync($"{Url}/{post.Id}", Ct))
+            .StatusCode.Should().Be(HttpStatusCode.NoContent);
+        await _fx.WithScopeAsync(async sp =>
+            (await sp.GetRequiredService<ProfileDbContext>().PostLikes.CountAsync(Ct)).Should().Be(0));
     }
 
     private static IEnumerable<string?> Texts(JsonElement feed) =>

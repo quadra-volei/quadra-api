@@ -15,7 +15,7 @@ namespace Quadra.Modules.Profile.Posts;
 // The whole first version of the "Rede" feed: a player publishes a text and/or one photo,
 // optionally tied to a match they played or to one still to come (an invite), and everyone
 // reads one feed, newest first.
-// No follows, likes or comments yet.
+// A post can be liked. No follows or comments yet.
 
 /// <summary>One post. Rows are inserted and deleted, never edited.</summary>
 public sealed class Post
@@ -94,6 +94,32 @@ public sealed class PostConfiguration : IEntityTypeConfiguration<Post>
     }
 }
 
+/// <summary>One player liking one post; at most one row per pair.</summary>
+public sealed class PostLike
+{
+    public Guid PostId { get; init; }
+
+    public Guid UserId { get; init; }
+
+    public DateTimeOffset CreatedAt { get; init; }
+}
+
+public sealed class PostLikeConfiguration : IEntityTypeConfiguration<PostLike>
+{
+    public void Configure(EntityTypeBuilder<PostLike> builder)
+    {
+        builder.ToTable("post_likes");
+
+        builder.HasKey(l => new { l.PostId, l.UserId });
+        builder.Property(l => l.PostId).HasColumnName("post_id");
+        builder.Property(l => l.UserId).HasColumnName("user_id");
+        builder.Property(l => l.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()").IsRequired();
+
+        // Same module, so a real FK: deleting a post takes its likes with it.
+        builder.HasOne<Post>().WithMany().HasForeignKey(l => l.PostId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
 /// <summary>Body of <c>POST /api/v1/posts</c>. At least one of text and photo is required.</summary>
 /// <param name="Text">Up to 500 characters after trimming.</param>
 /// <param name="PhotoObjectKey">
@@ -118,7 +144,12 @@ public sealed record PostResponse(
     string? PhotoUrl,
     PostMatchResponse? Match,
     DateTimeOffset CreatedAt,
-    bool Mine);
+    bool Mine,
+    int LikeCount,
+    bool LikedByMe);
+
+/// <summary>Answer of <c>PUT / DELETE /api/v1/posts/{id}/like</c>: the post's likes afterwards.</summary>
+public sealed record PostLikesResponse(int LikeCount, bool LikedByMe);
 
 /// <param name="NextBefore">Send as <c>before</c> to read the next page; null on the last page.</param>
 public sealed record PostFeedResponse(IReadOnlyList<PostResponse> Items, DateTimeOffset? NextBefore);
@@ -230,7 +261,7 @@ public sealed class PostsHandler
 
         var author = await _context.PlayerProfiles.AsNoTracking()
             .FirstOrDefaultAsync(p => p.UserId == callerId, cancellationToken);
-        return (await MapAsync(post, author, callerId, cancellationToken), null);
+        return (await MapAsync(post, author, callerId, likeCount: 0, likedByMe: false, cancellationToken), null);
     }
 
     /// <summary>Everyone's posts, newest first, older than <paramref name="before"/> when given.</summary>
@@ -264,10 +295,27 @@ public sealed class PostsHandler
             .Where(p => authorIds.Contains(p.UserId))
             .ToDictionaryAsync(p => p.UserId, cancellationToken);
 
+        var postIds = posts.Select(p => p.Id).ToArray();
+        var likeCounts = await _context.PostLikes.AsNoTracking()
+            .Where(l => postIds.Contains(l.PostId))
+            .GroupBy(l => l.PostId)
+            .Select(g => new { PostId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(g => g.PostId, g => g.Count, cancellationToken);
+        var likedByMe = (await _context.PostLikes.AsNoTracking()
+            .Where(l => l.UserId == callerId && postIds.Contains(l.PostId))
+            .Select(l => l.PostId)
+            .ToListAsync(cancellationToken)).ToHashSet();
+
         var items = new List<PostResponse>(posts.Count);
         foreach (var post in posts)
         {
-            items.Add(await MapAsync(post, authors.GetValueOrDefault(post.AuthorId), callerId, cancellationToken));
+            items.Add(await MapAsync(
+                post,
+                authors.GetValueOrDefault(post.AuthorId),
+                callerId,
+                likeCounts.GetValueOrDefault(post.Id),
+                likedByMe.Contains(post.Id),
+                cancellationToken));
         }
 
         return new PostFeedResponse(items, hasMore ? posts[^1].CreatedAt : null);
@@ -293,10 +341,43 @@ public sealed class PostsHandler
         return true;
     }
 
+    /// <summary>Likes or unlikes a post for the caller; repeating either changes nothing.</summary>
+    /// <returns>The post's likes afterwards, or null when there is no such post.</returns>
+    public async Task<PostLikesResponse?> SetLikeAsync(
+        Guid callerId,
+        Guid postId,
+        bool liked,
+        CancellationToken cancellationToken)
+    {
+        if (!await _context.Posts.AnyAsync(p => p.Id == postId, cancellationToken))
+        {
+            return null;
+        }
+
+        if (liked)
+        {
+            // ON CONFLICT keeps a double tap (two requests at once) from failing on the key.
+            await _context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO post_likes (post_id, user_id) VALUES ({postId}, {callerId}) ON CONFLICT DO NOTHING",
+                cancellationToken);
+        }
+        else
+        {
+            await _context.PostLikes
+                .Where(l => l.PostId == postId && l.UserId == callerId)
+                .ExecuteDeleteAsync(cancellationToken);
+        }
+
+        var count = await _context.PostLikes.CountAsync(l => l.PostId == postId, cancellationToken);
+        return new PostLikesResponse(count, liked);
+    }
+
     private async Task<PostResponse> MapAsync(
         Post post,
         PlayerProfile? author,
         Guid callerId,
+        int likeCount,
+        bool likedByMe,
         CancellationToken cancellationToken)
     {
         var authorPhotoUrl = string.IsNullOrEmpty(author?.PhotoObjectKey)
@@ -317,7 +398,9 @@ public sealed class PostsHandler
             photoUrl,
             post.MatchId is { } matchId ? new PostMatchResponse(matchId, post.MatchName ?? string.Empty, post.MatchStartsAt) : null,
             post.CreatedAt,
-            Mine: post.AuthorId == callerId);
+            Mine: post.AuthorId == callerId,
+            likeCount,
+            likedByMe);
     }
 }
 
@@ -403,6 +486,30 @@ public sealed class PostsController : ControllerBase
             false => Forbid(),
             true => NoContent(),
         };
+    }
+
+    /// <summary>PUT /api/v1/posts/{id}/like — the signed-in user likes the post.</summary>
+    [HttpPut("{id:guid}/like")]
+    public Task<ActionResult<PostLikesResponse>> Like(Guid id, CancellationToken cancellationToken) =>
+        SetLikeAsync(id, liked: true, cancellationToken);
+
+    /// <summary>DELETE /api/v1/posts/{id}/like — the signed-in user takes their like back.</summary>
+    [HttpDelete("{id:guid}/like")]
+    public Task<ActionResult<PostLikesResponse>> Unlike(Guid id, CancellationToken cancellationToken) =>
+        SetLikeAsync(id, liked: false, cancellationToken);
+
+    private async Task<ActionResult<PostLikesResponse>> SetLikeAsync(
+        Guid id,
+        bool liked,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCallerId(out var callerId))
+        {
+            return Unauthorized();
+        }
+
+        var likes = await _handler.SetLikeAsync(callerId, id, liked, cancellationToken);
+        return likes is null ? NotFound() : Ok(likes);
     }
 
     private bool TryGetCallerId(out Guid callerId) =>
