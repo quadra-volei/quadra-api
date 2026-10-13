@@ -443,6 +443,45 @@ namespace Quadra.Modules.Profile.Migrations
                     b.ToTable("posts", (string)null);
                 });
 
+            modelBuilder.Entity("Quadra.Modules.Profile.Posts.PostComment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("AuthorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("author_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("PostId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("post_id");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorId", "CreatedAt")
+                        .HasDatabaseName("ix_post_comments_author_id_created_at");
+
+                    b.HasIndex("PostId", "CreatedAt")
+                        .HasDatabaseName("ix_post_comments_post_id_created_at");
+
+                    b.ToTable("post_comments", (string)null);
+                });
+
             modelBuilder.Entity("Quadra.Modules.Profile.Posts.PostLike", b =>
                 {
                     b.Property<Guid>("PostId")
@@ -462,6 +501,15 @@ namespace Quadra.Modules.Profile.Migrations
                     b.HasKey("PostId", "UserId");
 
                     b.ToTable("post_likes", (string)null);
+                });
+
+            modelBuilder.Entity("Quadra.Modules.Profile.Posts.PostComment", b =>
+                {
+                    b.HasOne("Quadra.Modules.Profile.Posts.Post", null)
+                        .WithMany()
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Quadra.Modules.Profile.Posts.PostLike", b =>

@@ -189,6 +189,48 @@ public sealed class PostsEndpointsTests
             (await sp.GetRequiredService<ProfileDbContext>().PostLikes.CountAsync(Ct)).Should().Be(0));
     }
 
+    [Fact]
+    public async Task Comments_are_listed_oldest_first_counted_in_the_feed_and_deleted_by_their_author_or_the_posts()
+    {
+        await ResetAsync();
+        var author = Guid.NewGuid();
+        var fan = Guid.NewGuid();
+        var stranger = Guid.NewGuid();
+        var post = Post.Create(author, "comenta aí", null, null, null, null, DateTimeOffset.UtcNow);
+        await SeedAsync(post);
+        var url = $"{Url}/{post.Id}/comments";
+        var fanClient = _fx.CreateAuthenticatedClient(fan);
+
+        var first = await fanClient.PostAsJsonAsync(url, new { text = "  Bom jogo!  " }, Ct);
+        first.StatusCode.Should().Be(HttpStatusCode.Created);
+        var firstId = (await first.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("id").GetGuid();
+        var second = await _fx.CreateAuthenticatedClient(stranger).PostAsJsonAsync(url, new { text = "Semana que vem tem mais" }, Ct);
+        var secondId = (await second.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("id").GetGuid();
+
+        (await fanClient.PostAsJsonAsync(url, new { text = "   " }, Ct)).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await fanClient.PostAsJsonAsync(url, new { text = new string('a', PostComment.TextMaxLength + 1) }, Ct))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await fanClient.PostAsJsonAsync($"{Url}/{Guid.NewGuid()}/comments", new { text = "oi" }, Ct))
+            .StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var listed = (await fanClient.GetFromJsonAsync<JsonElement>(url, Ct)).GetProperty("items");
+        listed.EnumerateArray().Select(c => c.GetProperty("text").GetString())
+            .Should().Equal("Bom jogo!", "Semana que vem tem mais");
+        // The fan may delete their own comment, not the stranger's.
+        listed[0].GetProperty("canDelete").GetBoolean().Should().BeTrue();
+        listed[1].GetProperty("canDelete").GetBoolean().Should().BeFalse();
+        (await fanClient.GetFromJsonAsync<JsonElement>(Url, Ct)).GetProperty("items")[0]
+            .GetProperty("commentCount").GetInt32().Should().Be(2);
+
+        (await fanClient.DeleteAsync($"{url}/{secondId}", Ct)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await fanClient.DeleteAsync($"{url}/{firstId}", Ct)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        // The post's author moderates their own post.
+        (await _fx.CreateAuthenticatedClient(author).DeleteAsync($"{url}/{secondId}", Ct))
+            .StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await fanClient.DeleteAsync($"{url}/{firstId}", Ct)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await fanClient.GetFromJsonAsync<JsonElement>(url, Ct)).GetProperty("items").GetArrayLength().Should().Be(0);
+    }
+
     private static IEnumerable<string?> Texts(JsonElement feed) =>
         feed.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("text").GetString());
 }

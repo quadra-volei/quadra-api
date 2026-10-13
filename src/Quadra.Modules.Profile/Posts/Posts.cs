@@ -15,7 +15,7 @@ namespace Quadra.Modules.Profile.Posts;
 // The whole first version of the "Rede" feed: a player publishes a text and/or one photo,
 // optionally tied to a match they played or to one still to come (an invite), and everyone
 // reads one feed, newest first.
-// A post can be liked. No follows or comments yet.
+// A post can be liked and commented on (Comments.cs).
 
 /// <summary>One post. Rows are inserted and deleted, never edited.</summary>
 public sealed class Post
@@ -146,7 +146,8 @@ public sealed record PostResponse(
     DateTimeOffset CreatedAt,
     bool Mine,
     int LikeCount,
-    bool LikedByMe);
+    bool LikedByMe,
+    int CommentCount);
 
 /// <summary>Answer of <c>PUT / DELETE /api/v1/posts/{id}/like</c>: the post's likes afterwards.</summary>
 public sealed record PostLikesResponse(int LikeCount, bool LikedByMe);
@@ -259,9 +260,8 @@ public sealed class PostsHandler
         _context.Posts.Add(post);
         await _context.SaveChangesAsync(cancellationToken);
 
-        var author = await _context.PlayerProfiles.AsNoTracking()
-            .FirstOrDefaultAsync(p => p.UserId == callerId, cancellationToken);
-        return (await MapAsync(post, author, callerId, likeCount: 0, likedByMe: false, cancellationToken), null);
+        var authors = await PostAuthors.LoadAsync(_context, _photoStorage, [callerId], cancellationToken);
+        return (await MapAsync(post, authors[callerId], callerId, 0, false, 0, cancellationToken), null);
     }
 
     /// <summary>Everyone's posts, newest first, older than <paramref name="before"/> when given.</summary>
@@ -290,10 +290,8 @@ public sealed class PostsHandler
             posts.RemoveAt(take);
         }
 
-        var authorIds = posts.Select(p => p.AuthorId).Distinct().ToArray();
-        var authors = await _context.PlayerProfiles.AsNoTracking()
-            .Where(p => authorIds.Contains(p.UserId))
-            .ToDictionaryAsync(p => p.UserId, cancellationToken);
+        var authors = await PostAuthors.LoadAsync(
+            _context, _photoStorage, posts.Select(p => p.AuthorId), cancellationToken);
 
         var postIds = posts.Select(p => p.Id).ToArray();
         var likeCounts = await _context.PostLikes.AsNoTracking()
@@ -305,16 +303,22 @@ public sealed class PostsHandler
             .Where(l => l.UserId == callerId && postIds.Contains(l.PostId))
             .Select(l => l.PostId)
             .ToListAsync(cancellationToken)).ToHashSet();
+        var commentCounts = await _context.PostComments.AsNoTracking()
+            .Where(c => postIds.Contains(c.PostId))
+            .GroupBy(c => c.PostId)
+            .Select(g => new { PostId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(g => g.PostId, g => g.Count, cancellationToken);
 
         var items = new List<PostResponse>(posts.Count);
         foreach (var post in posts)
         {
             items.Add(await MapAsync(
                 post,
-                authors.GetValueOrDefault(post.AuthorId),
+                authors[post.AuthorId],
                 callerId,
                 likeCounts.GetValueOrDefault(post.Id),
                 likedByMe.Contains(post.Id),
+                commentCounts.GetValueOrDefault(post.Id),
                 cancellationToken));
         }
 
@@ -374,33 +378,64 @@ public sealed class PostsHandler
 
     private async Task<PostResponse> MapAsync(
         Post post,
-        PlayerProfile? author,
+        PostAuthorResponse author,
         Guid callerId,
         int likeCount,
         bool likedByMe,
+        int commentCount,
         CancellationToken cancellationToken)
     {
-        var authorPhotoUrl = string.IsNullOrEmpty(author?.PhotoObjectKey)
-            ? null
-            : await _photoStorage.GetReadUrlAsync(author.PhotoObjectKey, cancellationToken);
         var photoUrl = post.PhotoObjectKey is null
             ? null
             : await _photoStorage.GetReadUrlAsync(post.PhotoObjectKey, cancellationToken);
 
         return new PostResponse(
             post.Id,
-            new PostAuthorResponse(
-                post.AuthorId,
-                author?.DisplayName ?? PlayerProfile.PlaceholderDisplayName,
-                author?.Handle,
-                authorPhotoUrl),
+            author,
             post.Text,
             photoUrl,
             post.MatchId is { } matchId ? new PostMatchResponse(matchId, post.MatchName ?? string.Empty, post.MatchStartsAt) : null,
             post.CreatedAt,
             Mine: post.AuthorId == callerId,
             likeCount,
-            likedByMe);
+            likedByMe,
+            commentCount);
+    }
+}
+
+/// <summary>Who wrote a post or a comment, as the feed shows them.</summary>
+internal static class PostAuthors
+{
+    /// <summary>
+    /// The public identity of each of <paramref name="userIds"/>; a user without a profile row
+    /// gets the placeholder name.
+    /// </summary>
+    public static async Task<IReadOnlyDictionary<Guid, PostAuthorResponse>> LoadAsync(
+        ProfileDbContext context,
+        IProfilePhotoStorage photoStorage,
+        IEnumerable<Guid> userIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = userIds.Distinct().ToArray();
+        var profiles = await context.PlayerProfiles.AsNoTracking()
+            .Where(p => ids.Contains(p.UserId))
+            .ToDictionaryAsync(p => p.UserId, cancellationToken);
+
+        var authors = new Dictionary<Guid, PostAuthorResponse>(ids.Length);
+        foreach (var id in ids)
+        {
+            var profile = profiles.GetValueOrDefault(id);
+            var photoUrl = string.IsNullOrEmpty(profile?.PhotoObjectKey)
+                ? null
+                : await photoStorage.GetReadUrlAsync(profile.PhotoObjectKey, cancellationToken);
+            authors[id] = new PostAuthorResponse(
+                id,
+                profile?.DisplayName ?? PlayerProfile.PlaceholderDisplayName,
+                profile?.Handle,
+                photoUrl);
+        }
+
+        return authors;
     }
 }
 
