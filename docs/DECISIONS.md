@@ -118,3 +118,9 @@ Steps 4 to 7 of the Rede, approved together by Johny.
 | 47 | **`GET /posts?scope=following`** returns the posts of the players the caller follows plus their own ("Amigos" tab); without it, everyone's posts ("Para você"). | The two tabs of the owner's prototype. |
 | 48 | **Automatic activity cards are posts**: `posts.kind` is `Post`, `MatchCreated` or `PresenceConfirmed` (`kind` in the feed). The host's `MatchActivityFeedConsumer` writes them on `MatchCreated` and `PresenceConfirmed` through `IActivityFeedWriter`, **only for a match open to everyone and still to come** (same rule as an invite, #43), once per player, kind and match. The organizer confirming in their own match adds no card. Cards are liked, commented on and deleted by their author like any post. | Reuses the feed, the invite card and the likes. A private match must not leak into a public feed. |
 | 49 | **No "moved up in the ranking" card.** | A ranking holds the points of a single game (#32), so nobody moves up between games yet. Achievements do not exist either. |
+
+## 2026-10-13 — Rede: the organizer shares the match
+
+| # | Decision | Why |
+| --- | --- | --- |
+| 50 | **Nothing is posted to the feed automatically; #48 is withdrawn.** The event handler, `IActivityFeedWriter` and the "confirmed presence" card are gone. **The organizer shares the match**: `POST /posts` with only `matchId` (no text, no photo) creates the `MatchCreated` card, for an open match still to come and only by its organizer; sharing again returns the card there already is. Anyone else sending only a match gets `422`. Cards written automatically on 2026-10-13 stay until their author deletes them (`PresenceConfirmed` remains readable for them). | Johny, after testing: "compartilhar a partida não pode ser automático, o organizador que decide". |

@@ -49,7 +49,6 @@ implementations in `src/Quadra.Api/Events` inside the same request.
 | --- | --- |
 | `UserRegistered` | Creates the empty player profile |
 | `MatchSummaryGenerated` | Updates player stats and history; awards ranking points |
-| `MatchCreated`, `PresenceConfirmed` | Adds the activity card to the Rede feed (open matches only) |
 
 Trade-off: a handler that fails is logged and not retried (no outbox). Nothing runs in the
 background except the confirmation-window sweeper (`Matches:WindowSweepSeconds`); matches are

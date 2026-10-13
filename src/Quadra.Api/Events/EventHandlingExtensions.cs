@@ -24,8 +24,6 @@ public static class EventHandlingExtensions
         services.AddScoped<IEventHandler<UserRegistered>, UserRegisteredConsumer>();
         services.AddScoped<IEventHandler<MatchSummaryGenerated>, MatchSummaryGeneratedProfileConsumer>();
         services.AddScoped<IEventHandler<MatchSummaryGenerated>, MatchSummaryGeneratedRankingConsumer>();
-        services.AddScoped<IEventHandler<MatchCreated>, MatchActivityFeedConsumer>();
-        services.AddScoped<IEventHandler<PresenceConfirmed>, MatchActivityFeedConsumer>();
 
         return services;
     }

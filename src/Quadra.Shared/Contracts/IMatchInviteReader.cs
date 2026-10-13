@@ -6,8 +6,7 @@ public sealed record MatchInvite(Guid MatchId, string Name, DateTimeOffset DateT
 /// <summary>
 /// Read-only cross-module query for the matches a player may publicly invite others to.
 /// Declared in <c>Quadra.Shared</c>; implemented in <c>Quadra.Modules.Matches</c>. Consumed by
-/// the Profile module when a post is tied to a match that has not been played yet, and by the
-/// host's activity-feed event handler.
+/// the Profile module when a post is tied to a match that has not been played yet.
 /// </summary>
 public interface IMatchInviteReader
 {
