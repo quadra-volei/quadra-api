@@ -388,6 +388,30 @@ namespace Quadra.Modules.Profile.Migrations
                     b.ToTable("feedback", (string)null);
                 });
 
+            modelBuilder.Entity("Quadra.Modules.Profile.Follows.Follow", b =>
+                {
+                    b.Property<Guid>("FollowerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("follower_id");
+
+                    b.Property<Guid>("FollowedId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("followed_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("FollowerId", "FollowedId");
+
+                    b.HasIndex("FollowedId")
+                        .HasDatabaseName("ix_follows_followed_id");
+
+                    b.ToTable("follows", (string)null);
+                });
+
             modelBuilder.Entity("Quadra.Modules.Profile.Posts.Post", b =>
                 {
                     b.Property<Guid>("Id")

@@ -14,7 +14,8 @@ namespace Quadra.Modules.Profile.Posts;
 
 // The whole first version of the "Rede" feed: a player publishes a text and/or one photo,
 // optionally tied to a match they played or to one still to come (an invite), and everyone
-// reads one feed, newest first.
+// reads the feed newest first: everyone's posts ("Para você") or only the posts of the players
+// the reader follows ("Amigos", see Follows/Follows.cs).
 // A post can be liked and commented on (Comments.cs).
 
 /// <summary>One post. Rows are inserted and deleted, never edited.</summary>
@@ -264,15 +265,25 @@ public sealed class PostsHandler
         return (await MapAsync(post, authors[callerId], callerId, 0, false, 0, cancellationToken), null);
     }
 
-    /// <summary>Everyone's posts, newest first, older than <paramref name="before"/> when given.</summary>
+    /// <summary>
+    /// Posts newest first, older than <paramref name="before"/> when given: everyone's, or with
+    /// <paramref name="followingOnly"/> those of the players the caller follows plus their own.
+    /// </summary>
     public async Task<PostFeedResponse> ListAsync(
         Guid callerId,
         DateTimeOffset? before,
         int limit,
+        bool followingOnly,
         CancellationToken cancellationToken)
     {
         var take = Math.Clamp(limit, 1, MaxPageSize);
         var query = _context.Posts.AsNoTracking();
+        if (followingOnly)
+        {
+            query = query.Where(p => p.AuthorId == callerId
+                || _context.Follows.Any(f => f.FollowerId == callerId && f.FollowedId == p.AuthorId));
+        }
+
         if (before is { } cursor)
         {
             // Npgsql only accepts UTC offsets for timestamptz parameters.
@@ -453,10 +464,14 @@ public sealed class PostsController : ControllerBase
         _validator = validator;
     }
 
-    /// <summary>GET /api/v1/posts — the feed, newest first.</summary>
+    /// <summary>
+    /// GET /api/v1/posts — the feed, newest first. <c>scope=following</c> keeps only the posts
+    /// of the players the caller follows (and their own); anything else is everyone's posts.
+    /// </summary>
     [HttpGet]
     public async Task<ActionResult<PostFeedResponse>> List(
         [FromQuery] DateTimeOffset? before,
+        [FromQuery] string? scope,
         [FromQuery] int limit = PostsHandler.DefaultPageSize,
         CancellationToken cancellationToken = default)
     {
@@ -465,7 +480,8 @@ public sealed class PostsController : ControllerBase
             return Unauthorized();
         }
 
-        return Ok(await _handler.ListAsync(callerId, before, limit, cancellationToken));
+        var followingOnly = string.Equals(scope, "following", StringComparison.OrdinalIgnoreCase);
+        return Ok(await _handler.ListAsync(callerId, before, limit, followingOnly, cancellationToken));
     }
 
     /// <summary>POST /api/v1/posts — publish a post as the signed-in user.</summary>

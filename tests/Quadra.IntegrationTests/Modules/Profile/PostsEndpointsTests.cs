@@ -32,7 +32,7 @@ public sealed class PostsEndpointsTests
     {
         await _fx.ResetAsync();
         await _fx.WithScopeAsync(sp => sp.GetRequiredService<ProfileDbContext>()
-            .Database.ExecuteSqlRawAsync("TRUNCATE TABLE posts CASCADE;", Ct));
+            .Database.ExecuteSqlRawAsync("TRUNCATE TABLE posts, follows CASCADE;", Ct));
     }
 
     private Task SeedAsync(params object[] rows) =>
@@ -229,6 +229,46 @@ public sealed class PostsEndpointsTests
             .StatusCode.Should().Be(HttpStatusCode.NoContent);
         (await fanClient.DeleteAsync($"{url}/{firstId}", Ct)).StatusCode.Should().Be(HttpStatusCode.NotFound);
         (await fanClient.GetFromJsonAsync<JsonElement>(url, Ct)).GetProperty("items").GetArrayLength().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Following_is_idempotent_counted_both_ways_and_filters_the_feed()
+    {
+        await ResetAsync();
+        var me = Guid.NewGuid();
+        var friend = Guid.NewGuid();
+        var other = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        await SeedAsync(
+            PlayerProfile.Provision(me, now),
+            PlayerProfile.Provision(friend, now),
+            Post.Create(other, "de um desconhecido", null, null, null, null, now.AddMinutes(-3)),
+            Post.Create(friend, "de quem eu sigo", null, null, null, null, now.AddMinutes(-2)),
+            Post.Create(me, "meu", null, null, null, null, now.AddMinutes(-1)));
+        var client = _fx.CreateAuthenticatedClient(me);
+        var followUrl = $"/api/v1/profiles/{friend}/follow";
+
+        (await client.PutAsync(followUrl, null, Ct)).StatusCode.Should().Be(HttpStatusCode.OK);
+        var state = await (await client.PutAsync(followUrl, null, Ct)).Content.ReadFromJsonAsync<JsonElement>(Ct);
+        state.GetProperty("followersCount").GetInt32().Should().Be(1);
+        state.GetProperty("followedByMe").GetBoolean().Should().BeTrue();
+        var mine = await client.GetFromJsonAsync<JsonElement>($"/api/v1/profiles/{me}/follow", Ct);
+        mine.GetProperty("followingCount").GetInt32().Should().Be(1);
+        mine.GetProperty("followersCount").GetInt32().Should().Be(0);
+
+        Texts(await client.GetFromJsonAsync<JsonElement>($"{Url}?scope=following", Ct))
+            .Should().Equal("meu", "de quem eu sigo");
+        Texts(await client.GetFromJsonAsync<JsonElement>(Url, Ct)).Should().HaveCount(3);
+
+        (await client.PutAsync($"/api/v1/profiles/{me}/follow", null, Ct))
+            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await client.PutAsync($"/api/v1/profiles/{Guid.NewGuid()}/follow", null, Ct))
+            .StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var unfollowed = await (await client.DeleteAsync(followUrl, Ct)).Content.ReadFromJsonAsync<JsonElement>(Ct);
+        unfollowed.GetProperty("followersCount").GetInt32().Should().Be(0);
+        unfollowed.GetProperty("followedByMe").GetBoolean().Should().BeFalse();
+        Texts(await client.GetFromJsonAsync<JsonElement>($"{Url}?scope=following", Ct)).Should().Equal("meu");
     }
 
     private static IEnumerable<string?> Texts(JsonElement feed) =>
