@@ -24,7 +24,7 @@ Carta do Jogador = PlayerCard · Janela de Confirmação = ConfirmationWindow.
 | Player card (F2.2) | Card data after 3 matches; premium flag is a stub that always answers `false` | `profiles/me/card` |
 | Group ranking (F2.3) | Points per recurring match: attendance +10, win +15, MVP +25 | `matches/{id}/ranking`, `rankings/mine` |
 | Feedback | Stores the app's feedback form, 20 per user per day | `POST feedback` |
-| Rede: feed | A post is a text and/or one photo, optionally tied to a finished match the author played or inviting to an open match still to come (organizer or confirmed player); likes; comments; automatic cards when a player creates an open match or confirms presence in one; everyone's posts or only those of the players the caller follows; 20 posts per user per day | `GET posts` (`scope=following`), `POST posts`, `DELETE posts/{id}`, `PUT / DELETE posts/{id}/like`, `GET / POST posts/{id}/comments`, `DELETE posts/{id}/comments/{commentId}` |
+| Rede: feed | A post is a text and/or one photo, optionally tied to a finished match the author played or inviting to an open match still to come (organizer or confirmed player); likes; comments; the organizer of an open match still to come can share it as a card with no text (nothing is posted automatically); everyone's posts or only those of the players the caller follows; 20 posts per user per day | `GET posts` (`scope=following`), `POST posts`, `DELETE posts/{id}`, `PUT / DELETE posts/{id}/like`, `GET / POST posts/{id}/comments`, `DELETE posts/{id}/comments/{commentId}` |
 | Rede: follows | One player follows another, with no approval; followers and following counts | `GET / PUT / DELETE profiles/{userId}/follow` |
 
 ## Pending

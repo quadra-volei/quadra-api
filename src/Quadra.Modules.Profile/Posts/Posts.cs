@@ -16,19 +16,25 @@ namespace Quadra.Modules.Profile.Posts;
 // optionally tied to a match they played or to one still to come (an invite), and everyone
 // reads the feed newest first: everyone's posts ("Para você") or only the posts of the players
 // the reader follows ("Amigos", see Follows/Follows.cs).
-// A post can be liked and commented on (Comments.cs). Some posts are written by the app
-// itself when a player creates a match or confirms presence (Activity.cs).
+// A post can be liked and commented on (Comments.cs). An organizer can also share their match
+// with no text: the "created the match" card. Nothing is posted automatically.
 
-/// <summary>What a post is: written by a player, or an automatic activity card.</summary>
+/// <summary>What a post is: written by a player, or a match card with no text.</summary>
 public enum PostKind
 {
     /// <summary>Written by the player: text and/or photo.</summary>
     Post,
 
-    /// <summary>"Created the match": no text, the match it is about.</summary>
+    /// <summary>
+    /// "Created the match": no text, the match it is about. Written when the organizer shares
+    /// the match to the feed.
+    /// </summary>
     MatchCreated,
 
-    /// <summary>"Confirmed presence in the match": no text, the match it is about.</summary>
+    /// <summary>
+    /// "Confirmed presence in the match". No longer written: it was automatic for one day
+    /// (2026-10-13). Kept so the rows from that day still read.
+    /// </summary>
     PresenceConfirmed,
 }
 
@@ -86,10 +92,9 @@ public sealed class Post
             CreatedAt = now,
         };
 
-    /// <summary>An automatic activity card about a match (see <see cref="PostKind"/>).</summary>
-    public static Post CreateActivity(
+    /// <summary>The organizer's "created the match" card: no text, the match it is about.</summary>
+    public static Post CreateMatchShare(
         Guid authorId,
-        PostKind kind,
         Guid matchId,
         string matchName,
         DateTimeOffset matchStartsAt,
@@ -98,7 +103,7 @@ public sealed class Post
         {
             Id = Guid.NewGuid(),
             AuthorId = authorId,
-            Kind = kind,
+            Kind = PostKind.MatchCreated,
             MatchId = matchId,
             MatchName = matchName,
             MatchStartsAt = matchStartsAt,
@@ -158,7 +163,10 @@ public sealed class PostLikeConfiguration : IEntityTypeConfiguration<PostLike>
     }
 }
 
-/// <summary>Body of <c>POST /api/v1/posts</c>. At least one of text and photo is required.</summary>
+/// <summary>
+/// Body of <c>POST /api/v1/posts</c>. A text and/or a photo; or only <c>MatchId</c>, by the
+/// organizer of an open match still to come, to share the match itself.
+/// </summary>
 /// <param name="Text">Up to 500 characters after trimming.</param>
 /// <param name="PhotoObjectKey">
 /// The <c>objectKey</c> returned by <c>POST /api/v1/profiles/me/photo/upload-url</c>, after the
@@ -176,8 +184,8 @@ public sealed record PostAuthorResponse(Guid UserId, string DisplayName, string?
 public sealed record PostMatchResponse(Guid Id, string Name, DateTimeOffset? StartsAt);
 
 /// <param name="Kind">
-/// <c>Post</c> for a post a player wrote; <c>MatchCreated</c> or <c>PresenceConfirmed</c> for an
-/// automatic card, which has no text or photo and always has a match.
+/// <c>Post</c> for a post a player wrote; <c>MatchCreated</c> for a match its organizer
+/// shared (no text or photo, always a match). <c>PresenceConfirmed</c> only on old rows.
 /// </param>
 public sealed record PostResponse(
     Guid Id,
@@ -203,9 +211,11 @@ public sealed class CreatePostRequestValidator : AbstractValidator<CreatePostReq
     public CreatePostRequestValidator()
     {
         RuleFor(x => x)
-            .Must(x => !string.IsNullOrWhiteSpace(x.Text) || !string.IsNullOrWhiteSpace(x.PhotoObjectKey))
+            .Must(x => !string.IsNullOrWhiteSpace(x.Text)
+                || !string.IsNullOrWhiteSpace(x.PhotoObjectKey)
+                || x.MatchId is not null)
             .WithName(nameof(CreatePostRequest.Text))
-            .WithMessage("A post needs a text or a photo.");
+            .WithMessage("A post needs a text, a photo or a match to share.");
 
         RuleFor(x => x.Text)
             .Must(text => text is null || text.Trim().Length <= Post.TextMaxLength)
@@ -224,7 +234,10 @@ public enum CreatePostFailure
     /// <summary>The photo key was not issued to this user.</summary>
     PhotoNotOwned,
 
-    /// <summary>The match is neither in the author's history nor one they may invite to.</summary>
+    /// <summary>
+    /// The match is neither in the author's history nor one they may invite to; or it was sent
+    /// alone (no text or photo) by someone who is not its organizer.
+    /// </summary>
     MatchNotAllowed,
 }
 
@@ -276,30 +289,58 @@ public sealed class PostsHandler
             return (null, CreatePostFailure.PhotoNotOwned);
         }
 
-        string? matchName = null;
-        DateTimeOffset? matchStartsAt = null;
-        if (request.MatchId is { } matchId)
+        var sharesMatch = string.IsNullOrWhiteSpace(request.Text) && string.IsNullOrWhiteSpace(request.PhotoObjectKey);
+        Post post;
+        if (sharesMatch)
         {
-            var played = await _context.PlayerMatchHistory
-                .Where(h => h.UserId == callerId && h.MatchId == matchId)
-                .Select(h => new { h.MatchName, h.MatchDateTime })
-                .FirstOrDefaultAsync(cancellationToken);
-            if (played is not null)
-            {
-                (matchName, matchStartsAt) = (played.MatchName, played.MatchDateTime);
-            }
-            else if (await _matchInvites.FindInvitableAsync(matchId, callerId, cancellationToken) is { } invite)
-            {
-                (matchName, matchStartsAt) = (invite.Name, invite.DateTime);
-            }
-            else
+            // The validator guarantees a match id here.
+            var matchId = request.MatchId!.Value;
+            var invite = await _matchInvites.FindInvitableAsync(matchId, callerId, cancellationToken);
+            if (invite is null || invite.OrganizerId != callerId)
             {
                 return (null, CreatePostFailure.MatchNotAllowed);
             }
+
+            // Sharing twice leaves the one card there already is.
+            var shared = await _context.Posts.AsNoTracking().FirstOrDefaultAsync(
+                p => p.AuthorId == callerId && p.Kind == PostKind.MatchCreated && p.MatchId == matchId,
+                cancellationToken);
+            if (shared is not null)
+            {
+                var author = await PostAuthors.LoadAsync(_context, _photoStorage, [callerId], cancellationToken);
+                return (await MapAsync(shared, author[callerId], callerId, 0, false, 0, cancellationToken), null);
+            }
+
+            post = Post.CreateMatchShare(callerId, matchId, invite.Name, invite.DateTime, now);
+        }
+        else
+        {
+            string? matchName = null;
+            DateTimeOffset? matchStartsAt = null;
+            if (request.MatchId is { } matchId)
+            {
+                var played = await _context.PlayerMatchHistory
+                    .Where(h => h.UserId == callerId && h.MatchId == matchId)
+                    .Select(h => new { h.MatchName, h.MatchDateTime })
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (played is not null)
+                {
+                    (matchName, matchStartsAt) = (played.MatchName, played.MatchDateTime);
+                }
+                else if (await _matchInvites.FindInvitableAsync(matchId, callerId, cancellationToken) is { } invite)
+                {
+                    (matchName, matchStartsAt) = (invite.Name, invite.DateTime);
+                }
+                else
+                {
+                    return (null, CreatePostFailure.MatchNotAllowed);
+                }
+            }
+
+            post = Post.Create(
+                callerId, request.Text, request.PhotoObjectKey, request.MatchId, matchName, matchStartsAt, now);
         }
 
-        var post = Post.Create(
-            callerId, request.Text, request.PhotoObjectKey, request.MatchId, matchName, matchStartsAt, now);
         _context.Posts.Add(post);
         await _context.SaveChangesAsync(cancellationToken);
 
@@ -561,7 +602,7 @@ public sealed class PostsController : ControllerBase
                 detail: "The photo was not uploaded by this user."),
             _ => Problem(
                 statusCode: StatusCodes.Status422UnprocessableEntity,
-                detail: "A post can only be tied to a match the author played, or to an open match still to come that they organize or confirmed."),
+                detail: "A post can only be tied to a match the author played, or to an open match still to come that they organize or confirmed. Only the organizer shares a match with no text."),
         };
     }
 

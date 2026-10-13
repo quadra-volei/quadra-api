@@ -74,6 +74,31 @@ public sealed class PostInviteEndpointsTests : IClassFixture<MatchesWebApplicati
     }
 
     [Fact]
+    public async Task Only_the_organizer_shares_the_match_itself_and_only_once()
+    {
+        var organizer = Guid.NewGuid();
+        var player = Guid.NewGuid();
+        var matchId = await CreateMatchAsync(organizer, DateTimeOffset.UtcNow.AddHours(3));
+        await _fx.CreateAuthenticatedClient(player).PutAsJsonAsync(
+            $"/api/v1/matches/{matchId}/presences/me", new { status = "Confirmed" }, Ct);
+        var organizerClient = _fx.CreateAuthenticatedClient(organizer);
+
+        var first = await organizerClient.PostAsJsonAsync("/api/v1/posts", new { matchId }, Ct);
+        var second = await organizerClient.PostAsJsonAsync("/api/v1/posts", new { matchId }, Ct);
+
+        first.StatusCode.Should().Be(HttpStatusCode.Created);
+        var card = await first.Content.ReadFromJsonAsync<JsonElement>(Ct);
+        card.GetProperty("kind").GetString().Should().Be("MatchCreated");
+        card.GetProperty("text").ValueKind.Should().Be(JsonValueKind.Null);
+        card.GetProperty("match").GetProperty("name").GetString().Should().Be("Racha da Galera");
+        (await second.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("id").GetGuid()
+            .Should().Be(card.GetProperty("id").GetGuid());
+        // A confirmed player may invite with their own words, not share the match itself.
+        (await _fx.CreateAuthenticatedClient(player).PostAsJsonAsync("/api/v1/posts", new { matchId }, Ct))
+            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+    }
+
+    [Fact]
     public async Task Someone_outside_the_match_cannot_invite_to_it()
     {
         var matchId = await CreateMatchAsync(Guid.NewGuid(), DateTimeOffset.UtcNow.AddHours(3));
