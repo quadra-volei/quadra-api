@@ -27,7 +27,7 @@ Each module is a project `src/Quadra.Modules.<Name>/` with its own DbContext and
 | Auth | Login, JWT issuance and validation, refresh tokens | `users`, `refresh_tokens` |
 | Matches | Match lifecycle, presence, waiting list, guests, summary | `matches`, `match_presences`, `waiting_list`, `match_guests`, `match_summaries`, `match_summary_players`, `match_summary_sets` |
 | InGame | Teams, scoreboard, MVP vote | `teams`, `team_members`, `scoreboards`, `scoreboard_sets`, `mvp_votings`, `mvp_votes` |
-| Profile | Player identity, stats, history, card, feedback, posts (Rede feed) | `player_profiles`, `player_stats`, `player_match_history`, `player_cards`, `feedback`, `posts`, `post_likes` |
+| Profile | Player identity, stats, history, card, feedback, Rede (posts, likes, comments, follows) | `player_profiles`, `player_stats`, `player_match_history`, `player_cards`, `feedback`, `posts`, `post_likes`, `post_comments`, `follows` |
 | Gamification | Points and group ranking | `point_transactions`, `group_rankings` |
 | Geo | Nearby matches and address search | none (reads `matches` read-only) |
 | Realtime | SignalR hub `/hubs/match` | none (groups in memory) |
@@ -49,6 +49,7 @@ implementations in `src/Quadra.Api/Events` inside the same request.
 | --- | --- |
 | `UserRegistered` | Creates the empty player profile |
 | `MatchSummaryGenerated` | Updates player stats and history; awards ranking points |
+| `MatchCreated`, `PresenceConfirmed` | Adds the activity card to the Rede feed (open matches only) |
 
 Trade-off: a handler that fails is logged and not retried (no outbox). Nothing runs in the
 background except the confirmation-window sweeper (`Matches:WindowSweepSeconds`); matches are
