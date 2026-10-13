@@ -430,6 +430,14 @@ namespace Quadra.Modules.Profile.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasDefaultValue("Post")
+                        .HasColumnName("kind");
+
                     b.Property<Guid?>("MatchId")
                         .HasColumnType("uuid")
                         .HasColumnName("match_id");

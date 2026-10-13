@@ -16,7 +16,21 @@ namespace Quadra.Modules.Profile.Posts;
 // optionally tied to a match they played or to one still to come (an invite), and everyone
 // reads the feed newest first: everyone's posts ("Para você") or only the posts of the players
 // the reader follows ("Amigos", see Follows/Follows.cs).
-// A post can be liked and commented on (Comments.cs).
+// A post can be liked and commented on (Comments.cs). Some posts are written by the app
+// itself when a player creates a match or confirms presence (Activity.cs).
+
+/// <summary>What a post is: written by a player, or an automatic activity card.</summary>
+public enum PostKind
+{
+    /// <summary>Written by the player: text and/or photo.</summary>
+    Post,
+
+    /// <summary>"Created the match": no text, the match it is about.</summary>
+    MatchCreated,
+
+    /// <summary>"Confirmed presence in the match": no text, the match it is about.</summary>
+    PresenceConfirmed,
+}
 
 /// <summary>One post. Rows are inserted and deleted, never edited.</summary>
 public sealed class Post
@@ -31,6 +45,8 @@ public sealed class Post
     public Guid Id { get; private set; }
 
     public Guid AuthorId { get; private set; }
+
+    public PostKind Kind { get; private set; }
 
     public string? Text { get; private set; }
 
@@ -69,6 +85,25 @@ public sealed class Post
             MatchStartsAt = matchStartsAt,
             CreatedAt = now,
         };
+
+    /// <summary>An automatic activity card about a match (see <see cref="PostKind"/>).</summary>
+    public static Post CreateActivity(
+        Guid authorId,
+        PostKind kind,
+        Guid matchId,
+        string matchName,
+        DateTimeOffset matchStartsAt,
+        DateTimeOffset now) =>
+        new()
+        {
+            Id = Guid.NewGuid(),
+            AuthorId = authorId,
+            Kind = kind,
+            MatchId = matchId,
+            MatchName = matchName,
+            MatchStartsAt = matchStartsAt,
+            CreatedAt = now,
+        };
 }
 
 public sealed class PostConfiguration : IEntityTypeConfiguration<Post>
@@ -80,6 +115,8 @@ public sealed class PostConfiguration : IEntityTypeConfiguration<Post>
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
         builder.Property(p => p.AuthorId).HasColumnName("author_id").IsRequired();
+        builder.Property(p => p.Kind).HasColumnName("kind").HasConversion<string>().HasMaxLength(24)
+            .HasDefaultValue(PostKind.Post).IsRequired();
         builder.Property(p => p.Text).HasColumnName("text").HasMaxLength(Post.TextMaxLength);
         builder.Property(p => p.PhotoObjectKey).HasColumnName("photo_object_key").HasMaxLength(Post.PhotoObjectKeyMaxLength);
         builder.Property(p => p.MatchId).HasColumnName("match_id");
@@ -138,6 +175,10 @@ public sealed record PostAuthorResponse(Guid UserId, string DisplayName, string?
 /// <param name="StartsAt">When the match is scheduled; in the future on an invite.</param>
 public sealed record PostMatchResponse(Guid Id, string Name, DateTimeOffset? StartsAt);
 
+/// <param name="Kind">
+/// <c>Post</c> for a post a player wrote; <c>MatchCreated</c> or <c>PresenceConfirmed</c> for an
+/// automatic card, which has no text or photo and always has a match.
+/// </param>
 public sealed record PostResponse(
     Guid Id,
     PostAuthorResponse Author,
@@ -148,7 +189,8 @@ public sealed record PostResponse(
     bool Mine,
     int LikeCount,
     bool LikedByMe,
-    int CommentCount);
+    int CommentCount,
+    string Kind);
 
 /// <summary>Answer of <c>PUT / DELETE /api/v1/posts/{id}/like</c>: the post's likes afterwards.</summary>
 public sealed record PostLikesResponse(int LikeCount, bool LikedByMe);
@@ -410,7 +452,8 @@ public sealed class PostsHandler
             Mine: post.AuthorId == callerId,
             likeCount,
             likedByMe,
-            commentCount);
+            commentCount,
+            post.Kind.ToString());
     }
 }
 

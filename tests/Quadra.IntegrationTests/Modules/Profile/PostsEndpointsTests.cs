@@ -75,6 +75,7 @@ public sealed class PostsEndpointsTests
         item.GetProperty("match").GetProperty("id").GetGuid().Should().Be(matchId);
         item.GetProperty("match").GetProperty("name").GetString().Should().Be("Vôlei de quinta");
         item.GetProperty("mine").GetBoolean().Should().BeFalse();
+        item.GetProperty("kind").GetString().Should().Be("Post");
         feed.GetProperty("nextBefore").ValueKind.Should().Be(JsonValueKind.Null);
     }
 
@@ -269,6 +270,31 @@ public sealed class PostsEndpointsTests
         unfollowed.GetProperty("followersCount").GetInt32().Should().Be(0);
         unfollowed.GetProperty("followedByMe").GetBoolean().Should().BeFalse();
         Texts(await client.GetFromJsonAsync<JsonElement>($"{Url}?scope=following", Ct)).Should().Equal("meu");
+    }
+
+    [Fact]
+    public async Task An_activity_card_is_added_once_per_player_kind_and_match_and_shows_in_the_feed()
+    {
+        await ResetAsync();
+        var player = Guid.NewGuid();
+        var matchId = Guid.NewGuid();
+        var startsAt = DateTimeOffset.UtcNow.AddHours(5);
+
+        await _fx.WithScopeAsync(async sp =>
+        {
+            var feed = sp.GetRequiredService<Quadra.Modules.Profile.Abstractions.IActivityFeedWriter>();
+            var confirmed = Quadra.Modules.Profile.Abstractions.MatchActivity.Confirmed;
+            await feed.AddMatchActivityAsync(player, confirmed, matchId, "Racha da Galera", startsAt, Ct);
+            await feed.AddMatchActivityAsync(player, confirmed, matchId, "Racha da Galera", startsAt, Ct);
+        });
+
+        var item = (await _fx.CreateAuthenticatedClient(Guid.NewGuid()).GetFromJsonAsync<JsonElement>(Url, Ct))
+            .GetProperty("items").EnumerateArray().Should().ContainSingle().Subject;
+        item.GetProperty("kind").GetString().Should().Be("PresenceConfirmed");
+        item.GetProperty("text").ValueKind.Should().Be(JsonValueKind.Null);
+        item.GetProperty("author").GetProperty("userId").GetGuid().Should().Be(player);
+        item.GetProperty("match").GetProperty("id").GetGuid().Should().Be(matchId);
+        item.GetProperty("match").GetProperty("name").GetString().Should().Be("Racha da Galera");
     }
 
     private static IEnumerable<string?> Texts(JsonElement feed) =>
