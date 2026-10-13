@@ -37,7 +37,7 @@ public sealed class MatchInviteReader : IMatchInviteReader
                         p.MatchId == matchId
                         && p.PlayerId == playerId
                         && p.Status == PresenceStatus.Confirmed)))
-            .Select(m => new MatchInvite(m.Id, m.Name, m.DateTime))
+            .Select(m => new MatchInvite(m.Id, m.Name, m.DateTime, m.OrganizerId))
             .FirstOrDefaultAsync(cancellationToken);
     }
 }

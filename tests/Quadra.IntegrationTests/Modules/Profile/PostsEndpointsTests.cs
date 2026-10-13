@@ -32,7 +32,7 @@ public sealed class PostsEndpointsTests
     {
         await _fx.ResetAsync();
         await _fx.WithScopeAsync(sp => sp.GetRequiredService<ProfileDbContext>()
-            .Database.ExecuteSqlRawAsync("TRUNCATE TABLE posts CASCADE;", Ct));
+            .Database.ExecuteSqlRawAsync("TRUNCATE TABLE posts, follows CASCADE;", Ct));
     }
 
     private Task SeedAsync(params object[] rows) =>
@@ -75,6 +75,7 @@ public sealed class PostsEndpointsTests
         item.GetProperty("match").GetProperty("id").GetGuid().Should().Be(matchId);
         item.GetProperty("match").GetProperty("name").GetString().Should().Be("Vôlei de quinta");
         item.GetProperty("mine").GetBoolean().Should().BeFalse();
+        item.GetProperty("kind").GetString().Should().Be("Post");
         feed.GetProperty("nextBefore").ValueKind.Should().Be(JsonValueKind.Null);
     }
 
@@ -187,6 +188,113 @@ public sealed class PostsEndpointsTests
             .StatusCode.Should().Be(HttpStatusCode.NoContent);
         await _fx.WithScopeAsync(async sp =>
             (await sp.GetRequiredService<ProfileDbContext>().PostLikes.CountAsync(Ct)).Should().Be(0));
+    }
+
+    [Fact]
+    public async Task Comments_are_listed_oldest_first_counted_in_the_feed_and_deleted_by_their_author_or_the_posts()
+    {
+        await ResetAsync();
+        var author = Guid.NewGuid();
+        var fan = Guid.NewGuid();
+        var stranger = Guid.NewGuid();
+        var post = Post.Create(author, "comenta aí", null, null, null, null, DateTimeOffset.UtcNow);
+        await SeedAsync(post);
+        var url = $"{Url}/{post.Id}/comments";
+        var fanClient = _fx.CreateAuthenticatedClient(fan);
+
+        var first = await fanClient.PostAsJsonAsync(url, new { text = "  Bom jogo!  " }, Ct);
+        first.StatusCode.Should().Be(HttpStatusCode.Created);
+        var firstId = (await first.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("id").GetGuid();
+        var second = await _fx.CreateAuthenticatedClient(stranger).PostAsJsonAsync(url, new { text = "Semana que vem tem mais" }, Ct);
+        var secondId = (await second.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("id").GetGuid();
+
+        (await fanClient.PostAsJsonAsync(url, new { text = "   " }, Ct)).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await fanClient.PostAsJsonAsync(url, new { text = new string('a', PostComment.TextMaxLength + 1) }, Ct))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await fanClient.PostAsJsonAsync($"{Url}/{Guid.NewGuid()}/comments", new { text = "oi" }, Ct))
+            .StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var listed = (await fanClient.GetFromJsonAsync<JsonElement>(url, Ct)).GetProperty("items");
+        listed.EnumerateArray().Select(c => c.GetProperty("text").GetString())
+            .Should().Equal("Bom jogo!", "Semana que vem tem mais");
+        // The fan may delete their own comment, not the stranger's.
+        listed[0].GetProperty("canDelete").GetBoolean().Should().BeTrue();
+        listed[1].GetProperty("canDelete").GetBoolean().Should().BeFalse();
+        (await fanClient.GetFromJsonAsync<JsonElement>(Url, Ct)).GetProperty("items")[0]
+            .GetProperty("commentCount").GetInt32().Should().Be(2);
+
+        (await fanClient.DeleteAsync($"{url}/{secondId}", Ct)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await fanClient.DeleteAsync($"{url}/{firstId}", Ct)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        // The post's author moderates their own post.
+        (await _fx.CreateAuthenticatedClient(author).DeleteAsync($"{url}/{secondId}", Ct))
+            .StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await fanClient.DeleteAsync($"{url}/{firstId}", Ct)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await fanClient.GetFromJsonAsync<JsonElement>(url, Ct)).GetProperty("items").GetArrayLength().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Following_is_idempotent_counted_both_ways_and_filters_the_feed()
+    {
+        await ResetAsync();
+        var me = Guid.NewGuid();
+        var friend = Guid.NewGuid();
+        var other = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        await SeedAsync(
+            PlayerProfile.Provision(me, now),
+            PlayerProfile.Provision(friend, now),
+            Post.Create(other, "de um desconhecido", null, null, null, null, now.AddMinutes(-3)),
+            Post.Create(friend, "de quem eu sigo", null, null, null, null, now.AddMinutes(-2)),
+            Post.Create(me, "meu", null, null, null, null, now.AddMinutes(-1)));
+        var client = _fx.CreateAuthenticatedClient(me);
+        var followUrl = $"/api/v1/profiles/{friend}/follow";
+
+        (await client.PutAsync(followUrl, null, Ct)).StatusCode.Should().Be(HttpStatusCode.OK);
+        var state = await (await client.PutAsync(followUrl, null, Ct)).Content.ReadFromJsonAsync<JsonElement>(Ct);
+        state.GetProperty("followersCount").GetInt32().Should().Be(1);
+        state.GetProperty("followedByMe").GetBoolean().Should().BeTrue();
+        var mine = await client.GetFromJsonAsync<JsonElement>($"/api/v1/profiles/{me}/follow", Ct);
+        mine.GetProperty("followingCount").GetInt32().Should().Be(1);
+        mine.GetProperty("followersCount").GetInt32().Should().Be(0);
+
+        Texts(await client.GetFromJsonAsync<JsonElement>($"{Url}?scope=following", Ct))
+            .Should().Equal("meu", "de quem eu sigo");
+        Texts(await client.GetFromJsonAsync<JsonElement>(Url, Ct)).Should().HaveCount(3);
+
+        (await client.PutAsync($"/api/v1/profiles/{me}/follow", null, Ct))
+            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await client.PutAsync($"/api/v1/profiles/{Guid.NewGuid()}/follow", null, Ct))
+            .StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var unfollowed = await (await client.DeleteAsync(followUrl, Ct)).Content.ReadFromJsonAsync<JsonElement>(Ct);
+        unfollowed.GetProperty("followersCount").GetInt32().Should().Be(0);
+        unfollowed.GetProperty("followedByMe").GetBoolean().Should().BeFalse();
+        Texts(await client.GetFromJsonAsync<JsonElement>($"{Url}?scope=following", Ct)).Should().Equal("meu");
+    }
+
+    [Fact]
+    public async Task An_activity_card_is_added_once_per_player_kind_and_match_and_shows_in_the_feed()
+    {
+        await ResetAsync();
+        var player = Guid.NewGuid();
+        var matchId = Guid.NewGuid();
+        var startsAt = DateTimeOffset.UtcNow.AddHours(5);
+
+        await _fx.WithScopeAsync(async sp =>
+        {
+            var feed = sp.GetRequiredService<Quadra.Modules.Profile.Abstractions.IActivityFeedWriter>();
+            var confirmed = Quadra.Modules.Profile.Abstractions.MatchActivity.Confirmed;
+            await feed.AddMatchActivityAsync(player, confirmed, matchId, "Racha da Galera", startsAt, Ct);
+            await feed.AddMatchActivityAsync(player, confirmed, matchId, "Racha da Galera", startsAt, Ct);
+        });
+
+        var item = (await _fx.CreateAuthenticatedClient(Guid.NewGuid()).GetFromJsonAsync<JsonElement>(Url, Ct))
+            .GetProperty("items").EnumerateArray().Should().ContainSingle().Subject;
+        item.GetProperty("kind").GetString().Should().Be("PresenceConfirmed");
+        item.GetProperty("text").ValueKind.Should().Be(JsonValueKind.Null);
+        item.GetProperty("author").GetProperty("userId").GetGuid().Should().Be(player);
+        item.GetProperty("match").GetProperty("id").GetGuid().Should().Be(matchId);
+        item.GetProperty("match").GetProperty("name").GetString().Should().Be("Racha da Galera");
     }
 
     private static IEnumerable<string?> Texts(JsonElement feed) =>

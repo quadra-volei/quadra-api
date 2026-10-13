@@ -1,12 +1,13 @@
 namespace Quadra.Shared.Contracts;
 
-/// <summary>A match a player may invite others to: its name and scheduled time.</summary>
-public sealed record MatchInvite(Guid MatchId, string Name, DateTimeOffset DateTime);
+/// <summary>A match a player may invite others to: its name, scheduled time and organizer.</summary>
+public sealed record MatchInvite(Guid MatchId, string Name, DateTimeOffset DateTime, Guid OrganizerId);
 
 /// <summary>
 /// Read-only cross-module query for the matches a player may publicly invite others to.
 /// Declared in <c>Quadra.Shared</c>; implemented in <c>Quadra.Modules.Matches</c>. Consumed by
-/// the Profile module when a post is tied to a match that has not been played yet.
+/// the Profile module when a post is tied to a match that has not been played yet, and by the
+/// host's activity-feed event handler.
 /// </summary>
 public interface IMatchInviteReader
 {

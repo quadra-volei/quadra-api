@@ -14,8 +14,23 @@ namespace Quadra.Modules.Profile.Posts;
 
 // The whole first version of the "Rede" feed: a player publishes a text and/or one photo,
 // optionally tied to a match they played or to one still to come (an invite), and everyone
-// reads one feed, newest first.
-// A post can be liked. No follows or comments yet.
+// reads the feed newest first: everyone's posts ("Para você") or only the posts of the players
+// the reader follows ("Amigos", see Follows/Follows.cs).
+// A post can be liked and commented on (Comments.cs). Some posts are written by the app
+// itself when a player creates a match or confirms presence (Activity.cs).
+
+/// <summary>What a post is: written by a player, or an automatic activity card.</summary>
+public enum PostKind
+{
+    /// <summary>Written by the player: text and/or photo.</summary>
+    Post,
+
+    /// <summary>"Created the match": no text, the match it is about.</summary>
+    MatchCreated,
+
+    /// <summary>"Confirmed presence in the match": no text, the match it is about.</summary>
+    PresenceConfirmed,
+}
 
 /// <summary>One post. Rows are inserted and deleted, never edited.</summary>
 public sealed class Post
@@ -30,6 +45,8 @@ public sealed class Post
     public Guid Id { get; private set; }
 
     public Guid AuthorId { get; private set; }
+
+    public PostKind Kind { get; private set; }
 
     public string? Text { get; private set; }
 
@@ -68,6 +85,25 @@ public sealed class Post
             MatchStartsAt = matchStartsAt,
             CreatedAt = now,
         };
+
+    /// <summary>An automatic activity card about a match (see <see cref="PostKind"/>).</summary>
+    public static Post CreateActivity(
+        Guid authorId,
+        PostKind kind,
+        Guid matchId,
+        string matchName,
+        DateTimeOffset matchStartsAt,
+        DateTimeOffset now) =>
+        new()
+        {
+            Id = Guid.NewGuid(),
+            AuthorId = authorId,
+            Kind = kind,
+            MatchId = matchId,
+            MatchName = matchName,
+            MatchStartsAt = matchStartsAt,
+            CreatedAt = now,
+        };
 }
 
 public sealed class PostConfiguration : IEntityTypeConfiguration<Post>
@@ -79,6 +115,8 @@ public sealed class PostConfiguration : IEntityTypeConfiguration<Post>
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
         builder.Property(p => p.AuthorId).HasColumnName("author_id").IsRequired();
+        builder.Property(p => p.Kind).HasColumnName("kind").HasConversion<string>().HasMaxLength(24)
+            .HasDefaultValue(PostKind.Post).IsRequired();
         builder.Property(p => p.Text).HasColumnName("text").HasMaxLength(Post.TextMaxLength);
         builder.Property(p => p.PhotoObjectKey).HasColumnName("photo_object_key").HasMaxLength(Post.PhotoObjectKeyMaxLength);
         builder.Property(p => p.MatchId).HasColumnName("match_id");
@@ -137,6 +175,10 @@ public sealed record PostAuthorResponse(Guid UserId, string DisplayName, string?
 /// <param name="StartsAt">When the match is scheduled; in the future on an invite.</param>
 public sealed record PostMatchResponse(Guid Id, string Name, DateTimeOffset? StartsAt);
 
+/// <param name="Kind">
+/// <c>Post</c> for a post a player wrote; <c>MatchCreated</c> or <c>PresenceConfirmed</c> for an
+/// automatic card, which has no text or photo and always has a match.
+/// </param>
 public sealed record PostResponse(
     Guid Id,
     PostAuthorResponse Author,
@@ -146,7 +188,9 @@ public sealed record PostResponse(
     DateTimeOffset CreatedAt,
     bool Mine,
     int LikeCount,
-    bool LikedByMe);
+    bool LikedByMe,
+    int CommentCount,
+    string Kind);
 
 /// <summary>Answer of <c>PUT / DELETE /api/v1/posts/{id}/like</c>: the post's likes afterwards.</summary>
 public sealed record PostLikesResponse(int LikeCount, bool LikedByMe);
@@ -259,20 +303,29 @@ public sealed class PostsHandler
         _context.Posts.Add(post);
         await _context.SaveChangesAsync(cancellationToken);
 
-        var author = await _context.PlayerProfiles.AsNoTracking()
-            .FirstOrDefaultAsync(p => p.UserId == callerId, cancellationToken);
-        return (await MapAsync(post, author, callerId, likeCount: 0, likedByMe: false, cancellationToken), null);
+        var authors = await PostAuthors.LoadAsync(_context, _photoStorage, [callerId], cancellationToken);
+        return (await MapAsync(post, authors[callerId], callerId, 0, false, 0, cancellationToken), null);
     }
 
-    /// <summary>Everyone's posts, newest first, older than <paramref name="before"/> when given.</summary>
+    /// <summary>
+    /// Posts newest first, older than <paramref name="before"/> when given: everyone's, or with
+    /// <paramref name="followingOnly"/> those of the players the caller follows plus their own.
+    /// </summary>
     public async Task<PostFeedResponse> ListAsync(
         Guid callerId,
         DateTimeOffset? before,
         int limit,
+        bool followingOnly,
         CancellationToken cancellationToken)
     {
         var take = Math.Clamp(limit, 1, MaxPageSize);
         var query = _context.Posts.AsNoTracking();
+        if (followingOnly)
+        {
+            query = query.Where(p => p.AuthorId == callerId
+                || _context.Follows.Any(f => f.FollowerId == callerId && f.FollowedId == p.AuthorId));
+        }
+
         if (before is { } cursor)
         {
             // Npgsql only accepts UTC offsets for timestamptz parameters.
@@ -290,10 +343,8 @@ public sealed class PostsHandler
             posts.RemoveAt(take);
         }
 
-        var authorIds = posts.Select(p => p.AuthorId).Distinct().ToArray();
-        var authors = await _context.PlayerProfiles.AsNoTracking()
-            .Where(p => authorIds.Contains(p.UserId))
-            .ToDictionaryAsync(p => p.UserId, cancellationToken);
+        var authors = await PostAuthors.LoadAsync(
+            _context, _photoStorage, posts.Select(p => p.AuthorId), cancellationToken);
 
         var postIds = posts.Select(p => p.Id).ToArray();
         var likeCounts = await _context.PostLikes.AsNoTracking()
@@ -305,16 +356,22 @@ public sealed class PostsHandler
             .Where(l => l.UserId == callerId && postIds.Contains(l.PostId))
             .Select(l => l.PostId)
             .ToListAsync(cancellationToken)).ToHashSet();
+        var commentCounts = await _context.PostComments.AsNoTracking()
+            .Where(c => postIds.Contains(c.PostId))
+            .GroupBy(c => c.PostId)
+            .Select(g => new { PostId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(g => g.PostId, g => g.Count, cancellationToken);
 
         var items = new List<PostResponse>(posts.Count);
         foreach (var post in posts)
         {
             items.Add(await MapAsync(
                 post,
-                authors.GetValueOrDefault(post.AuthorId),
+                authors[post.AuthorId],
                 callerId,
                 likeCounts.GetValueOrDefault(post.Id),
                 likedByMe.Contains(post.Id),
+                commentCounts.GetValueOrDefault(post.Id),
                 cancellationToken));
         }
 
@@ -374,33 +431,65 @@ public sealed class PostsHandler
 
     private async Task<PostResponse> MapAsync(
         Post post,
-        PlayerProfile? author,
+        PostAuthorResponse author,
         Guid callerId,
         int likeCount,
         bool likedByMe,
+        int commentCount,
         CancellationToken cancellationToken)
     {
-        var authorPhotoUrl = string.IsNullOrEmpty(author?.PhotoObjectKey)
-            ? null
-            : await _photoStorage.GetReadUrlAsync(author.PhotoObjectKey, cancellationToken);
         var photoUrl = post.PhotoObjectKey is null
             ? null
             : await _photoStorage.GetReadUrlAsync(post.PhotoObjectKey, cancellationToken);
 
         return new PostResponse(
             post.Id,
-            new PostAuthorResponse(
-                post.AuthorId,
-                author?.DisplayName ?? PlayerProfile.PlaceholderDisplayName,
-                author?.Handle,
-                authorPhotoUrl),
+            author,
             post.Text,
             photoUrl,
             post.MatchId is { } matchId ? new PostMatchResponse(matchId, post.MatchName ?? string.Empty, post.MatchStartsAt) : null,
             post.CreatedAt,
             Mine: post.AuthorId == callerId,
             likeCount,
-            likedByMe);
+            likedByMe,
+            commentCount,
+            post.Kind.ToString());
+    }
+}
+
+/// <summary>Who wrote a post or a comment, as the feed shows them.</summary>
+internal static class PostAuthors
+{
+    /// <summary>
+    /// The public identity of each of <paramref name="userIds"/>; a user without a profile row
+    /// gets the placeholder name.
+    /// </summary>
+    public static async Task<IReadOnlyDictionary<Guid, PostAuthorResponse>> LoadAsync(
+        ProfileDbContext context,
+        IProfilePhotoStorage photoStorage,
+        IEnumerable<Guid> userIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = userIds.Distinct().ToArray();
+        var profiles = await context.PlayerProfiles.AsNoTracking()
+            .Where(p => ids.Contains(p.UserId))
+            .ToDictionaryAsync(p => p.UserId, cancellationToken);
+
+        var authors = new Dictionary<Guid, PostAuthorResponse>(ids.Length);
+        foreach (var id in ids)
+        {
+            var profile = profiles.GetValueOrDefault(id);
+            var photoUrl = string.IsNullOrEmpty(profile?.PhotoObjectKey)
+                ? null
+                : await photoStorage.GetReadUrlAsync(profile.PhotoObjectKey, cancellationToken);
+            authors[id] = new PostAuthorResponse(
+                id,
+                profile?.DisplayName ?? PlayerProfile.PlaceholderDisplayName,
+                profile?.Handle,
+                photoUrl);
+        }
+
+        return authors;
     }
 }
 
@@ -418,10 +507,14 @@ public sealed class PostsController : ControllerBase
         _validator = validator;
     }
 
-    /// <summary>GET /api/v1/posts — the feed, newest first.</summary>
+    /// <summary>
+    /// GET /api/v1/posts — the feed, newest first. <c>scope=following</c> keeps only the posts
+    /// of the players the caller follows (and their own); anything else is everyone's posts.
+    /// </summary>
     [HttpGet]
     public async Task<ActionResult<PostFeedResponse>> List(
         [FromQuery] DateTimeOffset? before,
+        [FromQuery] string? scope,
         [FromQuery] int limit = PostsHandler.DefaultPageSize,
         CancellationToken cancellationToken = default)
     {
@@ -430,7 +523,8 @@ public sealed class PostsController : ControllerBase
             return Unauthorized();
         }
 
-        return Ok(await _handler.ListAsync(callerId, before, limit, cancellationToken));
+        var followingOnly = string.Equals(scope, "following", StringComparison.OrdinalIgnoreCase);
+        return Ok(await _handler.ListAsync(callerId, before, limit, followingOnly, cancellationToken));
     }
 
     /// <summary>POST /api/v1/posts — publish a post as the signed-in user.</summary>
