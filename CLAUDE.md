@@ -85,8 +85,9 @@ dotnet ef database update --startup-project ../Quadra.Api
 ## Security (every change)
 
 Security is part of done. Knowledge (threat model, endpoint matrix, findings, fix plan) lives
-outside git in the workspace folder `../security/` because this repo is public; procedure in
-the `security-audit` skill, independent review with the `security-auditor` agent.
+outside git in the workspace folder `../security/` because this repo is public. The
+`security-audit` skill (procedure) and the `security-auditor` agent (independent review) live in
+the workspace root `.claude/`, also outside git: start Claude from the workspace root to use them.
 
 - Validate every input on the server (FluentValidation); never trust the app.
 - The caller's id comes from the token, never from the body or the route.
