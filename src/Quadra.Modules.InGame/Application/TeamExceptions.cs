@@ -28,12 +28,45 @@ public sealed class PlayerNotInTeamException : Exception
 }
 
 /// <summary>
-/// Thrown when a team operation is requested but the match is not in the required status.
+/// Thrown when the teams cannot be drawn or changed now. <see cref="Code"/> (the problem title)
+/// says why: <c>ConfirmationsNotOpen</c>, <c>GameStarted</c> or <c>MatchOver</c>.
 /// </summary>
 public sealed class InvalidMatchStatusForTeamsException : Exception
 {
-    public InvalidMatchStatusForTeamsException(string message)
-        : base(message) { }
+    public InvalidMatchStatusForTeamsException(string code, string message)
+        : base(message) => Code = code;
+
+    public string Code { get; }
+
+    /// <summary>
+    /// Teams can be drawn and changed once confirmations opened, until the game starts: after
+    /// that the scoreboard holds the team ids.
+    /// </summary>
+    public static void ThrowUnlessEditable(string matchStatus, Entities.Scoreboard? scoreboard)
+    {
+        if (matchStatus == "Draft")
+        {
+            throw new InvalidMatchStatusForTeamsException(
+                "ConfirmationsNotOpen", "Teams can only be drawn once confirmations have opened.");
+        }
+
+        if (matchStatus is "Ended" or "Cancelled")
+        {
+            throw new InvalidMatchStatusForTeamsException("MatchOver", "The match is over.");
+        }
+
+        if (matchStatus == "InProgress" || scoreboard is { State: not Entities.ScoreboardState.NotStarted })
+        {
+            throw new InvalidMatchStatusForTeamsException("GameStarted", "The game has already started.");
+        }
+    }
+}
+
+/// <summary>Thrown when there are fewer players (confirmed plus guests) than teams.</summary>
+public sealed class NotEnoughPlayersException : Exception
+{
+    public NotEnoughPlayersException(int players, int teams)
+        : base($"{players} player(s) cannot make {teams} teams.") { }
 }
 
 /// <summary>

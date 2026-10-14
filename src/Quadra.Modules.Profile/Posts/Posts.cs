@@ -181,7 +181,7 @@ public sealed record CreatePostRequest(string? Text, string? PhotoObjectKey = nu
 public sealed record PostAuthorResponse(Guid UserId, string DisplayName, string? Handle, string? PhotoUrl);
 
 /// <param name="StartsAt">When the match is scheduled; in the future on an invite.</param>
-public sealed record PostMatchResponse(Guid Id, string Name, DateTimeOffset? StartsAt);
+public sealed record PostMatchResponse(Guid Id, string Name, DateTimeOffset? StartsAt, string? CoverUrl = null);
 
 /// <param name="Kind">
 /// <c>Post</c> for a post a player wrote; <c>MatchCreated</c> for a match its organizer
@@ -253,14 +253,17 @@ public sealed class PostsHandler
     private readonly ProfileDbContext _context;
     private readonly IProfilePhotoStorage _photoStorage;
     private readonly IMatchInviteReader _matchInvites;
+    private readonly IMatchCoverReader _matchCovers;
     private readonly TimeProvider _timeProvider;
 
     public PostsHandler(
         ProfileDbContext context,
         IProfilePhotoStorage photoStorage,
         IMatchInviteReader matchInvites,
+        IMatchCoverReader matchCovers,
         TimeProvider timeProvider)
     {
+        _matchCovers = matchCovers;
         _context = context;
         _photoStorage = photoStorage;
         _matchInvites = matchInvites;
@@ -397,6 +400,9 @@ public sealed class PostsHandler
             .Where(l => l.UserId == callerId && postIds.Contains(l.PostId))
             .Select(l => l.PostId)
             .ToListAsync(cancellationToken)).ToHashSet();
+        var covers = await _matchCovers.GetCoverUrlsAsync(
+            posts.Where(p => p.MatchId.HasValue).Select(p => p.MatchId!.Value).Distinct().ToArray(),
+            cancellationToken);
         var commentCounts = await _context.PostComments.AsNoTracking()
             .Where(c => postIds.Contains(c.PostId))
             .GroupBy(c => c.PostId)
@@ -413,7 +419,8 @@ public sealed class PostsHandler
                 likeCounts.GetValueOrDefault(post.Id),
                 likedByMe.Contains(post.Id),
                 commentCounts.GetValueOrDefault(post.Id),
-                cancellationToken));
+                cancellationToken,
+                post.MatchId is { } coverMatchId ? covers.GetValueOrDefault(coverMatchId) : null));
         }
 
         return new PostFeedResponse(items, hasMore ? posts[^1].CreatedAt : null);
@@ -477,7 +484,8 @@ public sealed class PostsHandler
         int likeCount,
         bool likedByMe,
         int commentCount,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? matchCoverUrl = null)
     {
         var photoUrl = post.PhotoObjectKey is null
             ? null
@@ -488,7 +496,7 @@ public sealed class PostsHandler
             author,
             post.Text,
             photoUrl,
-            post.MatchId is { } matchId ? new PostMatchResponse(matchId, post.MatchName ?? string.Empty, post.MatchStartsAt) : null,
+            post.MatchId is { } matchId ? new PostMatchResponse(matchId, post.MatchName ?? string.Empty, post.MatchStartsAt, matchCoverUrl) : null,
             post.CreatedAt,
             Mine: post.AuthorId == callerId,
             likeCount,

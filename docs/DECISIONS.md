@@ -130,3 +130,10 @@ Steps 4 to 7 of the Rede, approved together by Johny.
 | # | Decision | Why |
 | --- | --- | --- |
 | 51 | **A match can have a cover photo**: `POST /matches` takes an optional `coverObjectKey` (column `matches.cover_object_key`, max 256), obtained from `POST /profiles/me/photo/upload-url` like post photos, so it must start with `profiles/{callerId}/` or the request is `400`. `GET /matches/{id}/detail` returns `coverUrl`, a short-lived read URL (null without a cover or without storage). Lists do not carry it. | Owner's ask (Johny, 2026-10-14): upload a match cover reusing the profile photo flow. Mobile side in `quadra-mobile` DECISIONS #92. |
+
+## 2026-10-14 — Cover in the lists, draw validation
+
+| # | Decision | Why |
+| --- | --- | --- |
+| 52 | **Lists carry the match cover**: `GET /matches/mine` (`match.coverUrl`), `GET /matches/nearby` (`coverUrl`) and the feed (`match.coverUrl`) return the cover's read URL. Geo and Profile get it through `IMatchCoverReader` (in `Quadra.Shared`, implemented by Matches), so Geo still reads no new column. Extends #51. | Owner's report (Johny, 2026-10-14): the cover did not show on the Home cards; also wanted on the map preview. |
+| 53 | **Team draw and move share one window and say why they refuse**: both are allowed while the match is Open or Closed and the scoreboard has not started (the move used to require Closed; neither checked the scoreboard, so a redraw mid-game could orphan its team ids). A refusal is `409` with the reason as the problem title: `ConfirmationsNotOpen`, `GameStarted`, `MatchOver`, `NoConfirmedPlayers`, or `NotEnoughPlayers` (new: fewer players than teams, which used to make empty teams); bad options are `400 InvalidOptions`. | Owner's report (Johny, 2026-10-14): draw errors badly validated. |

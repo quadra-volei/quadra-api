@@ -15,6 +15,7 @@ public sealed class GetNearbyMatchesHandler
 {
     private readonly INearbyMatchRepository _repository;
     private readonly IMatchAvailabilityReader _availabilityReader;
+    private readonly IMatchCoverReader _coverReader;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<GetNearbyMatchesHandler> _logger;
 
@@ -22,8 +23,10 @@ public sealed class GetNearbyMatchesHandler
         INearbyMatchRepository repository,
         IMatchAvailabilityReader availabilityReader,
         TimeProvider timeProvider,
-        ILogger<GetNearbyMatchesHandler> logger)
+        ILogger<GetNearbyMatchesHandler> logger,
+        IMatchCoverReader coverReader)
     {
+        _coverReader = coverReader;
         _repository = repository;
         _availabilityReader = availabilityReader;
         _timeProvider = timeProvider;
@@ -55,6 +58,7 @@ public sealed class GetNearbyMatchesHandler
 
         var candidateIds = candidates.Select(c => c.Id).ToArray();
         var availability = await _availabilityReader.GetAvailabilityAsync(candidateIds, cancellationToken);
+        var covers = await _coverReader.GetCoverUrlsAsync(candidateIds, cancellationToken);
 
         var items = new List<NearbyMatchResponse>(candidates.Count);
 
@@ -75,7 +79,7 @@ public sealed class GetNearbyMatchesHandler
                 continue;
             }
 
-            items.Add(ToResponse(candidate, avail));
+            items.Add(ToResponse(candidate, avail) with { CoverUrl = covers.GetValueOrDefault(candidate.Id) });
         }
 
         _logger.LogInformation(

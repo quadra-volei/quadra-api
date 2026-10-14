@@ -27,4 +27,5 @@ public sealed record NearbyMatchResponse(
     string Status,                   // Draft | Open | Closed
     int ConfirmedCount = 0,          // confirmed players plus guests
     string? Format = null,           // 2X2 | 4X4 | 6X6
-    string? Level = null);           // Beginner | Intermediate | Advanced
+    string? Level = null,            // Beginner | Intermediate | Advanced
+    string? CoverUrl = null);        // read URL of the cover the organizer uploaded
