@@ -140,6 +140,10 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
         builder.Property(m => m.RecurrenceDays)
             .HasColumnName("recurrence_days");
 
+        builder.Property(m => m.CoverObjectKey)
+            .HasColumnName("cover_object_key")
+            .HasMaxLength(256);
+
         builder.HasIndex(m => m.OrganizerId)
             .HasDatabaseName("ix_matches_organizer_id");
 

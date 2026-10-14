@@ -9,6 +9,7 @@ namespace Quadra.Modules.Matches.Contracts;
 /// <param name="OpenSlots">Slots still free: <c>MaxPlayers - ConfirmedCount</c>, never negative.</param>
 /// <param name="MyPresence">The caller's presence, or null when they are not on the list.</param>
 /// <param name="MyWaitingListPosition">The caller's waiting-list position, or null.</param>
+/// <param name="CoverUrl">Short-lived read URL of the cover image, or null when there is none.</param>
 /// <param name="CanJoin">Whether the caller may put themselves on the list (open match, or organizer). A private match by code reports false: the code is checked when joining.</param>
 public sealed record MatchDetailResponse(
     MatchResponse Match,
@@ -22,7 +23,8 @@ public sealed record MatchDetailResponse(
     MyPresenceResponse? MyPresence,
     int? MyWaitingListPosition,
     bool CanJoin,
-    MatchGameResponse? Game = null);
+    MatchGameResponse? Game = null,
+    string? CoverUrl = null);
 
 /// <summary>
 /// Where the game of this match is, so a client knows what comes next (live scoreboard, MVP

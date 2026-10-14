@@ -74,7 +74,8 @@ public sealed class CreateMatchHandler
                     ? null
                     : Enum.Parse<MatchInviteMode>(command.InviteMode, ignoreCase: true),
                 PriceMonthly: command.PriceMonthly,
-                RecurrenceDays: command.RecurrenceDays));
+                RecurrenceDays: command.RecurrenceDays,
+                CoverObjectKey: command.CoverObjectKey));
 
         await _repository.AddAsync(match, cancellationToken);
 

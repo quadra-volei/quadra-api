@@ -124,3 +124,9 @@ Steps 4 to 7 of the Rede, approved together by Johny.
 | # | Decision | Why |
 | --- | --- | --- |
 | 50 | **Nothing is posted to the feed automatically; #48 is withdrawn.** The event handler, `IActivityFeedWriter` and the "confirmed presence" card are gone. **The organizer shares the match**: `POST /posts` with only `matchId` (no text, no photo) creates the `MatchCreated` card, for an open match still to come and only by its organizer; sharing again returns the card there already is. Anyone else sending only a match gets `422`. Cards written automatically on 2026-10-13 stay until their author deletes them (`PresenceConfirmed` remains readable for them). | Johny, after testing: "compartilhar a partida não pode ser automático, o organizador que decide". |
+
+## 2026-10-14 — Match cover
+
+| # | Decision | Why |
+| --- | --- | --- |
+| 51 | **A match can have a cover photo**: `POST /matches` takes an optional `coverObjectKey` (column `matches.cover_object_key`, max 256), obtained from `POST /profiles/me/photo/upload-url` like post photos, so it must start with `profiles/{callerId}/` or the request is `400`. `GET /matches/{id}/detail` returns `coverUrl`, a short-lived read URL (null without a cover or without storage). Lists do not carry it. | Owner's ask (Johny, 2026-10-14): upload a match cover reusing the profile photo flow. Mobile side in `quadra-mobile` DECISIONS #92. |

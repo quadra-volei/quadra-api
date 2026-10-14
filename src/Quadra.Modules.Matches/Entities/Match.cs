@@ -83,6 +83,9 @@ public sealed class Match
     /// </summary>
     public int[]? RecurrenceDays { get; private set; }
 
+    /// <summary>Storage key of the cover image (same bucket as profile photos). Null: no cover.</summary>
+    public string? CoverObjectKey { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
 
@@ -148,6 +151,7 @@ public sealed class Match
                 : null,
             PriceMonthly = settings.PriceMonthly,
             RecurrenceDays = recurrenceDays,
+            CoverObjectKey = settings.CoverObjectKey,
             CreatedAt = now,
             UpdatedAt = now,
         };
