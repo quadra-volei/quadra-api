@@ -4,6 +4,7 @@ using NSubstitute;
 using NSubstitute.ReturnsExtensions;
 using Quadra.Infrastructure.Messaging;
 using Quadra.Modules.InGame.Application;
+using Quadra.Modules.InGame.Contracts;
 using Quadra.Modules.InGame.Entities;
 using Quadra.Modules.InGame.Persistence;
 using Quadra.Shared.Contracts;
@@ -32,6 +33,7 @@ public sealed class DraftTeamsHandlerTests
     private readonly IConfirmedPlayersReader _confirmedPlayersReader = Substitute.For<IConfirmedPlayersReader>();
     private readonly IPlayerLevelReader _playerLevelReader = Substitute.For<IPlayerLevelReader>();
     private readonly ITeamRepository _teamRepository = Substitute.For<ITeamRepository>();
+    private readonly IScoreboardRepository _scoreboardRepository = Substitute.For<IScoreboardRepository>();
     private readonly IEventPublisher _eventPublisher = Substitute.For<IEventPublisher>();
     private readonly TimeProvider _timeProvider = new FixedTimeProvider(FixedNow);
 
@@ -41,6 +43,7 @@ public sealed class DraftTeamsHandlerTests
             _confirmedPlayersReader,
             _playerLevelReader,
             _teamRepository,
+            _scoreboardRepository,
             _eventPublisher,
             _timeProvider,
             NullLogger<DraftTeamsHandler>.Instance);
@@ -112,7 +115,37 @@ public sealed class DraftTeamsHandlerTests
         var act = async () => await sut.HandleAsync(matchId, OrganizerUserId, CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidMatchStatusForTeamsException>()
-            .WithMessage("*confirmations have opened*");
+            .Where(e => e.Code == "ConfirmationsNotOpen");
+    }
+
+    /// <summary>Covers: no redraw once the game started (the scoreboard holds the team ids).</summary>
+    [Fact]
+    public async Task HandleAsync_throws_GameStarted_when_the_scoreboard_already_started()
+    {
+        var matchId = Guid.NewGuid();
+        SetupMatch(matchId, OrganizerUserId);
+        var scoreboard = Scoreboard.Create(matchId, ScoreboardFormat.BestOf3, Guid.NewGuid(), Guid.NewGuid(), FixedNow);
+        scoreboard.Start(FixedNow);
+        _scoreboardRepository.FindByMatchAsync(matchId, Arg.Any<CancellationToken>()).Returns(scoreboard);
+
+        var act = async () => await CreateSut().HandleAsync(matchId, OrganizerUserId, CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidMatchStatusForTeamsException>()
+            .Where(e => e.Code == "GameStarted");
+    }
+
+    /// <summary>Covers: every team needs at least one player.</summary>
+    [Fact]
+    public async Task HandleAsync_throws_NotEnoughPlayers_when_there_are_fewer_players_than_teams()
+    {
+        var matchId = Guid.NewGuid();
+        SetupMatch(matchId, OrganizerUserId);
+        SetupConfirmedPlayers(matchId, [Guid.NewGuid(), Guid.NewGuid()]);
+
+        var act = async () => await CreateSut().HandleAsync(
+            matchId, OrganizerUserId, new DraftTeamsRequest(TeamCount: 3), CancellationToken.None);
+
+        await act.Should().ThrowAsync<NotEnoughPlayersException>();
     }
 
     /// <summary>

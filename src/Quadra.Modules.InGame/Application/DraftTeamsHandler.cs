@@ -18,6 +18,7 @@ public sealed class DraftTeamsHandler
     private readonly IConfirmedPlayersReader _confirmedPlayersReader;
     private readonly IPlayerLevelReader _playerLevelReader;
     private readonly ITeamRepository _teamRepository;
+    private readonly IScoreboardRepository _scoreboardRepository;
     private readonly IEventPublisher _eventPublisher;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<DraftTeamsHandler> _logger;
@@ -27,6 +28,7 @@ public sealed class DraftTeamsHandler
         IConfirmedPlayersReader confirmedPlayersReader,
         IPlayerLevelReader playerLevelReader,
         ITeamRepository teamRepository,
+        IScoreboardRepository scoreboardRepository,
         IEventPublisher eventPublisher,
         TimeProvider timeProvider,
         ILogger<DraftTeamsHandler> logger)
@@ -35,6 +37,7 @@ public sealed class DraftTeamsHandler
         _confirmedPlayersReader = confirmedPlayersReader;
         _playerLevelReader = playerLevelReader;
         _teamRepository = teamRepository;
+        _scoreboardRepository = scoreboardRepository;
         _eventPublisher = eventPublisher;
         _timeProvider = timeProvider;
         _logger = logger;
@@ -71,13 +74,10 @@ public sealed class DraftTeamsHandler
             throw new MatchAccessDeniedException(matchId, callerId);
         }
 
-        // 3. Confirmations must have opened (teams drawn while the window is still open only
-        //    count who confirmed so far; drawing again replaces them).
-        if (matchSummary.Status is not ("Open" or "Closed"))
-        {
-            throw new InvalidMatchStatusForTeamsException(
-                "Teams can only be drafted once confirmations have opened and before the game is over.");
-        }
+        // 3. Confirmations must have opened and the game not started (teams drawn while the
+        //    window is still open only count who confirmed so far; drawing again replaces them).
+        InvalidMatchStatusForTeamsException.ThrowUnlessEditable(
+            matchSummary.Status, await _scoreboardRepository.FindByMatchAsync(matchId, cancellationToken));
 
         // 4. Load confirmed players.
         var playerIds = await _confirmedPlayersReader.GetConfirmedPlayerIdsAsync(matchId, cancellationToken);
@@ -86,6 +86,12 @@ public sealed class DraftTeamsHandler
         if (playerIds.Count + guestIds.Count == 0)
         {
             throw new NoConfirmedPlayersException(matchId);
+        }
+
+        // Every team needs at least one player.
+        if (playerIds.Count + guestIds.Count < teamCount)
+        {
+            throw new NotEnoughPlayersException(playerIds.Count + guestIds.Count, teamCount);
         }
 
         // 5. Load player levels.

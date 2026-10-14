@@ -49,7 +49,7 @@ public sealed class TeamRotationTests
     // ═══ draft ════════════════════════════════════════════════════════════════
 
     private DraftTeamsHandler Draft() => new(
-        _matchReader, _confirmedPlayers, _levels, _teams, _events, _clock, NullLogger<DraftTeamsHandler>.Instance);
+        _matchReader, _confirmedPlayers, _levels, _teams, _scoreboards, _events, _clock, NullLogger<DraftTeamsHandler>.Instance);
 
     private void Confirmed(params Guid[] ids) =>
         _confirmedPlayers.GetConfirmedPlayerIdsAsync(MatchId, Arg.Any<CancellationToken>()).Returns(ids);

@@ -31,4 +31,5 @@ public sealed record MatchResponse(
     string Visibility = "Open",
     string? InviteMode = null,
     decimal? PriceMonthly = null,
-    IReadOnlyList<int>? RecurrenceDays = null);
+    IReadOnlyList<int>? RecurrenceDays = null,
+    string? CoverUrl = null);

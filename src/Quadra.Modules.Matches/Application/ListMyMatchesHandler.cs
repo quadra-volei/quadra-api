@@ -22,14 +22,17 @@ public sealed class ListMyMatchesHandler
     private readonly IMatchGuestRepository _guestRepository;
     private readonly IPlayerSummaryReader _playerSummaryReader;
     private readonly TimeProvider _timeProvider;
+    private readonly IMatchCoverReader _coverReader;
 
     public ListMyMatchesHandler(
         IMatchRepository matchRepository,
         IPresenceRepository presenceRepository,
         IMatchGuestRepository guestRepository,
         IPlayerSummaryReader playerSummaryReader,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IMatchCoverReader coverReader)
     {
+        _coverReader = coverReader;
         _matchRepository = matchRepository;
         _presenceRepository = presenceRepository;
         _guestRepository = guestRepository;
@@ -49,6 +52,7 @@ public sealed class ListMyMatchesHandler
         var matchIds = matches.Select(m => m.Id).ToArray();
         var presences = await _presenceRepository.ListByMatchesAsync(matchIds, cancellationToken);
         var guestCounts = await _guestRepository.CountByMatchesAsync(matchIds, cancellationToken);
+        var covers = await _coverReader.GetCoverUrlsAsync(matchIds, cancellationToken);
 
         var confirmedByMatch = presences
             .Where(p => p.Status == PresenceStatus.Confirmed)
@@ -66,7 +70,7 @@ public sealed class ListMyMatchesHandler
             var mine = presences.FirstOrDefault(p => p.MatchId == match.Id && p.PlayerId == callerId);
 
             return new MyMatchResponse(
-                Match: MatchMapper.ToResponse(match),
+                Match: MatchMapper.ToResponse(match) with { CoverUrl = covers.GetValueOrDefault(match.Id) },
                 ConfirmedCount: confirmedCount,
                 OpenSlots: Math.Max(0, match.MaxPlayers - confirmedCount),
                 ConfirmedPhotoUrls: confirmedIds

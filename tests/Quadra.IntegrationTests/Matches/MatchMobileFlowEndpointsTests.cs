@@ -180,6 +180,12 @@ public sealed class MatchMobileFlowEndpointsTests : IClassFixture<MatchesWebAppl
 
         var detail = await DetailAsync(matchId, Guid.NewGuid());
         detail.GetProperty("coverUrl").GetString().Should().Be($"https://s3.test.local/read/{key}");
+
+        // The Home list carries it too.
+        var mine = await (await _fx.CreateAuthenticatedClient(organizer).GetAsync("/api/v1/matches/mine", Ct))
+            .Content.ReadFromJsonAsync<JsonElement>(Ct);
+        mine.GetProperty("items")[0].GetProperty("match").GetProperty("coverUrl").GetString()
+            .Should().Be($"https://s3.test.local/read/{key}");
     }
 
     /// <summary>Covers: a cover someone else uploaded is refused.</summary>

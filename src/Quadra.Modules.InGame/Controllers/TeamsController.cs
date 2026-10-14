@@ -49,7 +49,7 @@ public sealed class TeamsController : ControllerBase
         }
         catch (InvalidDraftOptionsException ex)
         {
-            return BadRequest(new ProblemDetails { Detail = ex.Message });
+            return BadRequest(new ProblemDetails { Title = "InvalidOptions", Detail = ex.Message });
         }
         catch (MatchNotFoundException)
         {
@@ -61,11 +61,15 @@ public sealed class TeamsController : ControllerBase
         }
         catch (InvalidMatchStatusForTeamsException ex)
         {
-            return Conflict(new ProblemDetails { Detail = ex.Message });
+            return Conflict(new ProblemDetails { Title = ex.Code, Detail = ex.Message });
         }
         catch (NoConfirmedPlayersException ex)
         {
-            return Conflict(new ProblemDetails { Detail = ex.Message });
+            return Conflict(new ProblemDetails { Title = "NoConfirmedPlayers", Detail = ex.Message });
+        }
+        catch (NotEnoughPlayersException ex)
+        {
+            return Conflict(new ProblemDetails { Title = "NotEnoughPlayers", Detail = ex.Message });
         }
     }
 
@@ -118,7 +122,7 @@ public sealed class TeamsController : ControllerBase
         }
         catch (InvalidMatchStatusForTeamsException ex)
         {
-            return Conflict(new ProblemDetails { Detail = ex.Message });
+            return Conflict(new ProblemDetails { Title = ex.Code, Detail = ex.Message });
         }
         catch (TeamsNotFoundException ex)
         {
