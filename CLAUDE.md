@@ -82,6 +82,29 @@ dotnet ef database update --startup-project ../Quadra.Api
 - A change that alters behavior the app relies on gets a line in `docs/DECISIONS.md` and, if
   it changes what is done or pending, in `docs/SCOPE.md`.
 
+## Security (every change)
+
+Security is part of done. Knowledge (threat model, endpoint matrix, findings, fix plan) lives
+outside git in the workspace folder `../security/` because this repo is public; procedure in
+the `security-audit` skill, independent review with the `security-auditor` agent.
+
+- Validate every input on the server (FluentValidation); never trust the app.
+- The caller's id comes from the token, never from the body or the route.
+- Every read or write of a resource by id checks ownership or membership (owner, organizer,
+  participant, or public). Being logged in is not permission; private matches stay private.
+- New controllers keep `[Authorize]`; `[AllowAnonymous]` only for login, refresh, logout.
+- Least privilege: return only the fields the caller may see; no extra DB or service rights.
+- No tokens, passwords, phone numbers or personal data in logs, errors or responses to others;
+  errors go out as ProblemDetails without internals.
+- Reviewing a dependency or config change (NuGet, `render.yaml`, `Dockerfile`, auth options) is
+  part of the change.
+- A sensitive operation gets a negative test: a stranger (and a non-organizer) is refused.
+- Never disable, skip or weaken a security control or test to make something pass.
+- Run the relevant tests before calling a sensitive change done, and report which checks ran,
+  their results and what was not verified.
+- Never run destructive or load tests against Render or Neon without Johny's explicit OK.
+- Never put open security findings or their failing tests in this repo.
+
 ## Do NOT
 
 - Do not write secrets, keys, passwords or connection strings in any file. They live in the
