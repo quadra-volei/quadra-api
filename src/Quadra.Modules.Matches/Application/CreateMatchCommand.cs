@@ -26,4 +26,5 @@ public sealed record CreateMatchCommand(
     string? InviteMode = null,
     decimal? PriceMonthly = null,
     IReadOnlyList<int>? RecurrenceDays = null,
-    int? ConfirmationOpensHoursBefore = null);
+    int? ConfirmationOpensHoursBefore = null,
+    string? CoverObjectKey = null);

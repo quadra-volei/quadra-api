@@ -1,3 +1,4 @@
+using Quadra.Infrastructure.Storage;
 using Quadra.Modules.Matches.Contracts;
 using Quadra.Modules.Matches.Entities;
 using Quadra.Modules.Matches.Persistence;
@@ -20,6 +21,7 @@ public sealed class GetMatchDetailHandler
     private readonly MatchWindowSynchronizer _windowSynchronizer;
     private readonly IMatchResultReader _matchResultReader;
     private readonly IMatchSummaryRepository _summaryRepository;
+    private readonly IProfilePhotoStorage _photoStorage;
 
     public GetMatchDetailHandler(
         IMatchRepository matchRepository,
@@ -29,8 +31,10 @@ public sealed class GetMatchDetailHandler
         IPlayerSummaryReader playerSummaryReader,
         MatchWindowSynchronizer windowSynchronizer,
         IMatchResultReader matchResultReader,
-        IMatchSummaryRepository summaryRepository)
+        IMatchSummaryRepository summaryRepository,
+        IProfilePhotoStorage photoStorage)
     {
+        _photoStorage = photoStorage;
         _matchResultReader = matchResultReader;
         _summaryRepository = summaryRepository;
         _matchRepository = matchRepository;
@@ -68,6 +72,10 @@ public sealed class GetMatchDetailHandler
         var isOrganizer = match.OrganizerId == callerId;
         var game = await _matchResultReader.GetMatchResultAsync(matchId, cancellationToken);
 
+        var coverUrl = match.CoverObjectKey is null
+            ? null
+            : await _photoStorage.GetReadUrlAsync(match.CoverObjectKey, cancellationToken);
+
         return new MatchDetailResponse(
             Match: MatchMapper.ToResponse(match),
             InviteCode: isOrganizer ? match.InviteCode : null,
@@ -102,6 +110,7 @@ public sealed class GetMatchDetailHandler
                 : new MatchGameResponse(
                     game.ScoreboardState,
                     game.MvpVotingState,
-                    await _summaryRepository.ExistsForMatchAsync(matchId, cancellationToken)));
+                    await _summaryRepository.ExistsForMatchAsync(matchId, cancellationToken)),
+            CoverUrl: coverUrl);
     }
 }

@@ -165,6 +165,37 @@ public sealed class MatchMobileFlowEndpointsTests : IClassFixture<MatchesWebAppl
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    /// <summary>Covers: the organizer's uploaded cover is stored and the detail returns its read URL.</summary>
+    [Fact]
+    public async Task Create_with_a_cover_shows_it_in_the_detail()
+    {
+        await ResetAsync();
+        var organizer = Guid.NewGuid();
+        await OnboardAsync(organizer, "Ana", "Souza", "ana_cover");
+        var payload = MobilePayload();
+        var key = $"profiles/{organizer}/photo/{Guid.NewGuid()}.jpg";
+        payload["coverObjectKey"] = key;
+
+        var matchId = (await CreateAsync(organizer, payload)).GetProperty("id").GetGuid();
+
+        var detail = await DetailAsync(matchId, Guid.NewGuid());
+        detail.GetProperty("coverUrl").GetString().Should().Be($"https://s3.test.local/read/{key}");
+    }
+
+    /// <summary>Covers: a cover someone else uploaded is refused.</summary>
+    [Fact]
+    public async Task Create_with_a_cover_from_another_user_returns_400()
+    {
+        await ResetAsync();
+        var payload = MobilePayload();
+        payload["coverObjectKey"] = $"profiles/{Guid.NewGuid()}/photo/x.jpg";
+
+        var response = await _fx.CreateAuthenticatedClient(Guid.NewGuid())
+            .PostAsJsonAsync("/api/v1/matches", payload, Ct);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     // ═══ joining + detail ═════════════════════════════════════════════════════
 
     /// <summary>

@@ -173,6 +173,9 @@ public sealed class CreateMatchRequestValidator : AbstractValidator<CreateMatchR
             .InclusiveBetween(30, 600)
             .When(x => x.DurationMinutes.HasValue);
 
+        RuleFor(x => x.CoverObjectKey)
+            .MaximumLength(256);
+
         RuleFor(x => x.Visibility)
             .Must(v => ValidVisibilities.Contains(v!))
             .WithMessage("Visibility must be 'Open' or 'Private'.")

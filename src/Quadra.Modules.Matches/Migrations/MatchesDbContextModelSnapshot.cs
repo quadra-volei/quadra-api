@@ -38,6 +38,11 @@ namespace Quadra.Modules.Matches.Migrations
                         .HasColumnType("character varying(300)")
                         .HasColumnName("address");
 
+                    b.Property<string>("CoverObjectKey")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("cover_object_key");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")

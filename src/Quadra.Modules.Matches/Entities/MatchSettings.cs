@@ -12,6 +12,7 @@ namespace Quadra.Modules.Matches.Entities;
 /// <param name="InviteMode">How players join a private match; null for an open one.</param>
 /// <param name="PriceMonthly">Monthly price for regulars of a recurring match.</param>
 /// <param name="RecurrenceDays">ISO week days (1 = Monday … 7 = Sunday) a recurring match repeats on.</param>
+/// <param name="CoverObjectKey">Storage key of the cover image the organizer uploaded.</param>
 public sealed record MatchSettings(
     string? Format = null,
     MatchLevel? Level = null,
@@ -19,7 +20,8 @@ public sealed record MatchSettings(
     MatchVisibility Visibility = MatchVisibility.Open,
     MatchInviteMode? InviteMode = null,
     decimal? PriceMonthly = null,
-    IReadOnlyList<int>? RecurrenceDays = null)
+    IReadOnlyList<int>? RecurrenceDays = null,
+    string? CoverObjectKey = null)
 {
     public static readonly IReadOnlyList<string> Formats = ["2X2", "4X4", "6X6"];
 }

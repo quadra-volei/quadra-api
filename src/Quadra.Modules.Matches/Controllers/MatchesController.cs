@@ -96,6 +96,15 @@ public sealed class MatchesController : ControllerBase
             return ValidationProblem(ModelState);
         }
 
+        // ponytail: the cover reuses the profile-photo upload URL (as post photos do), so its key
+        // lives under profiles/{userId}/. Give covers their own prefix if that ever matters.
+        if (!string.IsNullOrWhiteSpace(request.CoverObjectKey)
+            && !request.CoverObjectKey.StartsWith($"profiles/{callerId}/", StringComparison.Ordinal))
+        {
+            ModelState.AddModelError(nameof(request.CoverObjectKey), "The cover must be an image the caller uploaded.");
+            return ValidationProblem(ModelState);
+        }
+
         var command = new CreateMatchCommand(
             OrganizerId: callerId,
             Name: request.Name,
@@ -119,7 +128,8 @@ public sealed class MatchesController : ControllerBase
             InviteMode: request.InviteMode,
             PriceMonthly: request.PriceMonthly,
             RecurrenceDays: request.RecurrenceDays,
-            ConfirmationOpensHoursBefore: request.ConfirmationOpensHoursBefore);
+            ConfirmationOpensHoursBefore: request.ConfirmationOpensHoursBefore,
+            CoverObjectKey: string.IsNullOrWhiteSpace(request.CoverObjectKey) ? null : request.CoverObjectKey);
 
         var match = await _createHandler.HandleAsync(command, cancellationToken);
         var response = ToResponse(match);

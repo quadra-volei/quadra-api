@@ -18,6 +18,7 @@ namespace Quadra.Modules.Matches.Contracts;
 /// <param name="InviteMode"><c>Code | Guests</c> — required for a private match.</param>
 /// <param name="PriceMonthly">Monthly price for regulars; recurring matches only.</param>
 /// <param name="RecurrenceDays">ISO week days (1–7) a recurring match repeats on.</param>
+/// <param name="CoverObjectKey">Key from <c>POST /profiles/me/photo/upload-url</c> of the uploaded cover; must be the caller's.</param>
 /// <param name="ConfirmationOpensHoursBefore">Hours before the match the confirmation window opens (1–168).</param>
 public sealed record CreateMatchRequest(
     string Name,
@@ -41,4 +42,5 @@ public sealed record CreateMatchRequest(
     string? InviteMode = null,
     decimal? PriceMonthly = null,
     IReadOnlyList<int>? RecurrenceDays = null,
-    int? ConfirmationOpensHoursBefore = null);
+    int? ConfirmationOpensHoursBefore = null,
+    string? CoverObjectKey = null);

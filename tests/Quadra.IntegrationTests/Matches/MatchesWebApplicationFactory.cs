@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Quadra.Infrastructure.Messaging;
+using Quadra.Infrastructure.Storage;
 using Quadra.IntegrationTests.Modules.Auth;
 using Quadra.Modules.Auth.Persistence;
 using Quadra.Modules.Matches.Persistence;
@@ -28,11 +29,18 @@ public sealed class MatchesWebApplicationFactory : IAsyncLifetime
 
     public IEventPublisher Publisher { get; private set; } = Substitute.For<IEventPublisher>();
 
+    /// <summary>Photo storage stand-in: a cover read URL is <c>https://s3.test.local/read/{key}</c>.</summary>
+    public IProfilePhotoStorage PhotoStorage { get; } = Substitute.For<IProfilePhotoStorage>();
+
     public WebApplicationFactory<Program> Factory { get; private set; } = default!;
 
     public async ValueTask InitializeAsync()
     {
         await _postgres.StartAsync();
+
+        PhotoStorage
+            .GetReadUrlAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(call => $"https://s3.test.local/read/{call.ArgAt<string>(0)}");
 
         Factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
@@ -62,6 +70,7 @@ public sealed class MatchesWebApplicationFactory : IAsyncLifetime
                 {
                     // Replace IEventPublisher with a substitute so tests can verify event calls.
                     ReplaceService(services, typeof(IEventPublisher), Publisher);
+                    ReplaceService(services, typeof(IProfilePhotoStorage), PhotoStorage);
                 });
             });
 
