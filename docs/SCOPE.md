@@ -24,6 +24,7 @@ Carta do Jogador = PlayerCard · Janela de Confirmação = ConfirmationWindow.
 | Profile (F2.1) | Name, surname, unique `@handle`, birth date, single position, modality, declared level, derived skills (ACE/BLK/ATA/DEF/GERAL), stats, match history, photo by signed URL; level number from accumulated points (attendance +10, win +15, MVP +25; 10 × n × (n − 1) points for level n) | `profiles/me`, `profiles/handle-availability`, `profiles/me/match-history`, `profiles/me/photo/upload-url` |
 | Player card (F2.2) | Card data after 3 matches; premium flag is a stub that always answers `false` | `profiles/me/card` |
 | Group ranking (F2.3) | Points per recurring match: attendance +10, win +15, MVP +25 | `matches/{id}/ranking`, `rankings/mine` |
+| Season ranking | Points from recurring matches played this month (Brasília), among me and who I follow, inside one recurring group, or general (3+ games); optional court position filter; ties share a rank (DECISIONS #63) | `rankings` (`scope`, `groupId`, `position`), `rankings/groups` |
 | Feedback | Stores the app's feedback form, 20 per user per day | `POST feedback` |
 | Rede: feed | A post is a text and/or one photo, optionally tied to a finished match the author played or inviting to an open match still to come (organizer or confirmed player); likes; comments; the organizer of an open match still to come can share it as a card with no text (nothing is posted automatically); everyone's posts or only those of the players the caller follows; 20 posts per user per day | `GET posts` (`scope=following`), `POST posts`, `DELETE posts/{id}`, `PUT / DELETE posts/{id}/like`, `GET / POST posts/{id}/comments`, `DELETE posts/{id}/comments/{commentId}` |
 | Rede: follows | One player follows another, with no approval; followers and following counts | `GET / PUT / DELETE profiles/{userId}/follow` |
@@ -70,13 +71,13 @@ Human rulings (do not implement without a new decision):
 
 Rede (social feed, in scope since 2026-10-09, DECISIONS #40 to #49): each next step waits for
 the owner's approval. Not built yet: followers / following lists, friendship with request,
-blocking, friends ranking, a "moved up in the ranking" card, a match's posts, several photos,
+blocking, a "moved up in the ranking" card, a match's posts, several photos,
 video, posts on a profile, reporting a post, notifications for likes, comments and follows.
 
 Never part of the MVP (Layer 3):
 
 - Courts and arenas (venues, photos, reviews), contacts sync
-- Player search, player rating, city or global ranking
+- Player search, player rating, city ranking
 - Achievements and badges, per-play stats input (serve, block, attack, defense)
 - Payments, cost splitting, microtransactions, organizer premium plan
 - Calendar, Instagram or WhatsApp integration; routes and directions
