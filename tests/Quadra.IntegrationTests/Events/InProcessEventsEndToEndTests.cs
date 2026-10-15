@@ -12,6 +12,7 @@ using Quadra.IntegrationTests.Modules.Auth;
 using Quadra.Modules.Matches.Entities;
 using Quadra.Modules.Matches.Persistence;
 using Testcontainers.PostgreSql;
+using MatchType = Quadra.Modules.Matches.Entities.MatchType;
 
 namespace Quadra.IntegrationTests.Events;
 
@@ -83,6 +84,137 @@ public sealed class InProcessEventsEndToEndTests : IClassFixture<InProcessEvents
             await AddConfirmedPresenceAsync(matchId, player.UserId);
         }
 
+        var teamAPlayers = await PlayAndSummarizeAsync(organizer, players, mvp, matchId);
+
+        // Profile stats: winners got a win, losers a loss, the MVP an MVP award.
+        foreach (var player in players)
+        {
+            var stats = (await GetJsonAsync(player, "/api/v1/profiles/me")).GetProperty("stats");
+            var won = teamAPlayers.Contains(player.UserId);
+
+            stats.GetProperty("matchesPlayed").GetInt32().Should().Be(1);
+            stats.GetProperty("wins").GetInt32().Should().Be(won ? 1 : 0);
+            stats.GetProperty("losses").GetInt32().Should().Be(won ? 0 : 1);
+            stats.GetProperty("mvpsReceived").GetInt32().Should().Be(player == mvp ? 1 : 0);
+        }
+
+        var history = await GetJsonAsync(mvp, "/api/v1/profiles/me/match-history");
+        history.GetProperty("items").GetArrayLength().Should().Be(1);
+        // The history row carries the set score from the player's side.
+        var row = history.GetProperty("items")[0];
+        var (setsWon, setsLost) = (row.GetProperty("setsWon").GetInt32(), row.GetProperty("setsLost").GetInt32());
+        (setsWon + setsLost).Should().BeGreaterThanOrEqualTo(2);
+        (setsWon > setsLost).Should().Be(teamAPlayers.Contains(mvp.UserId));
+
+        // Group ranking: all four participants are ranked with points from this match.
+        var ranking = await GetJsonAsync(organizer, $"/api/v1/matches/{matchId}/ranking");
+        var entries = ranking.GetProperty("items").EnumerateArray().ToList();
+        entries.Select(e => e.GetProperty("userId").GetGuid())
+            .Should().BeEquivalentTo(players.Select(p => p.UserId));
+        entries.Should().OnlyContain(e =>
+            e.GetProperty("totalPoints").GetInt32() > 0 && e.GetProperty("matchesCounted").GetInt32() == 1);
+
+        // "My ranking" finds that group without naming the match, with player names.
+        var mine = await GetJsonAsync(mvp, "/api/v1/rankings/mine?pageSize=4");
+        mine.GetProperty("groupId").GetGuid().Should().Be(matchId);
+        mine.GetProperty("items").EnumerateArray()
+            .Should().HaveCount(4).And.OnlyContain(e => !string.IsNullOrEmpty(e.GetProperty("displayName").GetString()));
+        mine.GetProperty("callerEntry").GetProperty("userId").GetGuid().Should().Be(mvp.UserId);
+
+        // Someone who never scored is in no ranking.
+        var newcomer = await LoginAsync("+5511977770099");
+        (await newcomer.Client.GetAsync("/api/v1/rankings/mine", Ct)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+    }
+
+    /// <summary>
+    /// Covers: DECISIONS #64 — the summary of a recurring game creates the group's next game a
+    /// week later, with everyone who played on it as Pending, and the points of both games add
+    /// up in the group and season rankings.
+    /// </summary>
+    [Fact]
+    public async Task A_recurring_group_goes_on_and_its_ranking_adds_up_across_games()
+    {
+        var organizer = await LoginAsync("+5511933330000");
+        var players = new[]
+        {
+            await LoginAsync("+5511933330001"),
+            await LoginAsync("+5511933330002"),
+            await LoginAsync("+5511933330003"),
+            await LoginAsync("+5511933330004"),
+        };
+        var mvp = players[2];
+
+        var firstId = await CreateRecurringMatchAsync(organizer);
+        foreach (var player in players)
+        {
+            await AddConfirmedPresenceAsync(firstId, player.UserId);
+        }
+
+        await PlayAndSummarizeAsync(organizer, players, mvp, firstId);
+
+        // The next game exists, in the same group, one week after the first was played.
+        using (var scope = _fx.Factory.Services.CreateScope())
+        {
+            var ctx = scope.ServiceProvider.GetRequiredService<MatchesDbContext>();
+            var first = await ctx.Matches.AsNoTracking().SingleAsync(m => m.Id == firstId, Ct);
+            var next = await ctx.Matches.AsNoTracking().SingleAsync(m => m.GroupId == firstId, Ct);
+            next.Name.Should().Be(first.Name);
+            next.Type.Should().Be(MatchType.Recurring);
+            (next.DateTime - first.DateTime).Should().Be(TimeSpan.FromDays(7));
+            var presences = await ctx.Presences.AsNoTracking().Where(p => p.MatchId == next.Id).ToListAsync(Ct);
+            presences.Select(p => p.PlayerId).Should().BeEquivalentTo(players.Select(p => p.UserId));
+            presences.Should().OnlyContain(p => p.Status == PresenceStatus.Pending);
+        }
+
+        var secondId = await NextGameIdAsync(firstId);
+        await ConfirmEveryoneAsync(secondId);
+        await PlayAndSummarizeAsync(organizer, players, mvp, secondId);
+
+        // A third game follows the second, still in the first game's group.
+        (await NextGameIdAsync(firstId, skip: 1)).Should().NotBe(secondId);
+
+        // Both games count in the group: through any of its games, the season and the old route.
+        var season = await GetJsonAsync(mvp, $"/api/v1/rankings?scope=group&groupId={secondId}");
+        season.GetProperty("groupId").GetGuid().Should().Be(firstId);
+        season.GetProperty("items").EnumerateArray()
+            .Should().HaveCount(4).And.OnlyContain(e => e.GetProperty("matches").GetInt32() == 2);
+        season.GetProperty("callerEntry").GetProperty("mvps").GetInt32().Should().Be(2);
+
+        var group = await GetJsonAsync(organizer, $"/api/v1/matches/{secondId}/ranking");
+        group.GetProperty("items").EnumerateArray()
+            .Should().OnlyContain(e => e.GetProperty("matchesCounted").GetInt32() == 2);
+    }
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    private sealed record LoggedInPlayer(Guid UserId, HttpClient Client);
+
+    /// <summary>Logs a phone number in through the real endpoint (fake SMS code).</summary>
+    private async Task<LoggedInPlayer> LoginAsync(string phoneNumber)
+    {
+        var client = _fx.Factory.CreateClient();
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/auth/login/sms-otp",
+            new { step = "verify", phoneNumber, code = TestJwtFactory.FakeOtpCode },
+            Ct);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer", body.GetProperty("accessToken").GetString());
+        return new LoggedInPlayer(body.GetProperty("userId").GetGuid(), client);
+    }
+
+    /// <summary>
+    /// Plays <paramref name="matchId"/> to the end (team A wins 2-0, everyone votes for
+    /// <paramref name="mvp"/>) and generates its summary. Returns team A.
+    /// </summary>
+    private async Task<HashSet<Guid>> PlayAndSummarizeAsync(
+        LoggedInPlayer organizer,
+        LoggedInPlayer[] players,
+        LoggedInPlayer mvp,
+        Guid matchId)
+    {
         await ForceMatchStatusAsync(matchId, "Closed");
 
         (await organizer.Client.PostAsync($"/api/v1/matches/{matchId}/teams/draft", null, Ct))
@@ -125,64 +257,7 @@ public sealed class InProcessEventsEndToEndTests : IClassFixture<InProcessEvents
         (await organizer.Client.PostAsync($"/api/v1/matches/{matchId}/summary", null, Ct))
             .StatusCode.Should().Be(HttpStatusCode.Created);
 
-        // Profile stats: winners got a win, losers a loss, the MVP an MVP award.
-        foreach (var player in players)
-        {
-            var stats = (await GetJsonAsync(player, "/api/v1/profiles/me")).GetProperty("stats");
-            var won = teamAPlayers.Contains(player.UserId);
-
-            stats.GetProperty("matchesPlayed").GetInt32().Should().Be(1);
-            stats.GetProperty("wins").GetInt32().Should().Be(won ? 1 : 0);
-            stats.GetProperty("losses").GetInt32().Should().Be(won ? 0 : 1);
-            stats.GetProperty("mvpsReceived").GetInt32().Should().Be(player == mvp ? 1 : 0);
-        }
-
-        var history = await GetJsonAsync(mvp, "/api/v1/profiles/me/match-history");
-        history.GetProperty("items").GetArrayLength().Should().Be(1);
-        // The history row carries the set score from the player's side.
-        var row = history.GetProperty("items")[0];
-        var (setsWon, setsLost) = (row.GetProperty("setsWon").GetInt32(), row.GetProperty("setsLost").GetInt32());
-        (setsWon + setsLost).Should().BeGreaterThanOrEqualTo(2);
-        (setsWon > setsLost).Should().Be(teamAPlayers.Contains(mvp.UserId));
-
-        // Group ranking: all four participants are ranked with points from this match.
-        var ranking = await GetJsonAsync(organizer, $"/api/v1/matches/{matchId}/ranking");
-        var entries = ranking.GetProperty("items").EnumerateArray().ToList();
-        entries.Select(e => e.GetProperty("userId").GetGuid())
-            .Should().BeEquivalentTo(players.Select(p => p.UserId));
-        entries.Should().OnlyContain(e =>
-            e.GetProperty("totalPoints").GetInt32() > 0 && e.GetProperty("matchesCounted").GetInt32() == 1);
-
-        // "My ranking" finds that group without naming the match, with player names.
-        var mine = await GetJsonAsync(mvp, "/api/v1/rankings/mine?pageSize=4");
-        mine.GetProperty("groupId").GetGuid().Should().Be(matchId);
-        mine.GetProperty("items").EnumerateArray()
-            .Should().HaveCount(4).And.OnlyContain(e => !string.IsNullOrEmpty(e.GetProperty("displayName").GetString()));
-        mine.GetProperty("callerEntry").GetProperty("userId").GetGuid().Should().Be(mvp.UserId);
-
-        // Someone who never scored is in no ranking.
-        var newcomer = await LoginAsync("+5511977770099");
-        (await newcomer.Client.GetAsync("/api/v1/rankings/mine", Ct)).StatusCode.Should().Be(HttpStatusCode.NoContent);
-    }
-
-    // ── helpers ──────────────────────────────────────────────────────────────
-
-    private sealed record LoggedInPlayer(Guid UserId, HttpClient Client);
-
-    /// <summary>Logs a phone number in through the real endpoint (fake SMS code).</summary>
-    private async Task<LoggedInPlayer> LoginAsync(string phoneNumber)
-    {
-        var client = _fx.Factory.CreateClient();
-        var response = await client.PostAsJsonAsync(
-            "/api/v1/auth/login/sms-otp",
-            new { step = "verify", phoneNumber, code = TestJwtFactory.FakeOtpCode },
-            Ct);
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
-            "Bearer", body.GetProperty("accessToken").GetString());
-        return new LoggedInPlayer(body.GetProperty("userId").GetGuid(), client);
+        return teamAPlayers;
     }
 
     private static async Task<JsonElement> GetJsonAsync(LoggedInPlayer player, string url)
@@ -229,6 +304,26 @@ public sealed class InProcessEventsEndToEndTests : IClassFixture<InProcessEvents
         presence.Confirm(now);
         ctx.Presences.Add(presence);
         await ctx.SaveChangesAsync(Ct);
+    }
+
+    /// <summary>The games of the group after its first, in date order; returns the one at <paramref name="skip"/>.</summary>
+    private async Task<Guid> NextGameIdAsync(Guid groupId, int skip = 0)
+    {
+        using var scope = _fx.Factory.Services.CreateScope();
+        var ctx = scope.ServiceProvider.GetRequiredService<MatchesDbContext>();
+        return await ctx.Matches.AsNoTracking()
+            .Where(m => m.GroupId == groupId)
+            .OrderBy(m => m.DateTime)
+            .Select(m => m.Id)
+            .Skip(skip)
+            .FirstAsync(Ct);
+    }
+
+    private async Task ConfirmEveryoneAsync(Guid matchId)
+    {
+        using var scope = _fx.Factory.Services.CreateScope();
+        var ctx = scope.ServiceProvider.GetRequiredService<MatchesDbContext>();
+        await ctx.Database.ExecuteSqlRawAsync("UPDATE match_presences SET status = 'Confirmed', confirmed_at = now() WHERE match_id = {0}", matchId);
     }
 
     private async Task ForceMatchStatusAsync(Guid matchId, string status)

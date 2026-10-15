@@ -26,6 +26,7 @@ public sealed class GenerateMatchSummaryHandler
     private readonly IEventPublisher _eventPublisher;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<GenerateMatchSummaryHandler> _logger;
+    private readonly ScheduleNextGameHandler _nextGame;
 
     public GenerateMatchSummaryHandler(
         IMatchRepository matchRepository,
@@ -33,8 +34,10 @@ public sealed class GenerateMatchSummaryHandler
         IMatchResultReader matchResultReader,
         IEventPublisher eventPublisher,
         TimeProvider timeProvider,
-        ILogger<GenerateMatchSummaryHandler> logger)
+        ILogger<GenerateMatchSummaryHandler> logger,
+        ScheduleNextGameHandler nextGame)
     {
+        _nextGame = nextGame;
         _matchRepository = matchRepository;
         _summaryRepository = summaryRepository;
         _matchResultReader = matchResultReader;
@@ -148,7 +151,13 @@ public sealed class GenerateMatchSummaryHandler
                 cancellationToken);
         }
 
-        // 12. Map and return.
+        // 12. A recurring group goes on: its next game is created (DECISIONS #64).
+        if (statusChanged)
+        {
+            await _nextGame.ScheduleAsync(match, cancellationToken);
+        }
+
+        // 13. Map and return.
         return GetMatchSummaryHandler.MapToResponse(summary);
     }
 }

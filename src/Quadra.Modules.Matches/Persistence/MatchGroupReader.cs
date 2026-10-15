@@ -5,8 +5,8 @@ namespace Quadra.Modules.Matches.Persistence;
 
 /// <summary>
 /// Read-only EF query adapter that implements <see cref="IMatchGroupReader"/> over the
-/// <c>matches</c> table. In the MVP the recurring <c>matches</c> row <i>is</i> the group, so the
-/// returned <see cref="MatchGroupDescriptor.GroupId"/> equals the match id (SCOPE ruling 2026-07-03).
+/// <c>matches</c> table. The returned <see cref="MatchGroupDescriptor.GroupId"/> is the id of the
+/// recurring group's first game (the match's own id for a first game or a one-off).
 /// </summary>
 public sealed class MatchGroupReader : IMatchGroupReader
 {
@@ -25,7 +25,7 @@ public sealed class MatchGroupReader : IMatchGroupReader
         var row = await _context.Matches
             .AsNoTracking()
             .Where(m => m.Id == matchId)
-            .Select(m => new { m.Id, m.Type, m.Name, m.DateTime })
+            .Select(m => new { m.Id, m.GroupId, m.Type, m.Name, m.DateTime })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (row is null)
@@ -33,8 +33,7 @@ public sealed class MatchGroupReader : IMatchGroupReader
             return null;
         }
 
-        // GroupId == MatchId in the MVP; the column is kept distinct so a future recurring-occurrence
-        // model can repoint it with no schema change.
-        return new MatchGroupDescriptor(row.Id, row.Id, row.Type.ToString(), row.Name, row.DateTime);
+        // A recurring group is its first game's id; later games point at it (DECISIONS #64).
+        return new MatchGroupDescriptor(row.Id, row.GroupId ?? row.Id, row.Type.ToString(), row.Name, row.DateTime);
     }
 }

@@ -81,6 +81,10 @@ namespace Quadra.Modules.Matches.Migrations
                         .HasColumnType("character varying(16)")
                         .HasColumnName("frequency");
 
+                    b.Property<Guid?>("GroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("group_id");
+
                     b.Property<string>("InviteCode")
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)")
@@ -175,6 +179,9 @@ namespace Quadra.Modules.Matches.Migrations
 
                     b.HasIndex("DateTime")
                         .HasDatabaseName("ix_matches_date_time");
+
+                    b.HasIndex("GroupId")
+                        .HasDatabaseName("ix_matches_group_id");
 
                     b.HasIndex("Location")
                         .HasDatabaseName("ix_matches_location_gist");

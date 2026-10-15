@@ -45,16 +45,22 @@ public sealed class GetRankingHandler
         var (seasonStart, seasonEnd) = CurrentSeason(_clock.GetUtcNow());
 
         string? groupName = null;
+        Guid? groupId = null;
         IReadOnlyCollection<Guid>? userIds = null;
         if (query.Scope == RankingScopes.Group)
         {
-            var groupId = query.GroupId!.Value;
-            var group = await _groups.GetMatchGroupAsync(groupId, cancellationToken);
-            if (group is null || !await _access.CanViewAsync(groupId, callerId, cancellationToken))
+            // groupId may be any game of the group (the app sends the game it shows). The caller
+            // sees the ranking when they may see that game or have scored in the group.
+            var matchId = query.GroupId!.Value;
+            var group = await _groups.GetMatchGroupAsync(matchId, cancellationToken);
+            if (group is null
+                || (!await _access.CanViewAsync(matchId, callerId, cancellationToken)
+                    && !(await _points.GetGroupIdsAsync(callerId, cancellationToken)).Contains(group.GroupId)))
             {
                 return null;
             }
 
+            groupId = group.GroupId;
             groupName = group.Name;
         }
         else if (query.Scope == RankingScopes.Friends)
@@ -64,7 +70,7 @@ public sealed class GetRankingHandler
 
         var totals = await _points.GetTotalsSinceAsync(
             seasonStart,
-            query.Scope == RankingScopes.Group ? query.GroupId : null,
+            groupId,
             userIds,
             cancellationToken);
 
@@ -85,7 +91,7 @@ public sealed class GetRankingHandler
         var items = board.Skip((query.Page - 1) * query.PageSize).Take(query.PageSize).ToList();
         return new RankingResponse(
             query.Scope,
-            query.Scope == RankingScopes.Group ? query.GroupId : null,
+            groupId,
             groupName,
             query.Position,
             seasonStart,

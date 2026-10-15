@@ -115,7 +115,8 @@ the workspace root `.claude/`, also outside git: start Claude from the workspace
   direction.
 - Do not add a NuGet package, change the stack or add a feature listed as out of the MVP
   without asking.
-- Do not generate future occurrences of a recurring match (ruling of 2026-07-03).
+- Do not generate more than the next game of a recurring group: it is created only when the
+  previous game's summary is generated (DECISIONS #64), never a calendar of future games.
 - No generic repositories, no service locator outside the composition root, no
   `catch (Exception)` that swallows.
 - When unsure about scope or stack, stop and ask instead of inventing a decision.
