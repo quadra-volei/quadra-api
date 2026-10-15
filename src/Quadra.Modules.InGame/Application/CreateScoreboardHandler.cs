@@ -57,6 +57,9 @@ public sealed class CreateScoreboardHandler
                 "A scoreboard can only be created once confirmations have opened and teams are formed.");
         }
 
+        // 3b. No game before the match happens (no farming points ahead of kickoff).
+        Kickoff.EnsureReached(matchSummary.StartsAt, _timeProvider.GetUtcNow());
+
         // 4. Load teams; must have the two formed teams.
         var teams = await _teamRepository.ListByMatchAsync(matchId, cancellationToken);
         if (teams.Count < 2)

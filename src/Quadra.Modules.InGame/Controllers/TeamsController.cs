@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Quadra.Modules.InGame.Application;
 using Quadra.Modules.InGame.Contracts;
+using Quadra.Shared.Contracts;
 
 namespace Quadra.Modules.InGame.Controllers;
 
@@ -77,8 +78,14 @@ public sealed class TeamsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<TeamsResponse>> GetTeams(
         Guid matchId,
+        [FromServices] IMatchAccessReader access,
         CancellationToken cancellationToken)
     {
+        if (!TryGetCallerId(out var callerId) || !await access.CanViewAsync(matchId, callerId, cancellationToken))
+        {
+            return NotFound();
+        }
+
         try
         {
             var response = await _getHandler.HandleAsync(matchId, cancellationToken);

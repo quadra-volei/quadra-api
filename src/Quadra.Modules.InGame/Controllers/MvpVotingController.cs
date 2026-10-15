@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Quadra.Modules.InGame.Application;
 using Quadra.Modules.InGame.Contracts;
+using Quadra.Shared.Contracts;
 
 namespace Quadra.Modules.InGame.Controllers;
 
@@ -186,11 +187,17 @@ public sealed class MvpVotingController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<MvpVotingResponse>> GetVoting(
         Guid matchId,
+        [FromServices] IMatchAccessReader access,
         CancellationToken cancellationToken)
     {
         if (!TryGetCallerId(out var callerId))
         {
             return Unauthorized();
+        }
+
+        if (!await access.CanViewAsync(matchId, callerId, cancellationToken))
+        {
+            return NotFound();
         }
 
         try

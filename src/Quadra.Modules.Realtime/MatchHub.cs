@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Quadra.Shared.Contracts;
 using Quadra.Shared.Realtime;
 
 namespace Quadra.Modules.Realtime;
@@ -26,8 +27,24 @@ public sealed class MatchHub : Hub
 
     public static string RoomOf(Guid matchId) => $"match:{matchId:N}";
 
-    public Task JoinMatchRoom(Guid matchId) =>
-        Groups.AddToGroupAsync(Context.ConnectionId, RoomOf(matchId), Context.ConnectionAborted);
+    private readonly IMatchAccessReader _access;
+
+    public MatchHub(IMatchAccessReader access)
+    {
+        _access = access;
+    }
+
+    /// <summary>Joins the room of a match the caller may see (CanViewMatch); refused otherwise.</summary>
+    public async Task JoinMatchRoom(Guid matchId)
+    {
+        if (!Guid.TryParse(Context.UserIdentifier, out var callerId)
+            || !await _access.CanViewAsync(matchId, callerId, Context.ConnectionAborted))
+        {
+            throw new HubException("Match not found.");
+        }
+
+        await Groups.AddToGroupAsync(Context.ConnectionId, RoomOf(matchId), Context.ConnectionAborted);
+    }
 
     public Task LeaveMatchRoom(Guid matchId) =>
         Groups.RemoveFromGroupAsync(Context.ConnectionId, RoomOf(matchId), Context.ConnectionAborted);

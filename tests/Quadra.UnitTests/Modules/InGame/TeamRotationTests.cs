@@ -38,7 +38,7 @@ public sealed class TeamRotationTests
     public TeamRotationTests()
     {
         _matchReader.FindMatchSummaryAsync(MatchId, Arg.Any<CancellationToken>())
-            .Returns(new MatchSummary(MatchId, Organizer, "Open"));
+            .Returns(new MatchSummary(MatchId, Organizer, "Open", DateTimeOffset.UtcNow.AddHours(-1)));
         _levels.GetPlayerLevelsAsync(Arg.Any<IReadOnlyList<Guid>>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<Guid, string>());
         _confirmedPlayers.GetGuestIdsAsync(MatchId, Arg.Any<CancellationToken>()).Returns([]);

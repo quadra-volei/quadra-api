@@ -194,7 +194,7 @@ public sealed class ProfilesController : ControllerBase
             return Unauthorized();
         }
 
-        return await GetMatchHistoryAsync(callerId, page, pageSize, cancellationToken);
+        return await GetMatchHistoryAsync(callerId, callerId, page, pageSize, cancellationToken);
     }
 
     /// <summary>GET /api/v1/profiles/{userId}/match-history</summary>
@@ -205,7 +205,12 @@ public sealed class ProfilesController : ControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        return await GetMatchHistoryAsync(userId, page, pageSize, cancellationToken);
+        if (!TryGetCallerId(out var callerId))
+        {
+            return Unauthorized();
+        }
+
+        return await GetMatchHistoryAsync(userId, callerId, page, pageSize, cancellationToken);
     }
 
     /// <summary>GET /api/v1/profiles/me/card</summary>
@@ -251,6 +256,7 @@ public sealed class ProfilesController : ControllerBase
 
     private async Task<ActionResult<PagedResponse<MatchHistoryEntryResponse>>> GetMatchHistoryAsync(
         Guid userId,
+        Guid callerId,
         int page,
         int pageSize,
         CancellationToken cancellationToken)
@@ -264,7 +270,7 @@ public sealed class ProfilesController : ControllerBase
 
         try
         {
-            return Ok(await _getMatchHistoryHandler.HandleAsync(userId, page, pageSize, cancellationToken));
+            return Ok(await _getMatchHistoryHandler.HandleAsync(userId, callerId, page, pageSize, cancellationToken));
         }
         catch (ProfileNotFoundException)
         {

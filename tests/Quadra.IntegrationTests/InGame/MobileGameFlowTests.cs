@@ -44,7 +44,7 @@ public sealed class MobileGameFlowTests : IClassFixture<InGameWebApplicationFact
             address = "Arena Central",
             latitude = -23.55,
             longitude = -46.63,
-            dateTime = DateTimeOffset.UtcNow.AddHours(2),
+            dateTime = DateTimeOffset.UtcNow.AddMinutes(10),
             maxPlayers = 12,
             regularSlots = 12,
             type = "OneOff",

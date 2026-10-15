@@ -20,12 +20,13 @@ Carta do Jogador = PlayerCard · Janela de Confirmação = ConfirmationWindow.
 | Summary (F1.6) | Immutable summary; generating it is what records stats, history and ranking points | `matches/{id}/summary` |
 | Map (F1.7) | Nearby matches by radius (PostGIS), including drafts; private matches never listed | `matches/nearby` |
 | Address search | Proxy to Google Places or Photon, restricted to Brazil | `places/autocomplete`, `places/{id}` |
-| Profile (F2.1) | Name, surname, unique `@handle`, birth date, single position, modality, declared level, derived skills (ACE/BLK/ATA/DEF/GERAL), stats, match history, photo by signed URL | `profiles/me`, `profiles/handle-availability`, `profiles/me/match-history`, `profiles/me/photo/upload-url` |
+| Profile (F2.1) | Name, surname, unique `@handle`, birth date, single position, modality, declared level, derived skills (ACE/BLK/ATA/DEF/GERAL), stats, match history, photo by signed URL; level number from accumulated points (attendance +10, win +15, MVP +25; 10 × n × (n − 1) points for level n) | `profiles/me`, `profiles/handle-availability`, `profiles/me/match-history`, `profiles/me/photo/upload-url` |
 | Player card (F2.2) | Card data after 3 matches; premium flag is a stub that always answers `false` | `profiles/me/card` |
 | Group ranking (F2.3) | Points per recurring match: attendance +10, win +15, MVP +25 | `matches/{id}/ranking`, `rankings/mine` |
 | Feedback | Stores the app's feedback form, 20 per user per day | `POST feedback` |
 | Rede: feed | A post is a text and/or one photo, optionally tied to a finished match the author played or inviting to an open match still to come (organizer or confirmed player); likes; comments; the organizer of an open match still to come can share it as a card with no text (nothing is posted automatically); everyone's posts or only those of the players the caller follows; 20 posts per user per day | `GET posts` (`scope=following`), `POST posts`, `DELETE posts/{id}`, `PUT / DELETE posts/{id}/like`, `GET / POST posts/{id}/comments`, `DELETE posts/{id}/comments/{commentId}` |
 | Rede: follows | One player follows another, with no approval; followers and following counts | `GET / PUT / DELETE profiles/{userId}/follow` |
+| Friends' activity | What the players I follow did (started or finished an open match, MVP, new level number), recorded from the game events, 30 days, grouped "started", sharing switch on by default (DECISIONS #57 to #60) | `GET activities`, `PUT profiles/me/activity-sharing` |
 
 ## Pending
 
@@ -43,8 +44,8 @@ Needs code:
 - **Push notifications** (planned: Expo Push): nothing implemented.
 - **Summary of a game with rotating teams** does not record which pair played each set
   (DECISIONS #30).
-- **Per-player stats and XP**: the score is recorded by team; the app shows zeros in
-  "Meu desempenho" and a fixed Level/XP bar.
+- **Per-player stats**: the score is recorded by team; the app shows zeros in "Meu desempenho".
+  (Level number and points exist since DECISIONS #57.)
 - **Event retry**: a failed in-process handler is logged and not retried (no outbox).
 - **Cleanup**: the `Aws:Sqs:*` settings are still required at startup although nothing is
   sent; the Redis packages and the `Quadra.Workers.*` projects are unused.
@@ -57,7 +58,8 @@ Human rulings (do not implement without a new decision):
   recurring `matches` row and no future occurrences are generated. So a ranking holds the
   points of one game, and the following stay out until an occurrence model exists: the
   3-match streak bonus (+20) and any multi-week accumulation. Do not ship dormant streak code.
-- **`player_xp` lifetime accumulator**: cut (2026-07-03); it only serves the city ranking.
+- **`player_xp` lifetime accumulator**: cut (2026-07-03); it only served the city ranking. The
+  level number (DECISIONS #57) is derived from the stats instead, with no new table.
 - **One-off matches earn no ranking points**; the ranking endpoint answers `409` for them.
 - **Premium**: no table or column; only the `IPremiumStatusReader` stub. No billing.
 - **+5 "first match as DropIn" bonus**: not in the MVP.

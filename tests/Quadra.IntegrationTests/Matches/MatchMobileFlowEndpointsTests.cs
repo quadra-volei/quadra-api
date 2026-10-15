@@ -290,13 +290,16 @@ public sealed class MatchMobileFlowEndpointsTests : IClassFixture<MatchesWebAppl
 
         var code = (await DetailAsync(matchId, organizer)).GetProperty("inviteCode").GetString();
         code.Should().HaveLength(8);
-        var seenByInvited = await DetailAsync(matchId, invited);
-        seenByInvited.GetProperty("inviteCode").ValueKind.Should().Be(JsonValueKind.Null);
-        seenByInvited.GetProperty("canJoin").GetBoolean().Should().BeFalse();
+        // Until they join, the private match does not exist for them (CanViewMatch).
+        (await _fx.CreateAuthenticatedClient(invited).GetAsync($"/api/v1/matches/{matchId}/detail", Ct))
+            .StatusCode.Should().Be(HttpStatusCode.NotFound);
 
         (await ConfirmAsync(matchId, invited)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
         (await ConfirmAsync(matchId, invited, "WRONG123")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
         (await ConfirmAsync(matchId, invited, code)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var seenByInvited = await DetailAsync(matchId, invited);
+        seenByInvited.GetProperty("inviteCode").ValueKind.Should().Be(JsonValueKind.Null);
     }
 
     // ═══ guests ═══════════════════════════════════════════════════════════════

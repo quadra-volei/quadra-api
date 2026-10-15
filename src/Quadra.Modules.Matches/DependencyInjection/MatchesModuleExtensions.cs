@@ -89,6 +89,7 @@ public static class MatchesModuleExtensions
         services.AddScoped<IMatchInviteReader, MatchInviteReader>();
         services.AddScoped<IMatchCoverReader, MatchCoverReader>();
         services.AddScoped<IMatchGroupReader, MatchGroupReader>();
+        services.AddScoped<IMatchAccessReader, MatchAccessReader>();
 
         services.AddScoped<CreateMatchHandler>();
         services.AddScoped<GetMatchHandler>();

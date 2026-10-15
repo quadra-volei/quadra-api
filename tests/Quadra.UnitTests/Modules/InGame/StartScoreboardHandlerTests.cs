@@ -41,9 +41,9 @@ public sealed class StartScoreboardHandlerTests
         new(_matchReader, _scoreboardRepository, _eventPublisher, _notifier, _timeProvider,
             NullLogger<StartScoreboardHandler>.Instance);
 
-    private void SetupMatch(Guid matchId, Guid organizerId, string status = "Closed") =>
+    private void SetupMatch(Guid matchId, Guid organizerId, string status = "Closed", DateTimeOffset? startsAt = null) =>
         _matchReader.FindMatchSummaryAsync(matchId, Arg.Any<CancellationToken>())
-            .Returns(new MatchSummary(matchId, organizerId, status));
+            .Returns(new MatchSummary(matchId, organizerId, status, startsAt ?? FixedNow.AddHours(-1)));
 
     private Scoreboard NewScoreboard(Guid matchId) =>
         Scoreboard.Create(matchId, ScoreboardFormat.BestOf3, TeamA, TeamB, FixedNow);
@@ -70,6 +70,33 @@ public sealed class StartScoreboardHandlerTests
 
         var act = async () => await CreateSut().HandleAsync(matchId, Other, CancellationToken.None);
         await act.Should().ThrowAsync<MatchAccessDeniedException>();
+    }
+
+    /// <summary>SEC-06: the game cannot start more than 15 minutes before the match time.</summary>
+    [Fact]
+    public async Task HandleAsync_throws_MatchNotStartedYet_before_kickoff_tolerance()
+    {
+        var matchId = Guid.NewGuid();
+        SetupMatch(matchId, Organizer, startsAt: FixedNow.AddMinutes(16));
+        _scoreboardRepository.FindByMatchAsync(matchId, Arg.Any<CancellationToken>()).Returns(NewScoreboard(matchId));
+
+        var act = async () => await CreateSut().HandleAsync(matchId, Organizer, CancellationToken.None);
+
+        await act.Should().ThrowAsync<MatchNotStartedYetException>();
+        await _scoreboardRepository.DidNotReceive().UpdateAsync(Arg.Any<Scoreboard>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>SEC-06: within the 15-minute tolerance the game starts.</summary>
+    [Fact]
+    public async Task HandleAsync_starts_within_kickoff_tolerance()
+    {
+        var matchId = Guid.NewGuid();
+        SetupMatch(matchId, Organizer, startsAt: FixedNow.AddMinutes(15));
+        _scoreboardRepository.FindByMatchAsync(matchId, Arg.Any<CancellationToken>()).Returns(NewScoreboard(matchId));
+
+        var response = await CreateSut().HandleAsync(matchId, Organizer, CancellationToken.None);
+
+        response.State.Should().Be(ScoreboardState.InProgress.ToString());
     }
 
     /// <summary>Covers: F1.4 — 404 when no scoreboard exists for the match.</summary>

@@ -88,7 +88,7 @@ public sealed class ScoreboardEndpointsTests : IClassFixture<InGameWebApplicatio
         using var scope = _fx.Factory.Services.CreateScope();
         var ctx = scope.ServiceProvider.GetRequiredService<MatchesDbContext>();
         await ctx.Database.ExecuteSqlAsync(
-            $"UPDATE matches SET status = 'Closed' WHERE id = {matchId}",
+            $"UPDATE matches SET status = 'Closed', date_time = now() WHERE id = {matchId}",
             TestContext.Current.CancellationToken);
     }
 

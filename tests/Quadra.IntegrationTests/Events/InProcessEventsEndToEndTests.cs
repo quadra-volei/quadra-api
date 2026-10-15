@@ -235,7 +235,7 @@ public sealed class InProcessEventsEndToEndTests : IClassFixture<InProcessEvents
     {
         using var scope = _fx.Factory.Services.CreateScope();
         var ctx = scope.ServiceProvider.GetRequiredService<MatchesDbContext>();
-        await ctx.Database.ExecuteSqlRawAsync("UPDATE matches SET status = {0} WHERE id = {1}", status, matchId);
+        await ctx.Database.ExecuteSqlRawAsync("UPDATE matches SET status = {0}, date_time = now() WHERE id = {1}", status, matchId);
     }
 
     private static async Task<(Guid TeamAId, HashSet<Guid> PlayerIds)> GetTeamAAsync(

@@ -44,7 +44,8 @@ public sealed class MatchRepository : IMatchRepository
         ListMatchesFilter filter,
         CancellationToken cancellationToken)
     {
-        var query = _context.Matches.AsNoTracking();
+        // Others' private matches are never listed (CanViewMatch).
+        var query = _context.VisibleTo(filter.CallerId);
 
         if (filter.OrganizerId.HasValue)
         {

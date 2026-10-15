@@ -162,10 +162,14 @@ public sealed class Scoreboard
     }
 
     /// <summary>
-    /// Appends sets loaded externally (used by the repository after a query).
+    /// Sets the sets loaded externally (used by the repository after a query). Replaces, never
+    /// appends: the scoreboard is change-tracked, so a second read in the same scope returns this
+    /// same instance and would otherwise count every set twice.
     /// </summary>
     internal void AttachSets(IEnumerable<ScoreboardSet> sets)
     {
-        _sets.AddRange(sets);
+        var loaded = sets.ToList();
+        _sets.Clear();
+        _sets.AddRange(loaded);
     }
 }
