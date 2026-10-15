@@ -215,6 +215,51 @@ public sealed class Match
     }
 
     /// <summary>
+    /// Organizer edit of the match details. Type (one-off / recurring), visibility and invite mode
+    /// stay as created. Moving the date moves the confirmation window by the same amount.
+    /// Only while <see cref="MatchStatus.Draft"/> or <see cref="MatchStatus.Open"/>; the caller
+    /// checks that the slots still fit who has confirmed and that the game has not started.
+    /// </summary>
+    public void Update(MatchEdit edit, DateTimeOffset now)
+    {
+        if (Status is not (MatchStatus.Draft or MatchStatus.Open))
+        {
+            throw new InvalidMatchStatusTransitionException(
+                $"Cannot edit a match with status '{Status}'. Only Draft or Open matches can be edited.");
+        }
+
+        var shift = edit.DateTime - DateTime;
+        WindowOpensAt += shift;
+        WindowClosesAt += shift;
+
+        Name = edit.Name;
+        Description = edit.Description;
+        Address = edit.Address;
+        Location = new Point(edit.Longitude, edit.Latitude) { SRID = 4326 };
+        DateTime = edit.DateTime;
+        MaxPlayers = (short)edit.MaxPlayers;
+        RegularSlots = (short)edit.RegularSlots;
+        DropInSlots = (short)(edit.MaxPlayers - edit.RegularSlots);
+        Price = edit.Price;
+        Format = edit.Format;
+        Level = edit.Level;
+        DurationMinutes = edit.DurationMinutes.HasValue ? (short)edit.DurationMinutes.Value : null;
+        CoverObjectKey = edit.CoverObjectKey;
+
+        if (Type == MatchType.Recurring)
+        {
+            PriceMonthly = edit.PriceMonthly;
+            if (edit.RecurrenceDays is { Count: > 0 } days)
+            {
+                RecurrenceDays = days.Distinct().Order().ToArray();
+                DayOfWeek = (short)RecurrenceDays[0];
+            }
+        }
+
+        UpdatedAt = now;
+    }
+
+    /// <summary>
     /// Transitions the match to <see cref="MatchStatus.Cancelled"/>.
     /// Throws <see cref="InvalidMatchStatusTransitionException"/> if the match is
     /// <see cref="MatchStatus.InProgress"/> or <see cref="MatchStatus.Ended"/> (terminal states).

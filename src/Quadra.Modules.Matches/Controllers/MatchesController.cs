@@ -23,6 +23,8 @@ public sealed class MatchesController : ControllerBase
     private readonly GetMatchHandler _getHandler;
     private readonly ListMatchesHandler _listHandler;
     private readonly CancelMatchHandler _cancelHandler;
+    private readonly UpdateMatchHandler _updateHandler;
+    private readonly IValidator<UpdateMatchRequest> _updateValidator;
     private readonly AddPresenceHandler _addPresenceHandler;
     private readonly UpdateMyPresenceHandler _updateMyPresenceHandler;
     private readonly GetPresenceListHandler _getPresenceListHandler;
@@ -43,6 +45,8 @@ public sealed class MatchesController : ControllerBase
         GetMatchHandler getHandler,
         ListMatchesHandler listHandler,
         CancelMatchHandler cancelHandler,
+        UpdateMatchHandler updateHandler,
+        IValidator<UpdateMatchRequest> updateValidator,
         AddPresenceHandler addPresenceHandler,
         UpdateMyPresenceHandler updateMyPresenceHandler,
         GetPresenceListHandler getPresenceListHandler,
@@ -62,6 +66,8 @@ public sealed class MatchesController : ControllerBase
         _getHandler = getHandler;
         _listHandler = listHandler;
         _cancelHandler = cancelHandler;
+        _updateHandler = updateHandler;
+        _updateValidator = updateValidator;
         _addPresenceHandler = addPresenceHandler;
         _updateMyPresenceHandler = updateMyPresenceHandler;
         _getPresenceListHandler = getPresenceListHandler;
@@ -196,7 +202,71 @@ public sealed class MatchesController : ControllerBase
         return Ok(response);
     }
 
-    /// <summary>DELETE /api/v1/matches/{id}</summary>
+    /// <summary>
+    /// PUT /api/v1/matches/{id} — the organizer edits the match until its game starts.
+    /// </summary>
+    [HttpPut("{id:guid}")]
+    public async Task<ActionResult<MatchResponse>> Update(
+        Guid id,
+        [FromBody] UpdateMatchRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCallerId(out var callerId))
+        {
+            return Unauthorized();
+        }
+
+        // A match the caller may not see answers 404 here too, so a write does not reveal it.
+        if (!await _access.CanViewAsync(id, callerId, cancellationToken))
+        {
+            return NotFound();
+        }
+
+        var validation = await _updateValidator.ValidateAsync(request, cancellationToken);
+        if (!validation.IsValid)
+        {
+            foreach (var failure in validation.Errors)
+            {
+                ModelState.AddModelError(failure.PropertyName, failure.ErrorMessage);
+            }
+
+            return ValidationProblem(ModelState);
+        }
+
+        if (!string.IsNullOrEmpty(request.CoverObjectKey)
+            && !request.CoverObjectKey.StartsWith($"profiles/{callerId}/", StringComparison.Ordinal))
+        {
+            ModelState.AddModelError(nameof(request.CoverObjectKey), "The cover must be an image the caller uploaded.");
+            return ValidationProblem(ModelState);
+        }
+
+        try
+        {
+            var match = await _updateHandler.HandleAsync(id, callerId, request, cancellationToken);
+            return Ok(ToResponse(match));
+        }
+        catch (MatchNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (MatchAccessDeniedException)
+        {
+            return Forbid();
+        }
+        catch (InvalidMatchStatusTransitionException ex)
+        {
+            return Conflict(new ProblemDetails { Detail = ex.Message });
+        }
+        catch (MatchSlotsBelowConfirmedException ex)
+        {
+            return Conflict(new ProblemDetails { Detail = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// DELETE /api/v1/matches/{id} — the organizer cancels the match (kept as Cancelled) until
+    /// its game starts.
+    /// </summary>
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Cancel(
         Guid id,
@@ -205,6 +275,11 @@ public sealed class MatchesController : ControllerBase
         if (!TryGetCallerId(out var callerId))
         {
             return Unauthorized();
+        }
+
+        if (!await _access.CanViewAsync(id, callerId, cancellationToken))
+        {
+            return NotFound();
         }
 
         try
@@ -220,9 +295,9 @@ public sealed class MatchesController : ControllerBase
         {
             return Forbid();
         }
-        catch (InvalidMatchStatusTransitionException)
+        catch (InvalidMatchStatusTransitionException ex)
         {
-            return Conflict();
+            return Conflict(new ProblemDetails { Detail = ex.Message });
         }
     }
 

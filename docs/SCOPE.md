@@ -13,6 +13,7 @@ Carta do Jogador = PlayerCard · Janela de Confirmação = ConfirmationWindow.
 | --- | --- | --- |
 | Auth (FA.1, FA.3) | SMS OTP (6 digits) and Google login; the first valid login creates the user; own JWT + rotating refresh token; logout | `auth/login/sms-otp`, `auth/login/google`, `auth/refresh`, `auth/logout`, `auth/me` |
 | Match creation (F1.1) | Recurring or one-off match with format, level, duration, prices, visibility (open / private by code / private by guests), confirmations open from creation (an explicit window or "opens N hours before" still accepted); optional cover photo (key from the profile-photo upload, read URL in the detail) | `POST matches`, `GET matches/mine`, `GET matches/{id}/detail` |
+| Edit and cancel | The organizer edits the details (not type nor visibility) and cancels until the game starts; slots never below the confirmed players | `PUT matches/{id}`, `DELETE matches/{id}` |
 | Presence (F1.2) | Confirm / decline, self-enrollment by confirming, Regular vs DropIn slots, waiting list, guests without an account, window opened and closed by the clock | `PUT matches/{id}/presences/me`, `matches/{id}/guests` |
 | Teams (F1.3) | 2 to 4 teams, balanced or random draw, guests drawn in, manual adjustment | `matches/{id}/teams/draft`, `PUT matches/{id}/teams/{teamId}/members/{playerId}` |
 | Scoreboard (F1.4) | Sets best of 3 or 5, pair of teams per set (rotation), end set early, undo last point, live updates over SignalR | `matches/{id}/scoreboard/…`, hub `/hubs/match` |

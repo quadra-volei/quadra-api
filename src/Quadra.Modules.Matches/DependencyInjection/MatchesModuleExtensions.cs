@@ -95,6 +95,7 @@ public static class MatchesModuleExtensions
         services.AddScoped<GetMatchHandler>();
         services.AddScoped<ListMatchesHandler>();
         services.AddScoped<CancelMatchHandler>();
+        services.AddScoped<UpdateMatchHandler>();
         services.AddScoped<AddPresenceHandler>();
         services.AddScoped<UpdateMyPresenceHandler>();
         services.AddScoped<GetPresenceListHandler>();
@@ -110,6 +111,7 @@ public static class MatchesModuleExtensions
         services.AddScoped<RemoveMatchGuestHandler>();
 
         services.AddScoped<IValidator<CreateMatchRequest>, CreateMatchRequestValidator>();
+        services.AddScoped<IValidator<UpdateMatchRequest>, UpdateMatchRequestValidator>();
         services.AddScoped<IValidator<ListMatchesQuery>, ListMatchesQueryValidator>();
         services.AddScoped<IValidator<AddPresenceRequest>, AddPresenceRequestValidator>();
         services.AddScoped<IValidator<UpdateMyPresenceRequest>, UpdateMyPresenceRequestValidator>();
