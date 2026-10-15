@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Quadra.Modules.Matches.Application;
 using Quadra.Modules.Matches.Contracts;
+using Quadra.Shared.Contracts;
 
 namespace Quadra.Modules.Matches.Controllers;
 
@@ -72,8 +73,14 @@ public sealed class MatchSummaryController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<MatchSummaryResponse>> GetSummary(
         Guid matchId,
+        [FromServices] IMatchAccessReader access,
         CancellationToken cancellationToken)
     {
+        if (!TryGetCallerId(out var callerId) || !await access.CanViewAsync(matchId, callerId, cancellationToken))
+        {
+            return NotFound();
+        }
+
         try
         {
             var response = await _getHandler.HandleAsync(matchId, cancellationToken);

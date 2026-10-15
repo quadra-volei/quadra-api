@@ -54,3 +54,34 @@ public sealed class SetNotCurrentException : Exception
     public SetNotCurrentException()
         : base("Points can only be recorded for the current set.") { }
 }
+
+/// <summary>
+/// Thrown when the organizer tries to create or start the scoreboard too long before the match's
+/// scheduled time (see <see cref="Kickoff.Tolerance"/>): a game cannot be recorded, nor points
+/// credited, before it happens.
+/// </summary>
+public sealed class MatchNotStartedYetException : Exception
+{
+    public MatchNotStartedYetException(DateTimeOffset startsAt)
+        : base($"The game can only start from {Kickoff.Tolerance.TotalMinutes:0} minutes before the match time.")
+    {
+        StartsAt = startsAt;
+    }
+
+    public DateTimeOffset StartsAt { get; }
+}
+
+/// <summary>When the organizer may put a match's game on court.</summary>
+public static class Kickoff
+{
+    /// <summary>How long before the scheduled time the scoreboard may be created and started.</summary>
+    public static readonly TimeSpan Tolerance = TimeSpan.FromMinutes(15);
+
+    public static void EnsureReached(DateTimeOffset startsAt, DateTimeOffset now)
+    {
+        if (now < startsAt - Tolerance)
+        {
+            throw new MatchNotStartedYetException(startsAt);
+        }
+    }
+}

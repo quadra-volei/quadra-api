@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Quadra.Modules.Gamification.Application;
 using Quadra.Modules.Gamification.Contracts;
+using Quadra.Shared.Contracts;
 
 namespace Quadra.Modules.Gamification.Controllers;
 
@@ -30,6 +31,7 @@ public sealed class GroupRankingController : ControllerBase
     [HttpGet("api/v1/matches/{matchId:guid}/ranking")]
     public async Task<ActionResult<GroupRankingResponse>> GetRanking(
         Guid matchId,
+        [FromServices] IMatchAccessReader access,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
@@ -37,6 +39,11 @@ public sealed class GroupRankingController : ControllerBase
         if (!TryGetCallerId(out var callerId))
         {
             return Unauthorized();
+        }
+
+        if (!await access.CanViewAsync(matchId, callerId, cancellationToken))
+        {
+            return NotFound();
         }
 
         var query = new GroupRankingQuery(page, pageSize);

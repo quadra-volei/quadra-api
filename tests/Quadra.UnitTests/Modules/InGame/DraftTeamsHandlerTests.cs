@@ -51,7 +51,7 @@ public sealed class DraftTeamsHandlerTests
     private void SetupMatch(Guid matchId, Guid organizerId, string status = "Closed")
     {
         _matchReader.FindMatchSummaryAsync(matchId, Arg.Any<CancellationToken>())
-            .Returns(new MatchSummary(matchId, organizerId, status));
+            .Returns(new MatchSummary(matchId, organizerId, status, DateTimeOffset.UtcNow.AddHours(-1)));
     }
 
     private void SetupConfirmedPlayers(Guid matchId, IReadOnlyList<Guid> playerIds)

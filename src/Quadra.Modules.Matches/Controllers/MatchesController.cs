@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Quadra.Modules.Matches.Application;
 using Quadra.Modules.Matches.Contracts;
 using Quadra.Modules.Matches.Entities;
+using Quadra.Shared.Contracts;
 
 namespace Quadra.Modules.Matches.Controllers;
 
@@ -35,6 +36,7 @@ public sealed class MatchesController : ControllerBase
     private readonly IValidator<ListMatchesQuery> _listValidator;
     private readonly IValidator<AddPresenceRequest> _addPresenceValidator;
     private readonly IValidator<UpdateMyPresenceRequest> _updateMyPresenceValidator;
+    private readonly IMatchAccessReader _access;
 
     public MatchesController(
         CreateMatchHandler createHandler,
@@ -53,7 +55,8 @@ public sealed class MatchesController : ControllerBase
         IValidator<CreateMatchRequest> createValidator,
         IValidator<ListMatchesQuery> listValidator,
         IValidator<AddPresenceRequest> addPresenceValidator,
-        IValidator<UpdateMyPresenceRequest> updateMyPresenceValidator)
+        IValidator<UpdateMyPresenceRequest> updateMyPresenceValidator,
+        IMatchAccessReader access)
     {
         _createHandler = createHandler;
         _getHandler = getHandler;
@@ -72,6 +75,7 @@ public sealed class MatchesController : ControllerBase
         _listValidator = listValidator;
         _addPresenceValidator = addPresenceValidator;
         _updateMyPresenceValidator = updateMyPresenceValidator;
+        _access = access;
     }
 
     /// <summary>POST /api/v1/matches</summary>
@@ -143,6 +147,11 @@ public sealed class MatchesController : ControllerBase
         Guid id,
         CancellationToken cancellationToken)
     {
+        if (!await CanViewAsync(id, cancellationToken))
+        {
+            return NotFound();
+        }
+
         try
         {
             var match = await _getHandler.HandleAsync(id, cancellationToken);
@@ -160,6 +169,11 @@ public sealed class MatchesController : ControllerBase
         [FromQuery] ListMatchesQuery query,
         CancellationToken cancellationToken)
     {
+        if (!TryGetCallerId(out var callerId))
+        {
+            return Unauthorized();
+        }
+
         var validation = await _listValidator.ValidateAsync(query, cancellationToken);
         if (!validation.IsValid)
         {
@@ -171,7 +185,7 @@ public sealed class MatchesController : ControllerBase
             return ValidationProblem(ModelState);
         }
 
-        var (items, totalCount) = await _listHandler.HandleAsync(query, cancellationToken);
+        var (items, totalCount) = await _listHandler.HandleAsync(query, callerId, cancellationToken);
 
         var response = new PagedMatchesResponse(
             Items: items.Select(ToResponse).ToList(),
@@ -331,6 +345,11 @@ public sealed class MatchesController : ControllerBase
         Guid id,
         CancellationToken cancellationToken)
     {
+        if (!await CanViewAsync(id, cancellationToken))
+        {
+            return NotFound();
+        }
+
         try
         {
             var response = await _getPresenceListHandler.HandleAsync(id, cancellationToken);
@@ -403,6 +422,11 @@ public sealed class MatchesController : ControllerBase
         if (!TryGetCallerId(out var callerId))
         {
             return Unauthorized();
+        }
+
+        if (!await _access.CanViewAsync(id, callerId, cancellationToken))
+        {
+            return NotFound();
         }
 
         try
@@ -504,6 +528,10 @@ public sealed class MatchesController : ControllerBase
     }
 
     // --- Private helpers ---
+
+    /// <summary>CanViewMatch for the caller; a denied caller gets 404, as for a missing match.</summary>
+    private async Task<bool> CanViewAsync(Guid matchId, CancellationToken cancellationToken) =>
+        TryGetCallerId(out var callerId) && await _access.CanViewAsync(matchId, callerId, cancellationToken);
 
     private bool TryGetCallerId(out Guid callerId)
     {

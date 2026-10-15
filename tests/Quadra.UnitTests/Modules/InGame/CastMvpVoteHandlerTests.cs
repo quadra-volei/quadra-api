@@ -40,7 +40,7 @@ public sealed class CastMvpVoteHandlerTests
 
     private void SetupMatch(Guid? organizerId = null) =>
         _matchReader.FindMatchSummaryAsync(MatchId, Arg.Any<CancellationToken>())
-            .Returns(new MatchSummary(MatchId, organizerId ?? Guid.NewGuid(), "Closed"));
+            .Returns(new MatchSummary(MatchId, organizerId ?? Guid.NewGuid(), "Closed", DateTimeOffset.UtcNow.AddHours(-1)));
 
     private void SetupOpenVoting(DateTimeOffset? deadline = null)
     {

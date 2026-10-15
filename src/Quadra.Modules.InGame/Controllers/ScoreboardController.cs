@@ -1,10 +1,12 @@
 using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Quadra.Modules.InGame.Application;
 using Quadra.Modules.InGame.Contracts;
 using Quadra.Modules.InGame.Entities;
+using Quadra.Shared.Contracts;
 
 namespace Quadra.Modules.InGame.Controllers;
 
@@ -88,6 +90,10 @@ public sealed class ScoreboardController : ControllerBase
         {
             return BadRequest(new ProblemDetails { Detail = ex.Message });
         }
+        catch (MatchNotStartedYetException ex)
+        {
+            return TooEarly(ex);
+        }
         catch (MatchNotFoundException)
         {
             return NotFound();
@@ -125,6 +131,10 @@ public sealed class ScoreboardController : ControllerBase
         {
             var response = await _startHandler.HandleAsync(matchId, callerId, cancellationToken);
             return Ok(response);
+        }
+        catch (MatchNotStartedYetException ex)
+        {
+            return TooEarly(ex);
         }
         catch (MatchNotFoundException)
         {
@@ -296,8 +306,14 @@ public sealed class ScoreboardController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<ScoreboardResponse>> GetScoreboard(
         Guid matchId,
+        [FromServices] IMatchAccessReader access,
         CancellationToken cancellationToken)
     {
+        if (!TryGetCallerId(out var callerId) || !await access.CanViewAsync(matchId, callerId, cancellationToken))
+        {
+            return NotFound();
+        }
+
         try
         {
             var response = await _getHandler.HandleAsync(matchId, cancellationToken);
@@ -314,6 +330,15 @@ public sealed class ScoreboardController : ControllerBase
     }
 
     // --- Private helpers ---
+
+    /// <summary>422: the game cannot be put on court yet; <c>startsAt</c> tells the app when.</summary>
+    private ObjectResult TooEarly(MatchNotStartedYetException ex) =>
+        UnprocessableEntity(new ProblemDetails
+        {
+            Status = StatusCodes.Status422UnprocessableEntity,
+            Detail = ex.Message,
+            Extensions = { ["startsAt"] = ex.StartsAt },
+        });
 
     private bool TryGetCallerId(out Guid callerId)
     {

@@ -39,7 +39,7 @@ public sealed class CloseMvpVotingHandlerTests
 
     private void SetupMatch(Guid matchId, Guid organizerId) =>
         _matchReader.FindMatchSummaryAsync(matchId, Arg.Any<CancellationToken>())
-            .Returns(new MatchSummary(matchId, organizerId, "Closed"));
+            .Returns(new MatchSummary(matchId, organizerId, "Closed", DateTimeOffset.UtcNow.AddHours(-1)));
 
     // ─── error paths ─────────────────────────────────────────────────────────
 

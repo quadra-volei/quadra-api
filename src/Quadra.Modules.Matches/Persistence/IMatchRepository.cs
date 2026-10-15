@@ -40,6 +40,7 @@ public interface IMatchRepository
 /// Filter criteria for <see cref="IMatchRepository.ListAsync"/>.
 /// </summary>
 public sealed record ListMatchesFilter(
+    Guid CallerId,
     Guid? OrganizerId,
     MatchStatus? Status,
     int Page,
