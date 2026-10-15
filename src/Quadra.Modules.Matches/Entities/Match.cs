@@ -86,8 +86,84 @@ public sealed class Match
     /// <summary>Storage key of the cover image (same bucket as profile photos). Null: no cover.</summary>
     public string? CoverObjectKey { get; private set; }
 
+    /// <summary>
+    /// The recurring group this game belongs to: the id of the group's first game. Null on the
+    /// first game itself and on one-off matches (the group is then the match's own id).
+    /// </summary>
+    public Guid? GroupId { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
+
+    /// <summary>
+    /// The next game of this recurring group (DECISIONS #64): a copy of this one (same organizer,
+    /// place, slots, prices, settings and invite code) on <paramref name="dateTime"/>, in Draft, with
+    /// the confirmation window as far from the game as this one's was (never opening before now).
+    /// </summary>
+    public Match CreateNext(DateTimeOffset dateTime, DateTimeOffset now)
+    {
+        var next = (Match)MemberwiseClone();
+        next.Id = Guid.NewGuid();
+        next.GroupId = GroupId ?? Id;
+        next.DateTime = dateTime;
+        var opens = dateTime - (DateTime - WindowOpensAt);
+        next.WindowOpensAt = opens < now ? now : opens;
+        var closes = dateTime - (DateTime - WindowClosesAt);
+        next.WindowClosesAt = closes < next.WindowOpensAt ? next.WindowOpensAt : closes;
+        next.Status = MatchStatus.Draft;
+        next.ReleasedDropInSlots = null;
+        next.Location = (Point)Location.Copy();
+        next.RecurrenceDays = RecurrenceDays?.ToArray();
+        next.CreatedAt = now;
+        next.UpdatedAt = now;
+        return next;
+    }
+
+    /// <summary>
+    /// When the group plays after <paramref name="current"/>, in Brasília wall-clock time: the
+    /// next of its week days, and when that falls in a later week, that day 1 (weekly), 2
+    /// (biweekly) or 4 (monthly) weeks on. Rolled forward until it is after <paramref name="now"/>.
+    /// </summary>
+    public static DateTimeOffset NextGameTime(
+        DateTimeOffset current,
+        MatchFrequency? frequency,
+        IReadOnlyCollection<int>? recurrenceDays,
+        DateTimeOffset now)
+    {
+        // ponytail: "monthly" is every 4 weeks on the same week day, not a calendar day of the month.
+        var weeks = frequency switch
+        {
+            MatchFrequency.Biweekly => 2,
+            MatchFrequency.Monthly => 4,
+            _ => 1,
+        };
+        var brasilia = TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
+        var next = current;
+        do
+        {
+            var local = TimeZoneInfo.ConvertTime(next, brasilia).DateTime;
+            var days = recurrenceDays is { Count: > 0 } ? recurrenceDays : [IsoDay(local)];
+            var candidate = local;
+            do
+            {
+                candidate = candidate.AddDays(1);
+            }
+            while (!days.Contains(IsoDay(candidate)));
+
+            // Crossing Sunday→Monday (or landing on the same week day again) starts a new week.
+            if (IsoDay(candidate) <= IsoDay(local))
+            {
+                candidate = candidate.AddDays(7 * (weeks - 1));
+            }
+
+            next = new DateTimeOffset(candidate, brasilia.GetUtcOffset(candidate)).ToUniversalTime();
+        }
+        while (next <= now);
+
+        return next;
+    }
+
+    private static int IsoDay(System.DateTime date) => date.DayOfWeek == System.DayOfWeek.Sunday ? 7 : (int)date.DayOfWeek;
 
     /// <summary>
     /// Factory method — the only way to create a new <see cref="Match"/> instance.

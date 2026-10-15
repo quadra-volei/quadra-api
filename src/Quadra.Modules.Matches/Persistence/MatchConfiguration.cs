@@ -144,6 +144,12 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .HasColumnName("cover_object_key")
             .HasMaxLength(256);
 
+        builder.Property(m => m.GroupId)
+            .HasColumnName("group_id");
+
+        builder.HasIndex(m => m.GroupId)
+            .HasDatabaseName("ix_matches_group_id");
+
         builder.HasIndex(m => m.OrganizerId)
             .HasDatabaseName("ix_matches_organizer_id");
 

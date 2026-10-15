@@ -49,7 +49,20 @@ public sealed class GenerateMatchSummaryHandlerTests
         Substitute.For<ILogger<GenerateMatchSummaryHandler>>();
 
     private GenerateMatchSummaryHandler CreateSut() =>
-        new(_matchRepository, _summaryRepository, _resultReader, _eventPublisher, _timeProvider, _logger);
+        new(
+            _matchRepository,
+            _summaryRepository,
+            _resultReader,
+            _eventPublisher,
+            _timeProvider,
+            _logger,
+            new ScheduleNextGameHandler(
+                _matchRepository,
+                Substitute.For<IPresenceRepository>(),
+                _eventPublisher,
+                MatchTestSupport.Synchronizer(_matchRepository, _timeProvider),
+                _timeProvider,
+                Substitute.For<ILogger<ScheduleNextGameHandler>>()));
 
     // ─── 404: match not found ─────────────────────────────────────────────────
 

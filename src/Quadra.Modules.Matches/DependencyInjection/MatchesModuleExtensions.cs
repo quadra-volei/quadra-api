@@ -103,6 +103,7 @@ public static class MatchesModuleExtensions
         services.AddScoped<OpenMatchWindowHandler>();
         services.AddScoped<CloseMatchWindowHandler>();
         services.AddScoped<GenerateMatchSummaryHandler>();
+        services.AddScoped<ScheduleNextGameHandler>();
         services.AddScoped<GetMatchSummaryHandler>();
         services.AddScoped<MatchWindowSynchronizer>();
         services.AddScoped<GetMatchDetailHandler>();

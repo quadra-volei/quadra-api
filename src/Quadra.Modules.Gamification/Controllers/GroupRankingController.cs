@@ -103,6 +103,51 @@ public sealed class GroupRankingController : ControllerBase
         return ranking is null ? NoContent() : Ok(ranking);
     }
 
+    /// <summary>
+    /// GET /api/v1/rankings?scope=friends|group|general&amp;groupId=&amp;position= — the season
+    /// ranking. 404 when the group does not exist or the caller may not see it.
+    /// </summary>
+    [HttpGet("api/v1/rankings")]
+    public async Task<ActionResult<RankingResponse>> GetSeason(
+        [FromQuery] RankingQuery query,
+        [FromServices] GetRankingHandler handler,
+        [FromServices] IValidator<RankingQuery> validator,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryGetCallerId(out var callerId))
+        {
+            return Unauthorized();
+        }
+
+        var validation = await validator.ValidateAsync(query, cancellationToken);
+        if (!validation.IsValid)
+        {
+            foreach (var failure in validation.Errors)
+            {
+                ModelState.AddModelError(failure.PropertyName, failure.ErrorMessage);
+            }
+
+            return ValidationProblem(ModelState);
+        }
+
+        var ranking = await handler.HandleAsync(callerId, query, cancellationToken);
+        return ranking is null ? NotFound() : Ok(ranking);
+    }
+
+    /// <summary>GET /api/v1/rankings/groups — the recurring games the caller scored in.</summary>
+    [HttpGet("api/v1/rankings/groups")]
+    public async Task<ActionResult<IReadOnlyList<RankingGroupResponse>>> GetGroups(
+        [FromServices] GetRankingHandler handler,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryGetCallerId(out var callerId))
+        {
+            return Unauthorized();
+        }
+
+        return Ok(await handler.ListGroupsAsync(callerId, cancellationToken));
+    }
+
     private bool TryGetCallerId(out Guid callerId)
     {
         var value = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;

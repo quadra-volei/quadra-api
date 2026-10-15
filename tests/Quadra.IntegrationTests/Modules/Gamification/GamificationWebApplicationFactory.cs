@@ -73,6 +73,8 @@ public sealed class GamificationWebApplicationFactory : IAsyncLifetime
                 builder.ConfigureTestServices(services =>
                 {
                     ReplaceService(services, typeof(IEventPublisher), Publisher);
+                    // Player summaries (friends and general rankings) sign photo URLs; no real S3 in tests.
+                    ReplaceService(services, typeof(Quadra.Infrastructure.Storage.IProfilePhotoStorage), Substitute.For<Quadra.Infrastructure.Storage.IProfilePhotoStorage>());
                 });
             });
 
@@ -80,6 +82,7 @@ public sealed class GamificationWebApplicationFactory : IAsyncLifetime
         await scope.ServiceProvider.GetRequiredService<AuthDbContext>().Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<MatchesDbContext>().Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<GamificationDbContext>().Database.MigrateAsync();
+        await scope.ServiceProvider.GetRequiredService<Quadra.Modules.Profile.Persistence.ProfileDbContext>().Database.MigrateAsync();
     }
 
     public async ValueTask DisposeAsync()
@@ -136,6 +139,15 @@ public sealed class GamificationWebApplicationFactory : IAsyncLifetime
         ctx.Matches.Add(match);
         await ctx.SaveChangesAsync();
         return match.Id;
+    }
+
+    /// <summary>Makes <paramref name="followerId"/> follow <paramref name="followedId"/>.</summary>
+    public async Task SeedFollowAsync(Guid followerId, Guid followedId)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var ctx = scope.ServiceProvider.GetRequiredService<Quadra.Modules.Profile.Persistence.ProfileDbContext>();
+        ctx.Follows.Add(new Quadra.Modules.Profile.Follows.Follow { FollowerId = followerId, FollowedId = followedId, CreatedAt = DateTimeOffset.UtcNow });
+        await ctx.SaveChangesAsync();
     }
 
     /// <summary>Applies a finished match's points through the Gamification write interface (as the Worker would).</summary>
@@ -197,7 +209,7 @@ public sealed class GamificationWebApplicationFactory : IAsyncLifetime
         using var scope = Factory.Services.CreateScope();
         var gamCtx = scope.ServiceProvider.GetRequiredService<GamificationDbContext>();
         await gamCtx.Database.ExecuteSqlRawAsync(
-            "TRUNCATE TABLE point_transactions, group_rankings RESTART IDENTITY CASCADE;");
+            "TRUNCATE TABLE point_transactions, group_rankings, follows RESTART IDENTITY CASCADE;");
         var matchesCtx = scope.ServiceProvider.GetRequiredService<MatchesDbContext>();
         await matchesCtx.Database.ExecuteSqlRawAsync(
             "TRUNCATE TABLE matches RESTART IDENTITY CASCADE;");

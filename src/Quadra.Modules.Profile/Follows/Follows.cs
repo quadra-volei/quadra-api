@@ -44,7 +44,7 @@ public sealed class FollowConfiguration : IEntityTypeConfiguration<Follow>
 public sealed record FollowStateResponse(int FollowersCount, int FollowingCount, bool FollowedByMe);
 
 /// <summary>Reads and changes who follows whom.</summary>
-public sealed class FollowsHandler
+public sealed class FollowsHandler : Quadra.Shared.Contracts.IFollowingReader
 {
     private readonly ProfileDbContext _context;
 
@@ -52,6 +52,13 @@ public sealed class FollowsHandler
     {
         _context = context;
     }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<Guid>> GetFollowingIdsAsync(Guid userId, CancellationToken cancellationToken) =>
+        await _context.Follows.AsNoTracking()
+            .Where(f => f.FollowerId == userId)
+            .Select(f => f.FollowedId)
+            .ToListAsync(cancellationToken);
 
     /// <returns>The connections of <paramref name="userId"/>, or null when there is no such player.</returns>
     public async Task<FollowStateResponse?> GetAsync(Guid callerId, Guid userId, CancellationToken cancellationToken)
