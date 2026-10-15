@@ -5,6 +5,7 @@ using Quadra.Infrastructure.Messaging;
 using Quadra.Modules.Matches.Application;
 using Quadra.Modules.Matches.Entities;
 using Quadra.Modules.Matches.Persistence;
+using Quadra.Shared.Contracts;
 using Quadra.Shared.Events.Matches;
 using MatchType = Quadra.Modules.Matches.Entities.MatchType;
 
@@ -23,9 +24,10 @@ public sealed class CancelMatchHandlerTests
     private readonly IMatchRepository _repository = Substitute.For<IMatchRepository>();
     private readonly IEventPublisher _eventPublisher = Substitute.For<IEventPublisher>();
     private readonly TimeProvider _timeProvider = new FixedTimeProvider(FixedNow);
+    private readonly IMatchResultReader _resultReader = Substitute.For<IMatchResultReader>();
 
     private CancelMatchHandler CreateSut() =>
-        new(_repository, _eventPublisher, _timeProvider);
+        new(_repository, _eventPublisher, _timeProvider, _resultReader);
 
     /// <summary>
     /// Creates a Match in the given status via the public Create factory, then forces a status

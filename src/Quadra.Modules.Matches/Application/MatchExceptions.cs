@@ -50,3 +50,10 @@ public sealed class MatchGuestNotFoundException : Exception
     public MatchGuestNotFoundException(Guid matchId, Guid guestId)
         : base($"Guest '{guestId}' was not found in match '{matchId}'.") { }
 }
+
+/// <summary>The edit leaves fewer slots than players already confirmed. Maps to HTTP 409.</summary>
+public sealed class MatchSlotsBelowConfirmedException : Exception
+{
+    public MatchSlotsBelowConfirmedException(int confirmed)
+        : base($"There are {confirmed} confirmed players; the slots cannot go below them.") { }
+}
