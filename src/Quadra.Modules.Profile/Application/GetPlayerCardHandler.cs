@@ -59,12 +59,7 @@ public sealed class GetPlayerCardHandler
             card.DisplayName,
             card.Position?.ToString(),
             card.Level.ToString(),
-            new PlayerStatsResponse(
-                card.MatchesPlayed,
-                card.Wins,
-                card.Losses,
-                card.Draws,
-                card.MvpsReceived),
+            GetProfileHandler.MapStats(card.MatchesPlayed, card.Wins, card.Losses, card.Draws, card.MvpsReceived),
             isPremium,
             card.GeneratedAt,
             card.RefreshedAt);

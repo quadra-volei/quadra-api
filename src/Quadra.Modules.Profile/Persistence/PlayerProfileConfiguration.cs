@@ -68,6 +68,10 @@ public sealed class PlayerProfileConfiguration : IEntityTypeConfiguration<Player
             .HasColumnName("photo_object_key")
             .HasMaxLength(512);
 
+        builder.Property(p => p.ShareActivity)
+            .HasColumnName("share_activity")
+            .IsRequired(); // existing rows get true from the migration
+
         builder.Property(p => p.Level)
             .HasColumnName("level")
             .HasConversion<string>()

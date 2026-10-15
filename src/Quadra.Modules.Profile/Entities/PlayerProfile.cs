@@ -42,6 +42,12 @@ public sealed class PlayerProfile
 
     public string? PhotoObjectKey { get; private set; }
 
+    /// <summary>
+    /// "Mostrar minhas atividades para quem me segue": whether the players who follow this one see
+    /// their activities (started, finished, MVP, level up). On by default.
+    /// </summary>
+    public bool ShareActivity { get; private set; } = true;
+
     /// <summary>When onboarding was completed; null while the profile is still the empty shell.</summary>
     public DateTimeOffset? OnboardingCompletedAt { get; private set; }
 
@@ -122,6 +128,12 @@ public sealed class PlayerProfile
     public void SetLevel(PlayerLevel level, DateTimeOffset now)
     {
         Level = level;
+        UpdatedAt = now;
+    }
+
+    public void SetShareActivity(bool share, DateTimeOffset now)
+    {
+        ShareActivity = share;
         UpdatedAt = now;
     }
 }

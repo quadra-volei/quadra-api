@@ -23,7 +23,8 @@ public sealed record PlayerProfileResponse(
     PlayerSkillsResponse Skills,
     PlayerStatsResponse Stats,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    bool? ShareActivity = null);
 
 /// <summary>
 /// Skill ratings (1–99) derived from the declared level and position; <see cref="Overall"/> is

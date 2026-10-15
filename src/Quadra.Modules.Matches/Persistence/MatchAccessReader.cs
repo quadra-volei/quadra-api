@@ -33,6 +33,22 @@ public sealed class MatchAccessReader : IMatchAccessReader
             .ToListAsync(cancellationToken);
         return ids.ToHashSet();
     }
+
+    public async Task<IReadOnlySet<Guid>> ListPublicAsync(
+        IReadOnlyCollection<Guid> matchIds,
+        CancellationToken cancellationToken)
+    {
+        if (matchIds.Count == 0)
+        {
+            return new HashSet<Guid>();
+        }
+
+        var ids = await _context.Matches.AsNoTracking()
+            .Where(m => matchIds.Contains(m.Id) && m.Visibility == MatchVisibility.Open)
+            .Select(m => m.Id)
+            .ToListAsync(cancellationToken);
+        return ids.ToHashSet();
+    }
 }
 
 internal static class MatchVisibilityQuery

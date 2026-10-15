@@ -6,7 +6,7 @@ namespace Quadra.Modules.Profile.Persistence;
 /// <summary>
 /// EF Core DbContext owned by the Profile module.
 /// Owns the <c>player_profiles</c>, <c>player_stats</c>, <c>player_match_history</c>,
-/// <c>player_cards</c>, <c>feedback</c>, <c>posts</c>, <c>post_likes</c>, <c>post_comments</c> and <c>follows</c> tables.
+/// <c>player_cards</c>, <c>feedback</c>, <c>posts</c>, <c>post_likes</c>, <c>post_comments</c>, <c>follows</c> and <c>activities</c> tables.
 /// Module-boundary rules forbid cross-module joins.
 /// </summary>
 public sealed class ProfileDbContext : DbContext
@@ -25,6 +25,7 @@ public sealed class ProfileDbContext : DbContext
     public DbSet<Quadra.Modules.Profile.Posts.PostLike> PostLikes => Set<Quadra.Modules.Profile.Posts.PostLike>();
     public DbSet<Quadra.Modules.Profile.Posts.PostComment> PostComments => Set<Quadra.Modules.Profile.Posts.PostComment>();
     public DbSet<Quadra.Modules.Profile.Follows.Follow> Follows => Set<Quadra.Modules.Profile.Follows.Follow>();
+    public DbSet<Quadra.Modules.Profile.Activities.Activity> Activities => Set<Quadra.Modules.Profile.Activities.Activity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -40,5 +41,6 @@ public sealed class ProfileDbContext : DbContext
         modelBuilder.ApplyConfiguration(new Quadra.Modules.Profile.Posts.PostLikeConfiguration());
         modelBuilder.ApplyConfiguration(new Quadra.Modules.Profile.Posts.PostCommentConfiguration());
         modelBuilder.ApplyConfiguration(new Quadra.Modules.Profile.Follows.FollowConfiguration());
+        modelBuilder.ApplyConfiguration(new Quadra.Modules.Profile.Activities.ActivityConfiguration());
     }
 }

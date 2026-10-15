@@ -47,6 +47,23 @@ public sealed class MatchSummaryGeneratedProfileConsumer : IEventHandler<MatchSu
             return;
         }
 
+        foreach (var participation in ToParticipations(@event, descriptor, result))
+        {
+            await _statsWriter.ApplyFinishedMatchAsync(participation, cancellationToken);
+        }
+
+        _logger.LogInformation(
+            "Applied finished match {MatchId} to {ParticipantCount} participant profile(s).",
+            @event.MatchId,
+            @event.ParticipantPlayerIds.Count);
+    }
+
+    /// <summary>Each participant's side of the finished match: team, outcome and sets won and lost.</summary>
+    internal static IEnumerable<FinishedMatchParticipation> ToParticipations(
+        MatchSummaryGenerated @event,
+        MatchDescriptor descriptor,
+        MatchResult result)
+    {
         // Map each participant to the team they played on (from the InGame result snapshot).
         var teamByPlayer = new Dictionary<Guid, Guid>();
         foreach (var team in result.Teams)
@@ -69,7 +86,7 @@ public sealed class MatchSummaryGeneratedProfileConsumer : IEventHandler<MatchSu
                 ? resolvedTeamId
                 : null;
 
-            var participation = new FinishedMatchParticipation(
+            yield return new FinishedMatchParticipation(
                 PlayerId: playerId,
                 MatchId: @event.MatchId,
                 MatchName: descriptor.Name,
@@ -84,14 +101,7 @@ public sealed class MatchSummaryGeneratedProfileConsumer : IEventHandler<MatchSu
                 SetsLost: teamId is { } own
                     ? setsByTeam.Where(t => t.Key != own).Select(t => t.Value).DefaultIfEmpty(0).Max()
                     : null);
-
-            await _statsWriter.ApplyFinishedMatchAsync(participation, cancellationToken);
         }
-
-        _logger.LogInformation(
-            "Applied finished match {MatchId} to {ParticipantCount} participant profile(s).",
-            @event.MatchId,
-            @event.ParticipantPlayerIds.Count);
     }
 
     private static string DetermineOutcome(Guid? teamId, Guid? winnerTeamId)

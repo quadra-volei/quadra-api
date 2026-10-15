@@ -85,13 +85,20 @@ public sealed class GetProfileHandler
                 skills.Block,
                 skills.Attack,
                 skills.Defense),
-            new PlayerStatsResponse(
-                stats.MatchesPlayed,
-                stats.Wins,
-                stats.Losses,
-                stats.Draws,
-                stats.MvpsReceived),
+            MapStats(stats),
             profile.CreatedAt,
-            profile.UpdatedAt);
+            profile.UpdatedAt,
+            includePrivate ? profile.ShareActivity : null);
+    }
+
+    public static PlayerStatsResponse MapStats(PlayerStats stats) =>
+        MapStats(stats.MatchesPlayed, stats.Wins, stats.Losses, stats.Draws, stats.MvpsReceived);
+
+    public static PlayerStatsResponse MapStats(int matchesPlayed, int wins, int losses, int draws, int mvpsReceived)
+    {
+        var points = PlayerProgression.PointsOf(matchesPlayed, wins, mvpsReceived);
+        var level = PlayerProgression.LevelFor(points);
+        return new PlayerStatsResponse(
+            matchesPlayed, wins, losses, draws, mvpsReceived, points, level, PlayerProgression.PointsForLevel(level + 1));
     }
 }

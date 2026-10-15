@@ -23,6 +23,74 @@ namespace Quadra.Modules.Profile.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "postgis");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Quadra.Modules.Profile.Activities.Activity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<string>("DedupKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("dedup_key");
+
+                    b.Property<int?>("LevelFrom")
+                        .HasColumnType("integer")
+                        .HasColumnName("level_from");
+
+                    b.Property<int?>("LevelTo")
+                        .HasColumnType("integer")
+                        .HasColumnName("level_to");
+
+                    b.Property<Guid?>("MatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("match_id");
+
+                    b.Property<string>("MatchName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("match_name");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<string>("Outcome")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("outcome");
+
+                    b.Property<int?>("SetsLost")
+                        .HasColumnType("integer")
+                        .HasColumnName("sets_lost");
+
+                    b.Property<int?>("SetsWon")
+                        .HasColumnType("integer")
+                        .HasColumnName("sets_won");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorId", "DedupKey")
+                        .IsUnique()
+                        .HasDatabaseName("ux_activities_actor_id_dedup_key");
+
+                    b.HasIndex("ActorId", "OccurredAt")
+                        .HasDatabaseName("ix_activities_actor_id_occurred_at");
+
+                    b.ToTable("activities", (string)null);
+                });
+
             modelBuilder.Entity("Quadra.Modules.Profile.Entities.PlayerCard", b =>
                 {
                     b.Property<Guid>("Id")
@@ -249,6 +317,10 @@ namespace Quadra.Modules.Profile.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)")
                         .HasColumnName("preferred_modality");
+
+                    b.Property<bool>("ShareActivity")
+                        .HasColumnType("boolean")
+                        .HasColumnName("share_activity");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .ValueGeneratedOnAdd()

@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Logging;
+using Quadra.Infrastructure.Messaging;
 using Quadra.Modules.Profile.Abstractions;
 using Quadra.Modules.Profile.Entities;
 using Quadra.Modules.Profile.Persistence;
+using Quadra.Shared.Events.Profile;
 
 namespace Quadra.Modules.Profile.Application;
 
@@ -15,6 +17,7 @@ public sealed class ApplyFinishedMatchHandler : IPlayerStatsWriter
     private readonly IPlayerProfileRepository _profiles;
     private readonly IPlayerMatchHistoryRepository _history;
     private readonly IPlayerCardRepository _cards;
+    private readonly IEventPublisher _events;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<ApplyFinishedMatchHandler> _logger;
 
@@ -22,12 +25,14 @@ public sealed class ApplyFinishedMatchHandler : IPlayerStatsWriter
         IPlayerProfileRepository profiles,
         IPlayerMatchHistoryRepository history,
         IPlayerCardRepository cards,
+        IEventPublisher events,
         TimeProvider timeProvider,
         ILogger<ApplyFinishedMatchHandler> logger)
     {
         _profiles = profiles;
         _history = history;
         _cards = cards;
+        _events = events;
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -63,6 +68,7 @@ public sealed class ApplyFinishedMatchHandler : IPlayerStatsWriter
 
         PlayerProfile profile;
         PlayerStats stats;
+        var levelBefore = found is null ? 1 : PlayerProgression.LevelOf(found.Stats);
 
         if (found is null)
         {
@@ -81,6 +87,15 @@ public sealed class ApplyFinishedMatchHandler : IPlayerStatsWriter
             await _profiles.UpdateAsync(found.Profile, cancellationToken);
             profile = found.Profile;
             stats = found.Stats;
+        }
+
+        // 2b. Announce a new level number (the activity feed shows it). Redelivery recomputes the
+        //     same stats, so it never announces twice.
+        var levelAfter = PlayerProgression.LevelOf(stats);
+        if (levelAfter > levelBefore)
+        {
+            await _events.PublishAsync(
+                new PlayerLevelUp(participation.PlayerId, levelBefore, levelAfter, now), cancellationToken);
         }
 
         // 3. (Re)generate the player card once the player has crossed the match threshold (F2.2).

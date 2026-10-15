@@ -17,4 +17,10 @@ public interface IMatchAccessReader
         IReadOnlyCollection<Guid> matchIds,
         Guid callerId,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The subset of <paramref name="matchIds"/> that are open (public) right now, whoever asks. Used
+    /// where a match is shown to people who are not in it (the activity feed).
+    /// </summary>
+    Task<IReadOnlySet<Guid>> ListPublicAsync(IReadOnlyCollection<Guid> matchIds, CancellationToken cancellationToken);
 }

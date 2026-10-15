@@ -1,6 +1,8 @@
 using Quadra.Infrastructure.Messaging;
 using Quadra.Shared.Events.Auth;
+using Quadra.Shared.Events.InGame;
 using Quadra.Shared.Events.Matches;
+using Quadra.Shared.Events.Profile;
 
 namespace Quadra.Api.Events;
 
@@ -24,6 +26,10 @@ public static class EventHandlingExtensions
         services.AddScoped<IEventHandler<UserRegistered>, UserRegisteredConsumer>();
         services.AddScoped<IEventHandler<MatchSummaryGenerated>, MatchSummaryGeneratedProfileConsumer>();
         services.AddScoped<IEventHandler<MatchSummaryGenerated>, MatchSummaryGeneratedRankingConsumer>();
+        services.AddScoped<IEventHandler<MatchSummaryGenerated>, ActivityConsumers>();
+        services.AddScoped<IEventHandler<MatchStarted>, ActivityConsumers>();
+        services.AddScoped<IEventHandler<MvpAwarded>, ActivityConsumers>();
+        services.AddScoped<IEventHandler<PlayerLevelUp>, ActivityConsumers>();
 
         return services;
     }

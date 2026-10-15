@@ -35,6 +35,10 @@ recalculated from recorded matches and never drops below the declared one.
 | Advanced | 30+ matches and > 60% vote average | Only by declaring it; earning it is deferred ("vote average" is undefined) |
 | Elite | 50+ matches, 10+ MVPs, top 10% of global ranking | Deferred (depends on a global ranking, out of the MVP) |
 
+Besides that band, a player has a **level number** from accumulated points (below): reaching
+level n takes 10 × n × (n − 1) points (level 2 = 20, level 5 = 200, level 16 = 2400). It only
+goes up and is shown next to the player in the friends' activity.
+
 ## Point system
 
 - Confirmed attendance + showed up: +10
