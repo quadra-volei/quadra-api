@@ -24,6 +24,7 @@ Carta do Jogador = PlayerCard · Janela de Confirmação = ConfirmationWindow.
 | Address search | Proxy to Google Places or Photon, restricted to Brazil | `places/autocomplete`, `places/{id}` |
 | Profile (F2.1) | Name, surname, unique `@handle`, birth date, single position, modality, declared level, derived skills (ACE/BLK/ATA/DEF/GERAL), stats, match history, photo by signed URL; level number from accumulated points (attendance +10, win +15, MVP +25; 10 × n × (n − 1) points for level n) | `profiles/me`, `profiles/handle-availability`, `profiles/me/match-history`, `profiles/me/photo/upload-url` |
 | Player card (F2.2) | Card data after 3 matches; premium flag is a stub that always answers `false` | `profiles/me/card` |
+| Card style | Finish, identity title and card photo chosen by the player, shown to everyone who sees the profile | `PUT profiles/me/card-style`, `cardStyle` on `profiles/me` and `profiles/{id}` |
 | Group ranking (F2.3) | Points per recurring match: attendance +10, win +15, MVP +25, adding up over every game of the group (DECISIONS #64) | `matches/{id}/ranking`, `rankings/mine` |
 | Season ranking | Points from recurring matches played this month (Brasília), among me and who I follow, inside one recurring group, or general (3+ games); optional court position filter; ties share a rank (DECISIONS #63) | `rankings` (`scope`, `groupId`, `position`), `rankings/groups` |
 | Feedback | Stores the app's feedback form, 20 per user per day | `POST feedback` |

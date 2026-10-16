@@ -24,7 +24,8 @@ public sealed record PlayerProfileResponse(
     PlayerStatsResponse Stats,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    bool? ShareActivity = null);
+    bool? ShareActivity = null,
+    Quadra.Modules.Profile.CardStyle.PlayerCardStyleResponse? CardStyle = null);
 
 /// <summary>
 /// Skill ratings (1–99) derived from the declared level and position; <see cref="Overall"/> is
