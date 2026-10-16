@@ -108,6 +108,7 @@ public sealed class UpdateProfileHandler
         var photoUrl = await GetProfileHandler.ResolvePhotoUrlAsync(
             profile.PhotoObjectKey, _photoStorage, cancellationToken);
 
-        return GetProfileHandler.MapToResponse(profile, found.Stats, photoUrl, includePrivate: true);
+        var cardStyle = await CardStyle.CardStyleHandler.MapAsync(profile, includePrivate: true, _photoStorage, cancellationToken);
+        return GetProfileHandler.MapToResponse(profile, found.Stats, photoUrl, includePrivate: true, cardStyle);
     }
 }

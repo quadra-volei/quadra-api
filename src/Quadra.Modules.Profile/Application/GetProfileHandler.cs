@@ -1,4 +1,5 @@
 using Quadra.Infrastructure.Storage;
+using Quadra.Modules.Profile.CardStyle;
 using Quadra.Modules.Profile.Contracts;
 using Quadra.Modules.Profile.Entities;
 using Quadra.Modules.Profile.Persistence;
@@ -29,8 +30,10 @@ public sealed class GetProfileHandler
         var found = await _profiles.FindByUserIdAsync(userId, cancellationToken)
             ?? throw new ProfileNotFoundException(userId);
 
+        var includePrivate = callerId == userId;
         var photoUrl = await ResolvePhotoUrlAsync(found.Profile.PhotoObjectKey, _photoStorage, cancellationToken);
-        return MapToResponse(found.Profile, found.Stats, photoUrl, includePrivate: callerId == userId);
+        var cardStyle = await CardStyleHandler.MapAsync(found.Profile, includePrivate, _photoStorage, cancellationToken);
+        return MapToResponse(found.Profile, found.Stats, photoUrl, includePrivate, cardStyle);
     }
 
     /// <summary>
@@ -61,7 +64,8 @@ public sealed class GetProfileHandler
         PlayerProfile profile,
         PlayerStats stats,
         string? photoUrl,
-        bool includePrivate)
+        bool includePrivate,
+        PlayerCardStyleResponse cardStyle)
     {
         var skills = PlayerSkillCalculator.Calculate(profile.DeclaredLevel, profile.Position);
 
@@ -88,7 +92,8 @@ public sealed class GetProfileHandler
             MapStats(stats),
             profile.CreatedAt,
             profile.UpdatedAt,
-            includePrivate ? profile.ShareActivity : null);
+            includePrivate ? profile.ShareActivity : null,
+            cardStyle);
     }
 
     public static PlayerStatsResponse MapStats(PlayerStats stats) =>

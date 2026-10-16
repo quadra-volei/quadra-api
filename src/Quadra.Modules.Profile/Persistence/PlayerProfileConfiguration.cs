@@ -72,6 +72,21 @@ public sealed class PlayerProfileConfiguration : IEntityTypeConfiguration<Player
             .HasColumnName("share_activity")
             .IsRequired(); // existing rows get true from the migration
 
+        builder.Property(p => p.CardFinish)
+            .HasColumnName("card_finish")
+            .HasConversion<string>()
+            .HasMaxLength(16)
+            .HasDefaultValue(CardFinish.Prisma)
+            .IsRequired();
+
+        builder.Property(p => p.CardTitle)
+            .HasColumnName("card_title")
+            .HasMaxLength(32);
+
+        builder.Property(p => p.CardPhotoObjectKey)
+            .HasColumnName("card_photo_object_key")
+            .HasMaxLength(512);
+
         builder.Property(p => p.Level)
             .HasColumnName("level")
             .HasConversion<string>()

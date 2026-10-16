@@ -48,6 +48,15 @@ public sealed class PlayerProfile
     /// </summary>
     public bool ShareActivity { get; private set; } = true;
 
+    /// <summary>The card's finish ("Sua carta"). Cosmetic only.</summary>
+    public CardFinish CardFinish { get; private set; } = CardFinish.Prisma;
+
+    /// <summary>Identity title code on the card; null for the app's default.</summary>
+    public string? CardTitle { get; private set; }
+
+    /// <summary>A photo just for the card; null means the card shows <see cref="PhotoObjectKey"/>.</summary>
+    public string? CardPhotoObjectKey { get; private set; }
+
     /// <summary>When onboarding was completed; null while the profile is still the empty shell.</summary>
     public DateTimeOffset? OnboardingCompletedAt { get; private set; }
 
@@ -134,6 +143,14 @@ public sealed class PlayerProfile
     public void SetShareActivity(bool share, DateTimeOffset now)
     {
         ShareActivity = share;
+        UpdatedAt = now;
+    }
+
+    public void SetCardStyle(CardFinish finish, string? title, string? photoObjectKey, DateTimeOffset now)
+    {
+        CardFinish = finish;
+        CardTitle = title;
+        CardPhotoObjectKey = photoObjectKey;
         UpdatedAt = now;
     }
 }
