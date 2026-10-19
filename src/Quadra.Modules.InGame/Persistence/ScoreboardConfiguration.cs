@@ -29,6 +29,9 @@ public sealed class ScoreboardConfiguration : IEntityTypeConfiguration<Scoreboar
             .HasMaxLength(16)
             .IsRequired();
 
+        builder.Property(s => s.PointsToWin)
+            .HasColumnName("points_to_win");
+
         builder.Property(s => s.State)
             .HasColumnName("state")
             .HasConversion<string>()

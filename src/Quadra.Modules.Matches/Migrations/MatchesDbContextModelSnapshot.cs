@@ -81,6 +81,10 @@ namespace Quadra.Modules.Matches.Migrations
                         .HasColumnType("character varying(16)")
                         .HasColumnName("frequency");
 
+                    b.Property<short?>("GamePoints")
+                        .HasColumnType("smallint")
+                        .HasColumnName("game_points");
+
                     b.Property<Guid?>("GroupId")
                         .HasColumnType("uuid")
                         .HasColumnName("group_id");

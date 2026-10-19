@@ -30,7 +30,10 @@ internal static class ScoreboardProgression
         var winnerSets = scoreboard.RotatesTeams
             ? scoreboard.SetsWonBy(winnerTeamId)
             : Math.Max(scoreboard.TeamASetsWon, scoreboard.TeamBSetsWon);
-        if (winnerSets >= setsToWin)
+        // With rotating teams a single game is one game per pair: play goes on until the organizer
+        // ends it (EndScoreboardHandler picks the team with most games won).
+        var keepsRotating = scoreboard.RotatesTeams && scoreboard.Format == ScoreboardFormat.SingleGame;
+        if (winnerSets >= setsToWin && !keepsRotating)
         {
             scoreboard.End(winnerTeamId, now);
             return true;
@@ -246,7 +249,8 @@ public sealed class OpenNextSetHandler : ScoreboardSetHandlerBase
         var oneAway = VolleyballScoringRules.SetsToWin(scoreboard.Format) - 1;
         scoreboard.OpenSet(
             scoreboard.CurrentSetNumber + 1,
-            isDecidingSet: scoreboard.TeamASetsWon == oneAway && scoreboard.TeamBSetsWon == oneAway,
+            isDecidingSet: scoreboard.Format != ScoreboardFormat.SingleGame
+                && scoreboard.TeamASetsWon == oneAway && scoreboard.TeamBSetsWon == oneAway,
             now);
 
         return await SaveAndBroadcastAsync(scoreboard, now, cancellationToken);

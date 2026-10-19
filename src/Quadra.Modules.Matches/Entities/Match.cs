@@ -62,6 +62,13 @@ public sealed class Match
     /// <summary>Planned playing time in minutes. Null when not declared.</summary>
     public short? DurationMinutes { get; private set; }
 
+    /// <summary>Points that win the single game; null on matches created before it existed (they played best of 3 or 5).</summary>
+    public short? GamePoints { get; private set; }
+
+    public const int DefaultGamePoints = 25;
+    public const int MinGamePoints = 5;
+    public const int MaxGamePoints = 50;
+
     /// <summary>Open matches are listed and joinable by anyone; private ones are not.</summary>
     public MatchVisibility Visibility { get; private set; }
 
@@ -220,6 +227,7 @@ public sealed class Match
             Format = settings.Format,
             Level = settings.Level,
             DurationMinutes = settings.DurationMinutes.HasValue ? (short)settings.DurationMinutes.Value : null,
+            GamePoints = (short)(settings.GamePoints ?? DefaultGamePoints),
             Visibility = settings.Visibility,
             InviteMode = settings.Visibility == MatchVisibility.Private ? settings.InviteMode : null,
             InviteCode = settings is { Visibility: MatchVisibility.Private, InviteMode: MatchInviteMode.Code }
@@ -320,6 +328,7 @@ public sealed class Match
         Format = edit.Format;
         Level = edit.Level;
         DurationMinutes = edit.DurationMinutes.HasValue ? (short)edit.DurationMinutes.Value : null;
+        GamePoints = edit.GamePoints.HasValue ? (short)edit.GamePoints.Value : GamePoints;
         CoverObjectKey = edit.CoverObjectKey;
 
         if (Type == MatchType.Recurring)

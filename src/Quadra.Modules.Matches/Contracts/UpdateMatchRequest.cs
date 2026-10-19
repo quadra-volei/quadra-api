@@ -23,6 +23,7 @@ public sealed record UpdateMatchRequest(
     string? Format = null,
     string? Level = null,
     int? DurationMinutes = null,
+    int? GamePoints = null,
     decimal? PriceMonthly = null,
     IReadOnlyList<int>? RecurrenceDays = null,
     string? CoverObjectKey = null);

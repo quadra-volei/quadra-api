@@ -14,6 +14,7 @@ namespace Quadra.Modules.Matches.Contracts;
 /// <param name="Format">Players per side: <c>2X2 | 4X4 | 6X6</c>.</param>
 /// <param name="Level"><c>Beginner | Intermediate | Advanced</c>.</param>
 /// <param name="DurationMinutes">Planned playing time (30–600).</param>
+/// <param name="GamePoints">Points that win the single game (5–50); 25 when not sent.</param>
 /// <param name="Visibility"><c>Open</c> (default) or <c>Private</c>.</param>
 /// <param name="InviteMode"><c>Code | Guests</c> — required for a private match.</param>
 /// <param name="PriceMonthly">Monthly price for regulars; recurring matches only.</param>
@@ -38,6 +39,7 @@ public sealed record CreateMatchRequest(
     string? Format = null,
     string? Level = null,
     int? DurationMinutes = null,
+    int? GamePoints = null,
     string? Visibility = null,
     string? InviteMode = null,
     decimal? PriceMonthly = null,

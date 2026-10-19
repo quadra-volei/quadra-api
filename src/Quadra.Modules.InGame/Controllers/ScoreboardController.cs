@@ -78,7 +78,7 @@ public sealed class ScoreboardController : ControllerBase
             return ValidationProblem(ModelState);
         }
 
-        var format = Enum.Parse<ScoreboardFormat>(request.Format, ignoreCase: true);
+        var format = Enum.Parse<ScoreboardFormat>(request.Format ?? nameof(ScoreboardFormat.SingleGame), ignoreCase: true);
 
         try
         {

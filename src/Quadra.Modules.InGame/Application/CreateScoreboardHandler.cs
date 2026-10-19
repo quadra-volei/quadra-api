@@ -85,7 +85,9 @@ public sealed class CreateScoreboardHandler
 
         // 7. Create the aggregate in NotStarted state (no sets yet).
         var now = _timeProvider.GetUtcNow();
-        var scoreboard = Scoreboard.Create(matchId, format, teamAId, teamBId, now, rotatesTeams: teams.Count > 2);
+        // A single game plays to the points the organizer chose for the match.
+        var pointsToWin = format == ScoreboardFormat.SingleGame ? matchSummary.GamePoints ?? VolleyballScoringRules.DefaultGamePoints : (int?)null;
+        var scoreboard = Scoreboard.Create(matchId, format, teamAId, teamBId, now, rotatesTeams: teams.Count > 2, pointsToWin);
 
         // 8. Persist. The UNIQUE (match_id) constraint is a last-resort guard against races.
         try

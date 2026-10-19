@@ -32,6 +32,7 @@ public static class MatchMapper
             Format: m.Format,
             Level: m.Level?.ToString(),
             DurationMinutes: m.DurationMinutes.HasValue ? (int)m.DurationMinutes.Value : null,
+            GamePoints: m.GamePoints,
             Visibility: m.Visibility.ToString(),
             InviteMode: m.InviteMode?.ToString(),
             PriceMonthly: m.PriceMonthly,

@@ -137,6 +137,7 @@ public sealed class MatchesController : ControllerBase
             Format: request.Format,
             Level: request.Level,
             DurationMinutes: request.DurationMinutes,
+            GamePoints: request.GamePoints,
             Visibility: request.Visibility,
             InviteMode: request.InviteMode,
             PriceMonthly: request.PriceMonthly,

@@ -183,6 +183,10 @@ namespace Quadra.Modules.InGame.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("match_id");
 
+                    b.Property<int?>("PointsToWin")
+                        .HasColumnType("integer")
+                        .HasColumnName("points_to_win");
+
                     b.Property<bool>("RotatesTeams")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")

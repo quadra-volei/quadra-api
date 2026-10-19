@@ -28,6 +28,7 @@ public sealed record MatchResponse(
     string? Format = null,
     string? Level = null,
     int? DurationMinutes = null,
+    int? GamePoints = null,
     string Visibility = "Open",
     string? InviteMode = null,
     decimal? PriceMonthly = null,

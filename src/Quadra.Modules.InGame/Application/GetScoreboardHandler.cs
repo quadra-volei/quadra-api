@@ -77,6 +77,7 @@ public sealed class GetScoreboardHandler
             CreatedAt: scoreboard.CreatedAt,
             UpdatedAt: scoreboard.UpdatedAt,
             RotatesTeams: scoreboard.RotatesTeams,
+            PointsToWin: scoreboard.PointsToWin,
             AwaitingNextSet: scoreboard.State == ScoreboardState.InProgress
                 && scoreboard.Sets.All(s => s.Status == SetStatus.Finished));
     }
@@ -101,6 +102,7 @@ public sealed class GetScoreboardHandler
             CurrentSetTeamAPoints: currentSet?.TeamAPoints ?? 0,
             CurrentSetTeamBPoints: currentSet?.TeamBPoints ?? 0,
             WinnerTeamId: scoreboard.WinnerTeamId,
-            OccurredAt: occurredAt);
+            OccurredAt: occurredAt,
+            PointsToWin: scoreboard.PointsToWin);
     }
 }

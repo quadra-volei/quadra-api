@@ -114,6 +114,9 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .HasMaxLength(16)
             .HasConversion<string?>();
 
+        builder.Property(m => m.GamePoints)
+            .HasColumnName("game_points");
+
         builder.Property(m => m.DurationMinutes)
             .HasColumnName("duration_minutes");
 
