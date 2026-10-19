@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Quadra.Infrastructure.Storage;
+using Quadra.Modules.Profile.Moderation;
 using Quadra.Modules.Profile.Persistence;
 
 namespace Quadra.Modules.Profile.Posts;
@@ -114,7 +115,7 @@ public sealed class CommentsHandler
     /// <returns>The post's comments, oldest first, or null when there is no such post.</returns>
     public async Task<CommentListResponse?> ListAsync(Guid callerId, Guid postId, CancellationToken cancellationToken)
     {
-        var postAuthorId = await FindPostAuthorAsync(postId, cancellationToken);
+        var postAuthorId = await FindVisiblePostAuthorAsync(callerId, postId, cancellationToken);
         if (postAuthorId is null)
         {
             return null;
@@ -122,6 +123,8 @@ public sealed class CommentsHandler
 
         var comments = await _context.PostComments.AsNoTracking()
             .Where(c => c.PostId == postId)
+            .Where(c => !_context.Blocks.Any(b =>
+                (b.BlockerId == callerId && b.BlockedId == c.AuthorId) || (b.BlockerId == c.AuthorId && b.BlockedId == callerId)))
             .OrderBy(c => c.CreatedAt)
             .Take(MaxListed)
             .ToListAsync(cancellationToken);
@@ -143,7 +146,7 @@ public sealed class CommentsHandler
         CreateCommentRequest request,
         CancellationToken cancellationToken)
     {
-        var postAuthorId = await FindPostAuthorAsync(postId, cancellationToken);
+        var postAuthorId = await FindVisiblePostAuthorAsync(callerId, postId, cancellationToken);
         if (postAuthorId is null)
         {
             return (null, false);
@@ -185,6 +188,13 @@ public sealed class CommentsHandler
         _context.PostComments.Remove(comment);
         await _context.SaveChangesAsync(cancellationToken);
         return true;
+    }
+
+    /// <summary>The post's author, or null when there is no such post or a block stands between them and the caller.</summary>
+    private async Task<Guid?> FindVisiblePostAuthorAsync(Guid callerId, Guid postId, CancellationToken cancellationToken)
+    {
+        var authorId = await FindPostAuthorAsync(postId, cancellationToken);
+        return authorId is { } id && await _context.Blocks.AnyBetweenAsync(callerId, id, cancellationToken) ? null : authorId;
     }
 
     private async Task<Guid?> FindPostAuthorAsync(Guid postId, CancellationToken cancellationToken) =>

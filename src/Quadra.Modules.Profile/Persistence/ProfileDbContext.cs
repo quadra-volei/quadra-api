@@ -26,6 +26,8 @@ public sealed class ProfileDbContext : DbContext
     public DbSet<Quadra.Modules.Profile.Posts.PostComment> PostComments => Set<Quadra.Modules.Profile.Posts.PostComment>();
     public DbSet<Quadra.Modules.Profile.Follows.Follow> Follows => Set<Quadra.Modules.Profile.Follows.Follow>();
     public DbSet<Quadra.Modules.Profile.Activities.Activity> Activities => Set<Quadra.Modules.Profile.Activities.Activity>();
+    public DbSet<Quadra.Modules.Profile.Moderation.Block> Blocks => Set<Quadra.Modules.Profile.Moderation.Block>();
+    public DbSet<Quadra.Modules.Profile.Moderation.PostReport> PostReports => Set<Quadra.Modules.Profile.Moderation.PostReport>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -42,5 +44,7 @@ public sealed class ProfileDbContext : DbContext
         modelBuilder.ApplyConfiguration(new Quadra.Modules.Profile.Posts.PostCommentConfiguration());
         modelBuilder.ApplyConfiguration(new Quadra.Modules.Profile.Follows.FollowConfiguration());
         modelBuilder.ApplyConfiguration(new Quadra.Modules.Profile.Activities.ActivityConfiguration());
+        modelBuilder.ApplyConfiguration(new Quadra.Modules.Profile.Moderation.BlockConfiguration());
+        modelBuilder.ApplyConfiguration(new Quadra.Modules.Profile.Moderation.PostReportConfiguration());
     }
 }
