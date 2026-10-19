@@ -35,7 +35,6 @@ public sealed class CreateScoreboardRequestValidatorTests
         _sut.Validate(new CreateScoreboardRequest()).IsValid.Should().BeTrue();
     }
 
-
     /// <summary>Covers: F1.4 — an unrecognised Format value fails validation (400).</summary>
     [Theory]
     [InlineData("BestOf7")]
