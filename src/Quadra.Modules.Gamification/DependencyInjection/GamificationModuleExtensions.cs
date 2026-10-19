@@ -43,6 +43,7 @@ public static class GamificationModuleExtensions
 
         services.AddScoped<IPointTransactionRepository, PointTransactionRepository>();
         services.AddScoped<IGroupRankingRepository, GroupRankingRepository>();
+        services.AddScoped<Quadra.Shared.Contracts.IPersonalDataStore, GamificationPersonalData>();
 
         // Gamification-owned write interface (invoked by the Background Worker).
         services.AddScoped<IMatchPointsWriter, ApplyFinishedMatchPointsHandler>();

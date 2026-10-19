@@ -30,6 +30,7 @@ public sealed class AuthController : ControllerBase
     private readonly RefreshHandler _refreshHandler;
     private readonly LogoutHandler _logoutHandler;
     private readonly IUserRepository _userRepository;
+    private readonly AccountDataHandler _accountDataHandler;
 
     public AuthController(
         IValidator<SmsOtpLoginRequest> smsOtpLoginValidator,
@@ -40,7 +41,8 @@ public sealed class AuthController : ControllerBase
         OidcLoginHandler oidcLoginHandler,
         RefreshHandler refreshHandler,
         LogoutHandler logoutHandler,
-        IUserRepository userRepository)
+        IUserRepository userRepository,
+        AccountDataHandler accountDataHandler)
     {
         _smsOtpLoginValidator = smsOtpLoginValidator;
         _oidcLoginValidator = oidcLoginValidator;
@@ -51,6 +53,7 @@ public sealed class AuthController : ControllerBase
         _refreshHandler = refreshHandler;
         _logoutHandler = logoutHandler;
         _userRepository = userRepository;
+        _accountDataHandler = accountDataHandler;
     }
 
     /// <summary>
@@ -218,6 +221,46 @@ public sealed class AuthController : ControllerBase
             user.Provider.ToString().ToLowerInvariant(),
             user.PhoneNumber,
             user.Email));
+    }
+
+    /// <summary>
+    /// GET /api/v1/auth/me/export — everything the API keeps about the caller, as JSON (LGPD
+    /// access right).
+    /// </summary>
+    [HttpGet("me/export")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> ExportMe(CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+        {
+            return Problem(statusCode: StatusCodes.Status401Unauthorized, title: "The token has no valid subject.");
+        }
+
+        var export = await _accountDataHandler.ExportAsync(userId, cancellationToken);
+        return export is null
+            ? Problem(statusCode: StatusCodes.Status401Unauthorized, title: "The account no longer exists.")
+            : Ok(export);
+    }
+
+    /// <summary>
+    /// DELETE /api/v1/auth/me — deletes the caller's account and personal data (LGPD erasure).
+    /// Every session ends with it. Irreversible; the app asks for confirmation first.
+    /// </summary>
+    [HttpDelete("me")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> DeleteMe(CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+        {
+            return Problem(statusCode: StatusCodes.Status401Unauthorized, title: "The token has no valid subject.");
+        }
+
+        await _accountDataHandler.DeleteAsync(userId, cancellationToken);
+        return NoContent();
     }
 
     private async Task<IActionResult> HandleOidcLoginAsync(
