@@ -69,6 +69,12 @@ services:
       - key: App__RecommendedVersion
         sync: false
 
+      # Adult-content check of uploaded photos: GoogleVision (needs the key below) or None.
+      - key: Moderation__Images__Provider
+        sync: false
+      - key: Moderation__Images__GoogleVisionApiKey
+        sync: false
+
       # Address search in "create match". Empty key = the free OpenStreetMap search (Photon).
       # Paste a Google Places API (New) key in the dashboard to switch to Google.
       - key: Places__GoogleApiKey

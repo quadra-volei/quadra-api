@@ -617,7 +617,7 @@ public sealed class PostsController : ControllerBase
                 detail: "Too many posts today. Try again tomorrow."),
             CreatePostFailure.PhotoNotOwned => Problem(
                 statusCode: StatusCodes.Status422UnprocessableEntity,
-                detail: "The photo must be an image this user uploaded, up to 10 MB."),
+                detail: "The photo must be an image this user uploaded, up to 10 MB, that passes the content check."),
             _ => Problem(
                 statusCode: StatusCodes.Status422UnprocessableEntity,
                 detail: "A post can only be tied to a match the author played, or to an open match still to come that they organize or confirmed. Only the organizer shares a match with no text."),

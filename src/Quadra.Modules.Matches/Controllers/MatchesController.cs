@@ -114,7 +114,7 @@ public sealed class MatchesController : ControllerBase
             && (!request.CoverObjectKey.StartsWith($"profiles/{callerId}/", StringComparison.Ordinal)
                 || !await photoStorage.IsWithinLimitsAsync(request.CoverObjectKey, cancellationToken)))
         {
-            ModelState.AddModelError(nameof(request.CoverObjectKey), "The cover must be an image the caller uploaded, up to 10 MB.");
+            ModelState.AddModelError(nameof(request.CoverObjectKey), "The cover must be an image the caller uploaded, up to 10 MB, that passes the content check.");
             return ValidationProblem(ModelState);
         }
 
@@ -242,7 +242,7 @@ public sealed class MatchesController : ControllerBase
             && (!request.CoverObjectKey.StartsWith($"profiles/{callerId}/", StringComparison.Ordinal)
                 || !await photoStorage.IsWithinLimitsAsync(request.CoverObjectKey, cancellationToken)))
         {
-            ModelState.AddModelError(nameof(request.CoverObjectKey), "The cover must be an image the caller uploaded, up to 10 MB.");
+            ModelState.AddModelError(nameof(request.CoverObjectKey), "The cover must be an image the caller uploaded, up to 10 MB, that passes the content check.");
             return ValidationProblem(ModelState);
         }
 

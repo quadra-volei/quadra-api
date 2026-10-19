@@ -13,15 +13,18 @@ public sealed class S3ProfilePhotoStorage : IProfilePhotoStorage
     private readonly IAmazonS3 _s3;
     private readonly ProfilePhotoStorageOptions _options;
     private readonly TimeProvider _timeProvider;
+    private readonly IImageModerator _moderator;
 
     public S3ProfilePhotoStorage(
         IAmazonS3 s3,
         IOptions<ProfilePhotoStorageOptions> options,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IImageModerator? moderator = null)
     {
         _s3 = s3;
         _options = options.Value;
         _timeProvider = timeProvider;
+        _moderator = moderator ?? new NoImageModerator();
     }
 
     /// <inheritdoc/>
@@ -58,7 +61,9 @@ public sealed class S3ProfilePhotoStorage : IProfilePhotoStorage
             return false;
         }
 
-        if (metadata.ContentLength <= _options.MaxPhotoBytes)
+        // Small enough, and (when a moderation provider is on) no adult content (DECISIONS #76).
+        if (metadata.ContentLength <= _options.MaxPhotoBytes
+            && await _moderator.IsAllowedAsync((await GetReadUrlAsync(objectKey, cancellationToken))!, cancellationToken))
         {
             return true;
         }
