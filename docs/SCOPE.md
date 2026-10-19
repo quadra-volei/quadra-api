@@ -31,6 +31,7 @@ Carta do Jogador = PlayerCard · Janela de Confirmação = ConfirmationWindow.
 | Update gate | Minimum and recommended app version from configuration (DECISIONS #74) | `GET app/version` |
 | Rede: feed | A post is a text and/or one photo, optionally tied to a finished match the author played or inviting to an open match still to come (organizer or confirmed player); likes; comments; the organizer of an open match still to come can share it as a card with no text (nothing is posted automatically); everyone's posts or only those of the players the caller follows; 20 posts per user per day | `GET posts` (`scope=following`), `POST posts`, `DELETE posts/{id}`, `PUT / DELETE posts/{id}/like`, `GET / POST posts/{id}/comments`, `DELETE posts/{id}/comments/{commentId}` |
 | Rede: follows | One player follows another, with no approval; followers and following counts | `GET / PUT / DELETE profiles/{userId}/follow` |
+| Rede: search | Find players by @handle prefix only, never by name, blocks respected, rate limited (DECISIONS #75) | `GET profiles/search` |
 | Rede: safety | Report a post (leaves the reporter's feed); block a player (hides posts and comments both ways, ends follows, refuses new ones); admins by account id list reports and delete posts (DECISIONS #70) | `POST posts/{id}/report`, `PUT / DELETE profiles/{userId}/block`, `GET profiles/me/blocks`, `GET admin/reports`, `DELETE admin/posts/{id}`, `DELETE admin/reports/{postId}` |
 | Friends' activity | What the players I follow did (started or finished an open match, MVP, new level number), recorded from the game events, 30 days, grouped "started", sharing switch on by default (DECISIONS #57 to #60) | `GET activities`, `PUT profiles/me/activity-sharing` |
 
@@ -81,7 +82,7 @@ video, posts on a profile, reporting a comment, notifications for likes, comment
 Never part of the MVP (Layer 3):
 
 - Courts and arenas (venues, photos, reviews), contacts sync
-- Player search, player rating, city ranking
+- Player search by name (search by @handle is in, DECISIONS #75), player rating, city ranking
 - Achievements and badges, per-play stats input (serve, block, attack, defense)
 - Payments, cost splitting, microtransactions, organizer premium plan
 - Calendar, Instagram or WhatsApp integration; routes and directions

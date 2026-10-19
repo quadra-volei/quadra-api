@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using FluentValidation;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -84,6 +86,18 @@ public static class ProfileModuleExtensions
         services.AddScoped<Quadra.Modules.Profile.Activities.ActivityWriter>();
         services.AddScoped<Quadra.Modules.Profile.Activities.ActivitiesHandler>();
         services.AddScoped<IPersonalDataStore, Quadra.Modules.Profile.Account.ProfilePersonalData>();
+
+        // Finding a player by @handle (never by name), rate limited per account.
+        services.AddScoped<Quadra.Modules.Profile.Search.PlayerSearchHandler>();
+        services.AddRateLimiter(options => options.AddPolicy(Quadra.Modules.Profile.Search.PlayerSearchHandler.RateLimitPolicy, context =>
+            System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous",
+                _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 30,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                })));
 
         // Rede safety: report a post, block a player; admins (by account id) review reports.
         services.AddScoped<ModerationHandler>();
