@@ -37,6 +37,9 @@ public sealed class AddMatchGuestHandler
         AddGuestRequest request,
         CancellationToken cancellationToken)
     {
+        // A guest takes a slot: serialized with confirmations (UpdateMyPresenceHandler).
+        await using var transaction = await _matchRepository.LockAsync(matchId, cancellationToken);
+
         var match = await _matchRepository.FindByIdAsync(matchId, cancellationToken)
             ?? throw new MatchNotFoundException(matchId);
 
@@ -66,6 +69,7 @@ public sealed class AddMatchGuestHandler
             _timeProvider.GetUtcNow());
 
         await _guestRepository.AddAsync(guest, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         _logger.LogInformation("Guest added. MatchId={MatchId} GuestId={GuestId}", matchId, guest.Id);
 

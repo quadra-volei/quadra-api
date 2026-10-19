@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Quadra.Modules.Matches.Entities;
 
 namespace Quadra.Modules.Matches.Persistence;
@@ -27,6 +28,15 @@ public sealed class MatchRepository : IMatchRepository
         return await _context.Matches
             .AsNoTracking()
             .FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
+    }
+
+    public async Task<IDbContextTransaction> LockAsync(Guid matchId, CancellationToken cancellationToken)
+    {
+        var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        await _context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM matches WHERE id = {matchId} FOR UPDATE",
+            cancellationToken);
+        return transaction;
     }
 
     public async Task UpdateAsync(Match match, CancellationToken cancellationToken)

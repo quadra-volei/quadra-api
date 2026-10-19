@@ -40,6 +40,9 @@ public sealed class UpdateMatchHandler
         UpdateMatchRequest request,
         CancellationToken cancellationToken)
     {
+        // Slots are checked against the confirmed players: no confirmation may slip in between.
+        await using var transaction = await _matchRepository.LockAsync(matchId, cancellationToken);
+
         var match = await _matchRepository.FindByIdAsync(matchId, cancellationToken)
             ?? throw new MatchNotFoundException(matchId);
 
@@ -87,7 +90,9 @@ public sealed class UpdateMatchHandler
             _timeProvider.GetUtcNow());
 
         await _matchRepository.UpdateAsync(match, cancellationToken);
-        return await _windowSynchronizer.SyncAsync(match, cancellationToken);
+        match = await _windowSynchronizer.SyncAsync(match, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return match;
     }
 }
 

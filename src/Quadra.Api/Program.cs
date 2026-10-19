@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Quadra.Api;
 using Quadra.Api.Background;
 using Quadra.Api.Events;
 using Quadra.Modules.Auth.DependencyInjection;
@@ -18,6 +19,9 @@ using Scalar.AspNetCore;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+// Unhandled exceptions answer ProblemDetails without internals; unique-index races answer 409.
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<UniqueViolationExceptionHandler>();
 // SEC-07: the modules add their policies (login/sms-otp per IP, places per account).
 builder.Services.AddRateLimiter(options => options.RejectionStatusCode = StatusCodes.Status429TooManyRequests);
 // Before the modules: they fall back to a no-op publisher only when none is registered.
@@ -56,6 +60,7 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
+app.UseExceptionHandler();
 app.UseRouting();
 app.UseAuthModule();
 app.UseRateLimiter();

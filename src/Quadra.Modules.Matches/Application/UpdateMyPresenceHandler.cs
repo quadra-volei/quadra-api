@@ -57,6 +57,10 @@ public sealed class UpdateMyPresenceHandler
         UpdateMyPresenceRequest request,
         CancellationToken cancellationToken)
     {
+        // Held until the writes are committed (before any event or broadcast): one request per
+        // match at a time counts the slots and takes a waiting-list position.
+        await using var transaction = await _matchRepository.LockAsync(matchId, cancellationToken);
+
         var match = await _matchRepository.FindByIdAsync(matchId, cancellationToken)
             ?? throw new MatchNotFoundException(matchId);
 
@@ -104,6 +108,7 @@ public sealed class UpdateMyPresenceHandler
                 await PromoteFirstWaiterAsync(matchId, PlayerType.Regular, now, cancellationToken);
             }
 
+            await transaction.CommitAsync(cancellationToken);
             await PublishAndBroadcastAsync(match, presence, now, cancellationToken);
             return presence;
         }
@@ -129,6 +134,7 @@ public sealed class UpdateMyPresenceHandler
             var position = await _waitingListRepository.GetNextPositionAsync(matchId, cancellationToken);
             var entry = WaitingListEntry.Create(matchId, callerId, playerType, position, now);
             await _waitingListRepository.AddAsync(entry, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
             throw new SlotLimitReachedException(position);
         }
@@ -152,6 +158,8 @@ public sealed class UpdateMyPresenceHandler
             presence!.Confirm(now);
             await _presenceRepository.UpdateAsync(presence, cancellationToken);
         }
+
+        await transaction.CommitAsync(cancellationToken);
 
         _logger.LogInformation(
             "Presence confirmed. MatchId={MatchId} PlayerId={PlayerId} PlayerType={PlayerType} Status={Status} Joined={Joined}",
