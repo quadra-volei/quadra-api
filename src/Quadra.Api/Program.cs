@@ -56,8 +56,8 @@ if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
-    app.MapScalarApiReference();
+    app.MapOpenApi().AllowAnonymous();
+    app.MapScalarApiReference().AllowAnonymous();
 }
 
 app.UseExceptionHandler();

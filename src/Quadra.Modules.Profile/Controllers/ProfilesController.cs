@@ -89,6 +89,7 @@ public sealed class ProfilesController : ControllerBase
     [HttpPut("me")]
     public async Task<ActionResult<PlayerProfileResponse>> UpdateMe(
         [FromBody] UpdateProfileRequest request,
+        [FromServices] IProfilePhotoStorage photoStorage,
         CancellationToken cancellationToken)
     {
         if (!TryGetCallerId(out var callerId))
@@ -105,6 +106,14 @@ public sealed class ProfilesController : ControllerBase
         if (!validation.IsValid)
         {
             return ValidationFailure(validation);
+        }
+
+        // The key is the caller's (validator); the uploaded object must also fit the limit (SEC-13).
+        if (!string.IsNullOrEmpty(request.PhotoObjectKey)
+            && !await photoStorage.IsWithinLimitsAsync(request.PhotoObjectKey, cancellationToken))
+        {
+            ModelState.AddModelError(nameof(request.PhotoObjectKey), "The photo is missing or larger than 10 MB.");
+            return ValidationProblem(ModelState);
         }
 
         try

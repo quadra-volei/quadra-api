@@ -136,6 +136,7 @@ public sealed class CardStyleController : ControllerBase
     [HttpPut("api/v1/profiles/me/card-style")]
     public async Task<ActionResult<PlayerCardStyleResponse>> Save(
         [FromBody] UpdateCardStyleRequest request,
+        [FromServices] IProfilePhotoStorage photoStorage,
         CancellationToken cancellationToken)
     {
         if (!Guid.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var callerId))
@@ -156,6 +157,14 @@ public sealed class CardStyleController : ControllerBase
                 ModelState.AddModelError(failure.PropertyName, failure.ErrorMessage);
             }
 
+            return ValidationProblem(ModelState);
+        }
+
+        // The key is the caller's (validator); the uploaded object must also fit the limit (SEC-13).
+        if (!string.IsNullOrEmpty(request.PhotoObjectKey)
+            && !await photoStorage.IsWithinLimitsAsync(request.PhotoObjectKey, cancellationToken))
+        {
+            ModelState.AddModelError(nameof(request.PhotoObjectKey), "The photo is missing or larger than 10 MB.");
             return ValidationProblem(ModelState);
         }
 

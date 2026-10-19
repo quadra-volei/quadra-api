@@ -48,6 +48,9 @@ public sealed class ProfilePhotoStorageOptions
         set => _photoReadUrlTtlMinutes = value > 0 ? value : DefaultReadUrlTtlMinutes;
     }
 
+    /// <summary>Largest uploaded photo accepted (bytes). The app sends compressed JPEGs well under it.</summary>
+    public long MaxPhotoBytes { get; set; } = 10 * 1024 * 1024;
+
     /// <summary>True when a bucket is configured, i.e. photos are enabled.</summary>
     public bool IsConfigured => !string.IsNullOrWhiteSpace(ProfilePhotosBucket);
 

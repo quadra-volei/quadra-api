@@ -30,7 +30,7 @@ public sealed class MatchesWebApplicationFactory : IAsyncLifetime
     public IEventPublisher Publisher { get; private set; } = Substitute.For<IEventPublisher>();
 
     /// <summary>Photo storage stand-in: a cover read URL is <c>https://s3.test.local/read/{key}</c>.</summary>
-    public IProfilePhotoStorage PhotoStorage { get; } = Substitute.For<IProfilePhotoStorage>();
+    public IProfilePhotoStorage PhotoStorage { get; } = TestPhotoStorage.Create();
 
     public WebApplicationFactory<Program> Factory { get; private set; } = default!;
 

@@ -47,3 +47,16 @@ public sealed class TestAdminProtectedController : ControllerBase
     [HttpGet]
     public IActionResult Get() => Ok();
 }
+
+/// <summary>No [Authorize] and no [AllowAnonymous]: the fallback policy must still demand a user (SEC-15).</summary>
+[ApiController]
+[Route("test-unattributed")]
+public sealed class TestUnattributedController : ControllerBase
+{
+    [HttpGet]
+    public IActionResult Get() => Ok();
+
+    /// <summary>An unhandled exception, to check what the client gets back.</summary>
+    [HttpGet("boom")]
+    public IActionResult Boom() => throw new InvalidOperationException("secret internal detail: connection string xyz");
+}
