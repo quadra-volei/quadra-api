@@ -20,11 +20,13 @@ public sealed class RefreshToken
         string tokenHash,
         string? deviceId,
         DateTimeOffset issuedAt,
-        DateTimeOffset expiresAt)
+        DateTimeOffset expiresAt,
+        Guid familyId)
     {
         Id = id;
         UserId = userId;
         TokenHash = tokenHash;
+        FamilyId = familyId;
         DeviceId = deviceId;
         IssuedAt = issuedAt;
         ExpiresAt = expiresAt;
@@ -34,6 +36,13 @@ public sealed class RefreshToken
     public Guid Id { get; private set; }
 
     public Guid UserId { get; private set; }
+
+    /// <summary>
+    /// The session: shared by the first token of a login and every token rotated from it. It is
+    /// the access token's <c>sid</c>, and the whole family is revoked on logout or on reuse
+    /// of a rotated token (SEC-09).
+    /// </summary>
+    public Guid FamilyId { get; private set; }
 
     public string TokenHash { get; private set; }
 
@@ -55,11 +64,12 @@ public sealed class RefreshToken
         string tokenHash,
         string? deviceId,
         DateTimeOffset issuedAt,
-        DateTimeOffset expiresAt)
+        DateTimeOffset expiresAt,
+        Guid familyId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tokenHash);
 
-        return new RefreshToken(id, userId, tokenHash, deviceId, issuedAt, expiresAt);
+        return new RefreshToken(id, userId, tokenHash, deviceId, issuedAt, expiresAt, familyId);
     }
 
     /// <summary>

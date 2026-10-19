@@ -17,6 +17,7 @@ public sealed class RefreshHandlerTests
     private static readonly DateTimeOffset Now = new(2026, 10, 5, 12, 0, 0, TimeSpan.Zero);
 
     private const string RawToken = "raw-refresh-token";
+    private static readonly Guid FamilyId = Guid.NewGuid();
 
     private readonly IRefreshTokenRepository _refreshTokens = Substitute.For<IRefreshTokenRepository>();
     private readonly IUserRepository _users = Substitute.For<IUserRepository>();
@@ -42,7 +43,8 @@ public sealed class RefreshHandlerTests
             tokenHash: RefreshTokenHasher.Hash(RawToken),
             deviceId,
             issuedAt: Now.AddDays(-1),
-            expiresAt: expiresAt ?? Now.AddDays(29));
+            expiresAt: expiresAt ?? Now.AddDays(29),
+            familyId: FamilyId);
 
     private User GivenUser()
     {
@@ -88,6 +90,8 @@ public sealed class RefreshHandlerTests
 
         await act.Should().ThrowAsync<RefreshTokenRejectedException>();
         await _refreshTokens.DidNotReceive().TryRotateAsync(Arg.Any<RefreshToken>(), Arg.Any<RefreshToken>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+        // Reuse of a revoked token ends the whole session (SEC-09).
+        await _refreshTokens.Received(1).RevokeFamilyAsync(FamilyId, Now, Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -187,7 +191,7 @@ public sealed class RefreshHandlerTests
 
         await CreateLogoutSut().HandleAsync(RawToken, TestContext.Current.CancellationToken);
 
-        await _refreshTokens.Received(1).RevokeAsync(stored, Now, Arg.Any<CancellationToken>());
+        await _refreshTokens.Received(1).RevokeFamilyAsync(FamilyId, Now, Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -200,6 +204,6 @@ public sealed class RefreshHandlerTests
 
         await CreateLogoutSut().HandleAsync(RawToken, TestContext.Current.CancellationToken);
 
-        await _refreshTokens.DidNotReceive().RevokeAsync(Arg.Any<RefreshToken>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+        await _refreshTokens.DidNotReceive().RevokeFamilyAsync(Arg.Any<Guid>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
     }
 }

@@ -45,6 +45,18 @@ public sealed class RefreshHandler
         var tokenHash = RefreshTokenHasher.Hash(rawRefreshToken);
 
         var stored = await _refreshTokenRepository.FindByTokenHashAsync(tokenHash, cancellationToken);
+        if (stored is { RevokedAt: not null })
+        {
+            // A rotated (or logged-out) token came back: someone holds a copy. End the whole
+            // session, so neither the thief's nor the owner's newer tokens keep working.
+            await _refreshTokenRepository.RevokeFamilyAsync(stored.FamilyId, now, cancellationToken);
+            _logger.LogWarning(
+                "Refresh rejected: reuse of a revoked token, session revoked. {OutcomeCategory} {UserId}",
+                "refresh_reuse",
+                stored.UserId);
+            throw new RefreshTokenRejectedException("The refresh token was already used.");
+        }
+
         if (stored is null || !stored.IsActive(now))
         {
             _logger.LogInformation(
@@ -62,12 +74,14 @@ public sealed class RefreshHandler
             throw new RefreshTokenRejectedException("No user is linked to the refresh token.");
         }
 
-        var session = _sessionFactory.Create(user, deviceId ?? stored.DeviceId, isNewUser: false, now);
+        var session = _sessionFactory.Create(user, deviceId ?? stored.DeviceId, isNewUser: false, now, stored.FamilyId);
 
         var rotated = await _refreshTokenRepository
             .TryRotateAsync(stored, session.RefreshTokenRow, now, cancellationToken);
         if (!rotated)
         {
+            // Same token presented twice at once: treated as reuse.
+            await _refreshTokenRepository.RevokeFamilyAsync(stored.FamilyId, now, cancellationToken);
             _logger.LogInformation(
                 "Refresh rejected: token was rotated by a concurrent request. {OutcomeCategory}",
                 OutcomeRefreshRejected);

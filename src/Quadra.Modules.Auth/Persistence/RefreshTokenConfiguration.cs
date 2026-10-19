@@ -44,6 +44,13 @@ public sealed class RefreshTokenConfiguration : IEntityTypeConfiguration<Refresh
             .HasColumnName("expires_at")
             .IsRequired();
 
+        builder.Property(t => t.FamilyId)
+            .HasColumnName("family_id")
+            .IsRequired();
+
+        builder.HasIndex(t => t.FamilyId)
+            .HasDatabaseName("ix_refresh_tokens_family_id");
+
         builder.Property(t => t.RevokedAt)
             .HasColumnName("revoked_at");
 

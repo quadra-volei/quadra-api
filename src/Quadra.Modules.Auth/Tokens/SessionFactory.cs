@@ -31,11 +31,13 @@ public sealed class SessionFactory
         _options = options;
     }
 
-    public IssuedSession Create(User user, string? deviceId, bool isNewUser, DateTimeOffset now)
+    /// <param name="familyId">The session being renewed (refresh); null starts a new one (login).</param>
+    public IssuedSession Create(User user, string? deviceId, bool isNewUser, DateTimeOffset now, Guid? familyId = null)
     {
         ArgumentNullException.ThrowIfNull(user);
 
-        var accessToken = _accessTokenIssuer.Issue(user, now);
+        var sessionId = familyId ?? Guid.NewGuid();
+        var accessToken = _accessTokenIssuer.Issue(user, sessionId, now);
         var rawRefreshToken = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(RefreshTokenBytes));
 
         var refreshTokenRow = RefreshToken.Issue(
@@ -44,7 +46,8 @@ public sealed class SessionFactory
             RefreshTokenHasher.Hash(rawRefreshToken),
             deviceId,
             now,
-            now.AddDays(_options.CurrentValue.RefreshTokenDays));
+            now.AddDays(_options.CurrentValue.RefreshTokenDays),
+            sessionId);
 
         var tokens = new AuthTokensResponse(
             accessToken.Value,

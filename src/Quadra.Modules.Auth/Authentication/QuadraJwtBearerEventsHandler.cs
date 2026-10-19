@@ -1,7 +1,10 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Quadra.Modules.Auth.Persistence;
+using Quadra.Modules.Auth.Tokens;
 
 namespace Quadra.Modules.Auth.Authentication;
 
@@ -11,6 +14,8 @@ namespace Quadra.Modules.Auth.Authentication;
 ///   <item>Reads <c>access_token</c> from the query string for SignalR <c>/hubs/*</c> WebSocket handshakes.</item>
 ///   <item>Replaces the default empty challenge body with the standardized <see cref="UnauthorizedErrorResponse"/> JSON.</item>
 ///   <item>Logs authentication failures through Serilog using structured properties.</item>
+///   <item>Refuses a validly signed token whose session (<c>sid</c>) is no longer active: logged
+///   out, revoked after reuse, expired, or its account deleted (SEC-09, SEC-10).</item>
 /// </list>
 /// </summary>
 public sealed class QuadraJwtBearerEventsHandler : JwtBearerEvents
@@ -29,6 +34,7 @@ public sealed class QuadraJwtBearerEventsHandler : JwtBearerEvents
         OnMessageReceived = HandleMessageReceivedAsync;
         OnAuthenticationFailed = HandleAuthenticationFailedAsync;
         OnChallenge = HandleChallengeAsync;
+        OnTokenValidated = HandleTokenValidatedAsync;
     }
 
     private static Task HandleMessageReceivedAsync(MessageReceivedContext context)
@@ -44,6 +50,25 @@ public sealed class QuadraJwtBearerEventsHandler : JwtBearerEvents
         }
 
         return Task.CompletedTask;
+    }
+
+    // ponytail: one indexed query per authenticated request; cache with eviction on logout if it shows up in latency.
+    private static async Task HandleTokenValidatedAsync(TokenValidatedContext context)
+    {
+        var principal = context.Principal;
+        if (!Guid.TryParse(principal?.FindFirst(QuadraClaimsTransformer.SubjectClaim)?.Value, out var userId)
+            || !Guid.TryParse(principal.FindFirst(JwtAccessTokenIssuer.SessionClaim)?.Value, out var sessionId))
+        {
+            context.Fail("The token has no session.");
+            return;
+        }
+
+        var repository = context.HttpContext.RequestServices.GetRequiredService<IRefreshTokenRepository>();
+        var now = context.HttpContext.RequestServices.GetRequiredService<TimeProvider>().GetUtcNow();
+        if (!await repository.IsSessionActiveAsync(userId, sessionId, now, context.HttpContext.RequestAborted))
+        {
+            context.Fail("The session has ended.");
+        }
     }
 
     private Task HandleAuthenticationFailedAsync(AuthenticationFailedContext context)
