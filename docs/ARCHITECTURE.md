@@ -31,7 +31,7 @@ Each module is a project `src/Quadra.Modules.<Name>/` with its own DbContext and
 | Gamification | Points and group ranking | `point_transactions`, `group_rankings` |
 | Geo | Nearby matches and address search | none (reads `matches` read-only) |
 | Realtime | SignalR hub `/hubs/match` | none (groups in memory) |
-| Notifications | Not implemented | — |
+| Notifications | In-app notifications, push tokens and preferences; sends through Expo Push (`INotificationSender` for the other modules) | `notifications`, `push_tokens`, `notification_preferences` |
 
 ## Boundaries
 

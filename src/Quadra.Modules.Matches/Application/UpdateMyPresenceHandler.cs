@@ -102,13 +102,19 @@ public sealed class UpdateMyPresenceHandler
                 "Presence declined. MatchId={MatchId} PlayerId={PlayerId} PlayerType={PlayerType} Status={Status}",
                 matchId, callerId, presence.PlayerType, presence.Status);
 
-            // Promote first Regular waiter when a Regular declines.
+            // Promote first Regular waiter when a Regular declines (told once committed).
+            Guid? promoted = null;
             if (presence.PlayerType == PlayerType.Regular)
             {
-                await PromoteFirstWaiterAsync(matchId, PlayerType.Regular, now, cancellationToken);
+                promoted = await PromoteFirstWaiterAsync(matchId, PlayerType.Regular, now, cancellationToken);
             }
 
             await transaction.CommitAsync(cancellationToken);
+            if (promoted is { } promotedId)
+            {
+                await _eventPublisher.PublishAsync(new WaitingListPromoted(matchId, promotedId, now), cancellationToken);
+            }
+
             await PublishAndBroadcastAsync(match, presence, now, cancellationToken);
             return presence;
         }
@@ -198,7 +204,8 @@ public sealed class UpdateMyPresenceHandler
         }
     }
 
-    private async Task PromoteFirstWaiterAsync(
+    /// <returns>The promoted player, or null when nobody was waiting.</returns>
+    private async Task<Guid?> PromoteFirstWaiterAsync(
         Guid matchId,
         PlayerType playerType,
         DateTimeOffset now,
@@ -209,7 +216,7 @@ public sealed class UpdateMyPresenceHandler
 
         if (firstWaiter is null)
         {
-            return;
+            return null;
         }
 
         var promotedPresence = MatchPresence.Create(matchId, firstWaiter.PlayerId, playerType, now);
@@ -219,6 +226,7 @@ public sealed class UpdateMyPresenceHandler
         _logger.LogInformation(
             "Waiting list player promoted. MatchId={MatchId} PlayerId={PlayerId} PlayerType={PlayerType} Status={Status}",
             matchId, firstWaiter.PlayerId, playerType, promotedPresence.Status);
+        return firstWaiter.PlayerId;
     }
 
     private async Task PublishAndBroadcastAsync(

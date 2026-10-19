@@ -80,6 +80,7 @@ public sealed class GamificationWebApplicationFactory : IAsyncLifetime
 
         using var scope = Factory.Services.CreateScope();
         await scope.ServiceProvider.GetRequiredService<AuthDbContext>().Database.MigrateAsync();
+        await scope.ServiceProvider.GetRequiredService<Quadra.Modules.Notifications.NotificationsDbContext>().Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<MatchesDbContext>().Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<GamificationDbContext>().Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<Quadra.Modules.Profile.Persistence.ProfileDbContext>().Database.MigrateAsync();

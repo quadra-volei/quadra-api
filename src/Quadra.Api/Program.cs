@@ -11,6 +11,7 @@ using Quadra.Modules.InGame.DependencyInjection;
 using Quadra.Modules.InGame.Persistence;
 using Quadra.Modules.Matches.DependencyInjection;
 using Quadra.Modules.Matches.Persistence;
+using Quadra.Modules.Notifications;
 using Quadra.Modules.Profile.DependencyInjection;
 using Quadra.Modules.Profile.Persistence;
 using Quadra.Modules.Realtime;
@@ -32,10 +33,13 @@ builder.Services.AddInGameModule(builder.Configuration);
 builder.Services.AddProfileModule(builder.Configuration);
 builder.Services.AddGeoModule(builder.Configuration);
 builder.Services.AddGamificationModule(builder.Configuration);
+builder.Services.AddNotificationsModule(builder.Configuration);
 
 // Live match updates over SignalR. Registered after the modules: it replaces their no-op notifier.
 builder.Services.AddRealtimeModule();
 builder.Services.AddHostedService<MatchWindowSweeper>();
+builder.Services.AddSingleton<MatchReminderSweeper>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<MatchReminderSweeper>());
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
@@ -52,6 +56,7 @@ if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
     await services.GetRequiredService<InGameDbContext>().Database.MigrateAsync();
     await services.GetRequiredService<ProfileDbContext>().Database.MigrateAsync();
     await services.GetRequiredService<GamificationDbContext>().Database.MigrateAsync();
+    await services.GetRequiredService<NotificationsDbContext>().Database.MigrateAsync();
 }
 
 if (app.Environment.IsDevelopment())

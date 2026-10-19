@@ -96,6 +96,7 @@ public static class MatchesModuleExtensions
         services.AddScoped<ListMatchesHandler>();
         services.AddScoped<CancelMatchHandler>();
         services.AddScoped<IPersonalDataStore, MatchesPersonalData>();
+        services.AddScoped<IUpcomingMatchReader, UpcomingMatchReader>();
         services.AddScoped<UpdateMatchHandler>();
         services.AddScoped<AddPresenceHandler>();
         services.AddScoped<UpdateMyPresenceHandler>();
