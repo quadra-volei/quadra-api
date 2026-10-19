@@ -23,6 +23,7 @@ public sealed class SmsOtpLoginHandler
     private const string DeliveryMedium = "SMS";
 
     private readonly IPhoneVerificationService _phoneVerification;
+    private readonly PhoneOtpThrottle _throttle;
     private readonly UserProvisioner _userProvisioner;
     private readonly SessionFactory _sessionFactory;
     private readonly IRefreshTokenRepository _refreshTokenRepository;
@@ -32,6 +33,7 @@ public sealed class SmsOtpLoginHandler
 
     public SmsOtpLoginHandler(
         IPhoneVerificationService phoneVerification,
+        PhoneOtpThrottle throttle,
         UserProvisioner userProvisioner,
         SessionFactory sessionFactory,
         IRefreshTokenRepository refreshTokenRepository,
@@ -40,6 +42,7 @@ public sealed class SmsOtpLoginHandler
         ILogger<SmsOtpLoginHandler> logger)
     {
         _phoneVerification = phoneVerification;
+        _throttle = throttle;
         _userProvisioner = userProvisioner;
         _sessionFactory = sessionFactory;
         _refreshTokenRepository = refreshTokenRepository;
@@ -53,6 +56,11 @@ public sealed class SmsOtpLoginHandler
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(phoneNumber);
+
+        if (!_throttle.TryStart(phoneNumber))
+        {
+            throw new PhoneVerificationThrottledException("Too many codes requested for this number. Try again later.");
+        }
 
         // No user lookup: the response is identical for known and unknown numbers, so the
         // endpoint cannot be used to probe which phones have an account.
@@ -76,6 +84,11 @@ public sealed class SmsOtpLoginHandler
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(phoneNumber);
         ArgumentException.ThrowIfNullOrWhiteSpace(code);
+
+        if (!_throttle.TryCheck(phoneNumber))
+        {
+            throw new PhoneVerificationThrottledException("Too many attempts for this number. Try again later.");
+        }
 
         var result = await _phoneVerification.CheckAsync(phoneNumber, code, cancellationToken);
         switch (result)

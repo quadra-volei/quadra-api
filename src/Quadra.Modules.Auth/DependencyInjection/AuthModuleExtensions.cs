@@ -1,7 +1,9 @@
+using System.Threading.RateLimiting;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -125,6 +127,17 @@ public static class AuthModuleExtensions
         services
             .AddHttpClient(TwilioVerifyPhoneVerificationService.HttpClientName)
             .ConfigureHttpClient(static client => client.Timeout = TwilioTimeout);
+
+        // SEC-07: per-IP limit on login/sms-otp (policy below), per-phone limits in the handler.
+        services.AddOptions<AuthRateLimitOptions>().BindConfiguration(AuthRateLimitOptions.SectionName);
+        services.AddSingleton<PhoneOtpThrottle>();
+        services.AddRateLimiter(options => options.AddPolicy(PhoneOtpThrottle.PolicyName, context =>
+        {
+            var limit = context.RequestServices.GetRequiredService<IOptions<AuthRateLimitOptions>>().Value.SmsOtpPerIpPerHour;
+            return RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = limit, Window = TimeSpan.FromHours(1), QueueLimit = 0 });
+        }));
 
         services.AddSingleton<FakePhoneVerificationService>();
         services.AddSingleton<TwilioVerifyPhoneVerificationService>();

@@ -29,6 +29,8 @@ internal static class TestJwtFactory
         new("Auth:PhoneVerification:Provider", "Fake"),
         new("Auth:PhoneVerification:Fake:Code", FakeOtpCode),
         new("Auth:Google:ClientId", "test-google-client"),
+        // Every test client shares one (unknown) IP: keep the per-IP login limit out of the way.
+        new("Auth:RateLimits:SmsOtpPerIpPerHour", "100000"),
     ];
 
     public const string FakeOtpCode = "123456";

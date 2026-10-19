@@ -1,4 +1,8 @@
+using System.Security.Claims;
+using System.Threading.RateLimiting;
 using FluentValidation;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -57,6 +61,14 @@ public static class GeoModuleExtensions
                 static options => options.IsValid,
                 "Places:Provider must be Google, OpenStreetMap or None, and Google needs Places:GoogleApiKey.")
             .ValidateOnStart();
+
+        services.AddRateLimiter(options => options.AddPolicy(PlacesOptions.RateLimitPolicy, context =>
+        {
+            var limit = context.RequestServices.GetRequiredService<IOptions<PlacesOptions>>().Value.RequestsPerMinute;
+            return RateLimitPartition.GetFixedWindowLimiter(
+                context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = limit, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 });
+        }));
 
         services
             .AddHttpClient(GooglePlaceSearchService.HttpClientName)

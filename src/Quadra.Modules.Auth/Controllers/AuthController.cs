@@ -3,6 +3,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Quadra.Modules.Auth.Application;
 using Quadra.Modules.Auth.Contracts;
 using Quadra.Modules.Auth.Entities;
@@ -58,6 +59,7 @@ public sealed class AuthController : ControllerBase
     /// </summary>
     [HttpPost("login/sms-otp")]
     [AllowAnonymous]
+    [EnableRateLimiting(PhoneOtpThrottle.PolicyName)]
     [ProducesResponseType(typeof(SmsOtpInitiateResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(AuthTokensResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
