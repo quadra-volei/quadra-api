@@ -30,6 +30,7 @@ Carta do Jogador = PlayerCard · Janela de Confirmação = ConfirmationWindow.
 | Feedback | Stores the app's feedback form, 20 per user per day | `POST feedback` |
 | Rede: feed | A post is a text and/or one photo, optionally tied to a finished match the author played or inviting to an open match still to come (organizer or confirmed player); likes; comments; the organizer of an open match still to come can share it as a card with no text (nothing is posted automatically); everyone's posts or only those of the players the caller follows; 20 posts per user per day | `GET posts` (`scope=following`), `POST posts`, `DELETE posts/{id}`, `PUT / DELETE posts/{id}/like`, `GET / POST posts/{id}/comments`, `DELETE posts/{id}/comments/{commentId}` |
 | Rede: follows | One player follows another, with no approval; followers and following counts | `GET / PUT / DELETE profiles/{userId}/follow` |
+| Rede: safety | Report a post (leaves the reporter's feed); block a player (hides posts and comments both ways, ends follows, refuses new ones); admins by account id list reports and delete posts (DECISIONS #70) | `POST posts/{id}/report`, `PUT / DELETE profiles/{userId}/block`, `GET profiles/me/blocks`, `GET admin/reports`, `DELETE admin/posts/{id}`, `DELETE admin/reports/{postId}` |
 | Friends' activity | What the players I follow did (started or finished an open match, MVP, new level number), recorded from the game events, 30 days, grouped "started", sharing switch on by default (DECISIONS #57 to #60) | `GET activities`, `PUT profiles/me/activity-sharing` |
 
 ## Pending
@@ -73,8 +74,8 @@ Human rulings (do not implement without a new decision):
 
 Rede (social feed, in scope since 2026-10-09, DECISIONS #40 to #49): each next step waits for
 the owner's approval. Not built yet: followers / following lists, friendship with request,
-blocking, a "moved up in the ranking" card, a match's posts, several photos,
-video, posts on a profile, reporting a post, notifications for likes, comments and follows.
+a "moved up in the ranking" card, a match's posts, several photos,
+video, posts on a profile, reporting a comment, notifications for likes, comments and follows.
 
 Never part of the MVP (Layer 3):
 

@@ -6,8 +6,8 @@ namespace Quadra.Modules.Profile.Account;
 
 /// <summary>
 /// Profile part of account export and deletion (SEC-14): profile, stats, match history, card,
-/// posts (with the likes and comments on them), comments, likes, follows both ways, activities
-/// and feedback. Deletion removes all of it.
+/// posts (with the likes, comments and reports on them), comments, likes, follows and blocks both
+/// ways, activities, feedback and the reports the person made. Deletion removes all of it.
 /// </summary>
 public sealed class ProfilePersonalData : IPersonalDataStore
 {
@@ -35,6 +35,9 @@ public sealed class ProfilePersonalData : IPersonalDataStore
             .Select(f => new { f.FollowerId, f.CreatedAt }).ToListAsync(cancellationToken),
         Activities = await _db.Activities.AsNoTracking().Where(a => a.ActorId == userId).ToListAsync(cancellationToken),
         Feedback = await _db.Feedback.AsNoTracking().Where(f => f.UserId == userId).ToListAsync(cancellationToken),
+        Blocked = await _db.Blocks.AsNoTracking().Where(b => b.BlockerId == userId)
+            .Select(b => new { b.BlockedId, b.CreatedAt }).ToListAsync(cancellationToken),
+        ReportsMade = await _db.PostReports.AsNoTracking().Where(r => r.ReporterId == userId).ToListAsync(cancellationToken),
     };
 
     // ponytail: photo objects in the bucket are not deleted (R2 is not configured yet); add a
@@ -42,6 +45,8 @@ public sealed class ProfilePersonalData : IPersonalDataStore
     public async Task EraseAsync(Guid userId, CancellationToken cancellationToken)
     {
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        await _db.PostReports.Where(r => r.ReporterId == userId).ExecuteDeleteAsync(cancellationToken);
+        await _db.Blocks.Where(b => b.BlockerId == userId || b.BlockedId == userId).ExecuteDeleteAsync(cancellationToken);
         await _db.PostComments.Where(c => c.AuthorId == userId).ExecuteDeleteAsync(cancellationToken);
         await _db.PostLikes.Where(l => l.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await _db.Posts.Where(p => p.AuthorId == userId).ExecuteDeleteAsync(cancellationToken);

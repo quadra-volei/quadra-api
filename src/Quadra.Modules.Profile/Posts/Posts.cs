@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Quadra.Infrastructure.Storage;
 using Quadra.Modules.Profile.Entities;
+using Quadra.Modules.Profile.Moderation;
 using Quadra.Modules.Profile.Persistence;
 using Quadra.Shared.Contracts;
 
@@ -363,7 +364,11 @@ public sealed class PostsHandler
         CancellationToken cancellationToken)
     {
         var take = Math.Clamp(limit, 1, MaxPageSize);
-        var query = _context.Posts.AsNoTracking();
+        // Never the posts of someone the caller blocked or who blocked them, nor those they reported.
+        var query = _context.Posts.AsNoTracking()
+            .Where(p => !_context.Blocks.Any(b =>
+                (b.BlockerId == callerId && b.BlockedId == p.AuthorId) || (b.BlockerId == p.AuthorId && b.BlockedId == callerId)))
+            .Where(p => !_context.PostReports.Any(r => r.PostId == p.Id && r.ReporterId == callerId));
         if (followingOnly)
         {
             query = query.Where(p => p.AuthorId == callerId
@@ -454,7 +459,11 @@ public sealed class PostsHandler
         bool liked,
         CancellationToken cancellationToken)
     {
-        if (!await _context.Posts.AnyAsync(p => p.Id == postId, cancellationToken))
+        var authorId = await _context.Posts.AsNoTracking()
+            .Where(p => p.Id == postId)
+            .Select(p => (Guid?)p.AuthorId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (authorId is null || await _context.Blocks.AnyBetweenAsync(callerId, authorId.Value, cancellationToken))
         {
             return null;
         }

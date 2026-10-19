@@ -502,6 +502,69 @@ namespace Quadra.Modules.Profile.Migrations
                     b.ToTable("follows", (string)null);
                 });
 
+            modelBuilder.Entity("Quadra.Modules.Profile.Moderation.Block", b =>
+                {
+                    b.Property<Guid>("BlockerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("blocker_id");
+
+                    b.Property<Guid>("BlockedId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("blocked_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("BlockerId", "BlockedId");
+
+                    b.HasIndex("BlockedId")
+                        .HasDatabaseName("ix_blocks_blocked_id");
+
+                    b.ToTable("blocks", (string)null);
+                });
+
+            modelBuilder.Entity("Quadra.Modules.Profile.Moderation.PostReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("details");
+
+                    b.Property<Guid>("PostId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("post_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("ReporterId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reporter_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PostId", "ReporterId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_post_reports_post_reporter");
+
+                    b.ToTable("post_reports", (string)null);
+                });
+
             modelBuilder.Entity("Quadra.Modules.Profile.Posts.Post", b =>
                 {
                     b.Property<Guid>("Id")
@@ -623,6 +686,15 @@ namespace Quadra.Modules.Profile.Migrations
                     b.HasKey("PostId", "UserId");
 
                     b.ToTable("post_likes", (string)null);
+                });
+
+            modelBuilder.Entity("Quadra.Modules.Profile.Moderation.PostReport", b =>
+                {
+                    b.HasOne("Quadra.Modules.Profile.Posts.Post", null)
+                        .WithMany()
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Quadra.Modules.Profile.Posts.PostComment", b =>

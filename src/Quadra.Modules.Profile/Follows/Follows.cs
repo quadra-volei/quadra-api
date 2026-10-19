@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Quadra.Modules.Profile.Moderation;
 using Quadra.Modules.Profile.Persistence;
 
 namespace Quadra.Modules.Profile.Follows;
@@ -92,6 +93,11 @@ public sealed class FollowsHandler : Quadra.Shared.Contracts.IFollowingReader
 
         if (following)
         {
+            if (await _context.Blocks.AnyBetweenAsync(callerId, userId, cancellationToken))
+            {
+                return null;
+            }
+
             // ON CONFLICT keeps a double tap (two requests at once) from failing on the key.
             await _context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO follows (follower_id, followed_id) VALUES ({callerId}, {userId}) ON CONFLICT DO NOTHING",

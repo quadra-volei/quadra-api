@@ -1,13 +1,17 @@
+using System.Security.Claims;
 using FluentValidation;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using Quadra.Infrastructure.DependencyInjection;
 using Quadra.Infrastructure.Persistence;
 using Quadra.Modules.Profile.Abstractions;
 using Quadra.Modules.Profile.Application;
 using Quadra.Modules.Profile.Contracts;
+using Quadra.Modules.Profile.Moderation;
 using Quadra.Modules.Profile.Persistence;
 using Quadra.Modules.Profile.Validation;
 using Quadra.Shared.Contracts;
@@ -80,6 +84,15 @@ public static class ProfileModuleExtensions
         services.AddScoped<Quadra.Modules.Profile.Activities.ActivityWriter>();
         services.AddScoped<Quadra.Modules.Profile.Activities.ActivitiesHandler>();
         services.AddScoped<IPersonalDataStore, Quadra.Modules.Profile.Account.ProfilePersonalData>();
+
+        // Rede safety: report a post, block a player; admins (by account id) review reports.
+        services.AddScoped<ModerationHandler>();
+        services.AddScoped<IValidator<ReportPostRequest>, ReportPostRequestValidator>();
+        services.AddOptions<ModerationOptions>().BindConfiguration(ModerationOptions.SectionName);
+        services.AddAuthorizationBuilder().AddPolicy(ModerationOptions.AdminPolicy, policy => policy.RequireAssertion(context =>
+            context.Resource is HttpContext http
+            && Guid.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)
+            && http.RequestServices.GetRequiredService<IOptions<ModerationOptions>>().Value.AdminUserIds.Contains(userId)));
         services.AddScoped<Quadra.Modules.Profile.CardStyle.CardStyleHandler>();
         services.AddScoped<IValidator<Quadra.Modules.Profile.CardStyle.UpdateCardStyleRequest>, Quadra.Modules.Profile.CardStyle.UpdateCardStyleRequestValidator>();
         services.AddScoped<IValidator<Quadra.Modules.Profile.Posts.CreateCommentRequest>, Quadra.Modules.Profile.Posts.CreateCommentRequestValidator>();
