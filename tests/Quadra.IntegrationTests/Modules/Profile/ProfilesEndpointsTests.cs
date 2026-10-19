@@ -1,3 +1,4 @@
+using NSubstitute;
 using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
@@ -285,6 +286,23 @@ public sealed class ProfilesEndpointsTests
         var request = Onboarding() with { PhotoObjectKey = foreignKey };
         var response = await client.PutAsJsonAsync("/api/v1/profiles/me", request, Ct);
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    /// <summary>Covers: SEC-13 — an uploaded photo over the size limit is refused before its key is saved.</summary>
+    [Fact]
+    public async Task PUT_me_with_an_oversized_photo_returns_400()
+    {
+        await _fx.ResetAsync();
+        var userId = Guid.NewGuid();
+        await ProvisionAsync(userId);
+        var client = _fx.CreateAuthenticatedClient(userId);
+
+        var bigKey = $"profiles/{userId}/photo/{Guid.NewGuid()}.jpg";
+        _fx.PhotoStorage.IsWithinLimitsAsync(bigKey, Arg.Any<CancellationToken>()).Returns(false);
+        var response = await client.PutAsJsonAsync("/api/v1/profiles/me", Onboarding() with { PhotoObjectKey = bigKey }, Ct);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await response.Content.ReadAsStringAsync(Ct)).Should().Contain("larger than 10 MB");
     }
 
     /// <summary>Covers: F2.1 PUT /profiles/me — 404 when the caller has no profile.</summary>

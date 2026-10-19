@@ -46,6 +46,28 @@ public sealed class S3ProfilePhotoStorage : IProfilePhotoStorage
     }
 
     /// <inheritdoc/>
+    public async Task<bool> IsWithinLimitsAsync(string objectKey, CancellationToken cancellationToken)
+    {
+        GetObjectMetadataResponse metadata;
+        try
+        {
+            metadata = await _s3.GetObjectMetadataAsync(_options.ProfilePhotosBucket, objectKey, cancellationToken);
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return false;
+        }
+
+        if (metadata.ContentLength <= _options.MaxPhotoBytes)
+        {
+            return true;
+        }
+
+        await _s3.DeleteObjectAsync(_options.ProfilePhotosBucket, objectKey, cancellationToken);
+        return false;
+    }
+
+    /// <inheritdoc/>
     public async Task<string?> GetReadUrlAsync(string objectKey, CancellationToken cancellationToken)
     {
         var expiresAt = _timeProvider.GetUtcNow().AddMinutes(_options.PhotoReadUrlTtlMinutes);

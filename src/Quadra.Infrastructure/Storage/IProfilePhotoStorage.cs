@@ -26,6 +26,14 @@ public interface IProfilePhotoStorage
     /// or returns <c>null</c> when no storage is configured.
     /// </summary>
     Task<string?> GetReadUrlAsync(string objectKey, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// True when the object uploaded at <paramref name="objectKey"/> exists and is at most
+    /// <see cref="ProfilePhotoStorageOptions.MaxPhotoBytes"/>. A presigned PUT cannot cap the size
+    /// (SEC-13), so every route that saves an uploaded key asks this first; an oversized object is
+    /// deleted. True when no storage is configured: no object can exist and no URL is ever served.
+    /// </summary>
+    Task<bool> IsWithinLimitsAsync(string objectKey, CancellationToken cancellationToken);
 }
 
 /// <summary>

@@ -19,4 +19,9 @@ public sealed class UnconfiguredProfilePhotoStorage : IProfilePhotoStorage
     {
         return Task.FromResult<string?>(null);
     }
+
+    public Task<bool> IsWithinLimitsAsync(string objectKey, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(true);
+    }
 }

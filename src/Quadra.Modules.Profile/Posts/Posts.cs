@@ -288,7 +288,8 @@ public sealed class PostsHandler
         // ponytail: post photos reuse the profile-photo upload URL, so their keys live under
         // profiles/{userId}/. Give posts their own prefix when a second kind of media arrives.
         if (!string.IsNullOrWhiteSpace(request.PhotoObjectKey)
-            && !request.PhotoObjectKey.StartsWith($"profiles/{callerId}/", StringComparison.Ordinal))
+            && (!request.PhotoObjectKey.StartsWith($"profiles/{callerId}/", StringComparison.Ordinal)
+                || !await _photoStorage.IsWithinLimitsAsync(request.PhotoObjectKey, cancellationToken)))
         {
             return (null, CreatePostFailure.PhotoNotOwned);
         }
@@ -616,7 +617,7 @@ public sealed class PostsController : ControllerBase
                 detail: "Too many posts today. Try again tomorrow."),
             CreatePostFailure.PhotoNotOwned => Problem(
                 statusCode: StatusCodes.Status422UnprocessableEntity,
-                detail: "The photo was not uploaded by this user."),
+                detail: "The photo must be an image this user uploaded, up to 10 MB."),
             _ => Problem(
                 statusCode: StatusCodes.Status422UnprocessableEntity,
                 detail: "A post can only be tied to a match the author played, or to an open match still to come that they organize or confirmed. Only the organizer shares a match with no text."),

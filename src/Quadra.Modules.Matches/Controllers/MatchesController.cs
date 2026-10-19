@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Quadra.Infrastructure.Storage;
 using Quadra.Modules.Matches.Application;
 using Quadra.Modules.Matches.Contracts;
 using Quadra.Modules.Matches.Entities;
@@ -88,6 +89,7 @@ public sealed class MatchesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<MatchResponse>> Create(
         [FromBody] CreateMatchRequest request,
+        [FromServices] IProfilePhotoStorage photoStorage,
         CancellationToken cancellationToken)
     {
         if (!TryGetCallerId(out var callerId))
@@ -109,9 +111,10 @@ public sealed class MatchesController : ControllerBase
         // ponytail: the cover reuses the profile-photo upload URL (as post photos do), so its key
         // lives under profiles/{userId}/. Give covers their own prefix if that ever matters.
         if (!string.IsNullOrWhiteSpace(request.CoverObjectKey)
-            && !request.CoverObjectKey.StartsWith($"profiles/{callerId}/", StringComparison.Ordinal))
+            && (!request.CoverObjectKey.StartsWith($"profiles/{callerId}/", StringComparison.Ordinal)
+                || !await photoStorage.IsWithinLimitsAsync(request.CoverObjectKey, cancellationToken)))
         {
-            ModelState.AddModelError(nameof(request.CoverObjectKey), "The cover must be an image the caller uploaded.");
+            ModelState.AddModelError(nameof(request.CoverObjectKey), "The cover must be an image the caller uploaded, up to 10 MB.");
             return ValidationProblem(ModelState);
         }
 
@@ -209,6 +212,7 @@ public sealed class MatchesController : ControllerBase
     public async Task<ActionResult<MatchResponse>> Update(
         Guid id,
         [FromBody] UpdateMatchRequest request,
+        [FromServices] IProfilePhotoStorage photoStorage,
         CancellationToken cancellationToken)
     {
         if (!TryGetCallerId(out var callerId))
@@ -234,9 +238,10 @@ public sealed class MatchesController : ControllerBase
         }
 
         if (!string.IsNullOrEmpty(request.CoverObjectKey)
-            && !request.CoverObjectKey.StartsWith($"profiles/{callerId}/", StringComparison.Ordinal))
+            && (!request.CoverObjectKey.StartsWith($"profiles/{callerId}/", StringComparison.Ordinal)
+                || !await photoStorage.IsWithinLimitsAsync(request.CoverObjectKey, cancellationToken)))
         {
-            ModelState.AddModelError(nameof(request.CoverObjectKey), "The cover must be an image the caller uploaded.");
+            ModelState.AddModelError(nameof(request.CoverObjectKey), "The cover must be an image the caller uploaded, up to 10 MB.");
             return ValidationProblem(ModelState);
         }
 

@@ -1,6 +1,7 @@
 using System.Threading.RateLimiting;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.RateLimiting;
@@ -86,7 +87,9 @@ public static class AuthModuleExtensions
                     };
                 });
 
-        services.AddAuthorization();
+        // An endpoint with no [Authorize] or [AllowAnonymous] still needs a signed-in user (SEC-15).
+        services.AddAuthorization(options => options.FallbackPolicy =
+            new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
 
         AddLoginPipeline(services);
 

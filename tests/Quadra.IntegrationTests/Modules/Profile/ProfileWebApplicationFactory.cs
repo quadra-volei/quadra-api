@@ -30,7 +30,7 @@ public sealed class ProfileWebApplicationFactory : IAsyncLifetime
 
     public IEventPublisher Publisher { get; } = Substitute.For<IEventPublisher>();
 
-    public IProfilePhotoStorage PhotoStorage { get; } = Substitute.For<IProfilePhotoStorage>();
+    public IProfilePhotoStorage PhotoStorage { get; } = TestPhotoStorage.Create();
 
     public WebApplicationFactory<Program> Factory { get; private set; } = default!;
 
