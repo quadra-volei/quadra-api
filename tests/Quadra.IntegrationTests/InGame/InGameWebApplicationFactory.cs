@@ -79,6 +79,7 @@ public sealed class InGameWebApplicationFactory : IAsyncLifetime
         using var scope = Factory.Services.CreateScope();
         var authCtx = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
         await authCtx.Database.MigrateAsync();
+        await scope.ServiceProvider.GetRequiredService<Quadra.Modules.Notifications.NotificationsDbContext>().Database.MigrateAsync();
         var matchesCtx = scope.ServiceProvider.GetRequiredService<MatchesDbContext>();
         await matchesCtx.Database.MigrateAsync();
         var inGameCtx = scope.ServiceProvider.GetRequiredService<InGameDbContext>();

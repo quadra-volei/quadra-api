@@ -3,7 +3,9 @@ using Microsoft.Extensions.Logging;
 using Quadra.Modules.InGame.Contracts;
 using Quadra.Modules.InGame.Entities;
 using Quadra.Modules.InGame.Persistence;
+using Quadra.Infrastructure.Messaging;
 using Quadra.Shared.Contracts;
+using Quadra.Shared.Events.InGame;
 
 namespace Quadra.Modules.InGame.Application;
 
@@ -17,19 +19,22 @@ public sealed class OpenMvpVotingHandler
     private readonly IMvpVotingRepository _votingRepository;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<OpenMvpVotingHandler> _logger;
+    private readonly IEventPublisher? _eventPublisher;
 
     public OpenMvpVotingHandler(
         IMatchReader matchReader,
         IScoreboardRepository scoreboardRepository,
         IMvpVotingRepository votingRepository,
         TimeProvider timeProvider,
-        ILogger<OpenMvpVotingHandler> logger)
+        ILogger<OpenMvpVotingHandler> logger,
+        IEventPublisher? eventPublisher = null)
     {
         _matchReader = matchReader;
         _scoreboardRepository = scoreboardRepository;
         _votingRepository = votingRepository;
         _timeProvider = timeProvider;
         _logger = logger;
+        _eventPublisher = eventPublisher;
     }
 
     public async Task<MvpVotingResponse> HandleAsync(
@@ -83,7 +88,13 @@ public sealed class OpenMvpVotingHandler
             "MVP voting opened for MatchId={MatchId}. DeadlineAt={DeadlineAt}.",
             matchId, deadlineAt);
 
-        // 8. Map and return.
+        // 8. Tell the players the vote is open (push and in-app notification).
+        if (_eventPublisher is not null)
+        {
+            await _eventPublisher.PublishAsync(new MvpVotingOpened(matchId, deadlineAt, now), cancellationToken);
+        }
+
+        // 9. Map and return.
         return GetMvpVotingHandler.MapToResponse(voting, callerHasVoted: false);
     }
 }

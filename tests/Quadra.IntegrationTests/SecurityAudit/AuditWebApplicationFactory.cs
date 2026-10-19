@@ -38,6 +38,7 @@ public sealed class AuditWebApplicationFactory : IAsyncLifetime
         using var scope = Factory.Services.CreateScope();
         var sp = scope.ServiceProvider;
         await sp.GetRequiredService<AuthDbContext>().Database.MigrateAsync();
+        await sp.GetRequiredService<Quadra.Modules.Notifications.NotificationsDbContext>().Database.MigrateAsync();
         await sp.GetRequiredService<MatchesDbContext>().Database.MigrateAsync();
         await sp.GetRequiredService<InGameDbContext>().Database.MigrateAsync();
         await sp.GetRequiredService<ProfileDbContext>().Database.MigrateAsync();

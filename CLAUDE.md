@@ -40,7 +40,7 @@ treat it as current and do not read it by default.
 ```
 src/Quadra.Api/                 host, Program.cs, Events/ (cross-module event handlers)
 src/Quadra.Modules.<Name>/      Auth, Matches, InGame, Profile, Geo, Gamification, Realtime
-src/Quadra.Modules.Notifications/  empty (not implemented)
+src/Quadra.Modules.Notifications/  in-app notifications + Expo Push (one file, Notifications.cs)
 src/Quadra.Workers.*/           empty placeholders, not deployed
 src/Quadra.Shared/              events and cross-module interfaces
 src/Quadra.Infrastructure/      EF helpers, event publisher, photo storage

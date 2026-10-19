@@ -87,6 +87,7 @@ public sealed class ProfileWebApplicationFactory : IAsyncLifetime
         using var scope = Factory.Services.CreateScope();
         var authCtx = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
         await authCtx.Database.MigrateAsync();
+        await scope.ServiceProvider.GetRequiredService<Quadra.Modules.Notifications.NotificationsDbContext>().Database.MigrateAsync();
         var profileCtx = scope.ServiceProvider.GetRequiredService<ProfileDbContext>();
         await profileCtx.Database.MigrateAsync();
         // Posts ask the Matches module whether a match can be invited to.

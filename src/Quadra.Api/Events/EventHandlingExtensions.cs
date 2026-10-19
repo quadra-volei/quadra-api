@@ -30,6 +30,9 @@ public static class EventHandlingExtensions
         services.AddScoped<IEventHandler<MatchStarted>, ActivityConsumers>();
         services.AddScoped<IEventHandler<MvpAwarded>, ActivityConsumers>();
         services.AddScoped<IEventHandler<PlayerLevelUp>, ActivityConsumers>();
+        services.AddScoped<IEventHandler<WaitingListPromoted>, NotificationConsumers>();
+        services.AddScoped<IEventHandler<MvpVotingOpened>, NotificationConsumers>();
+        services.AddScoped<IEventHandler<MatchSummaryGenerated>, NotificationConsumers>();
 
         return services;
     }

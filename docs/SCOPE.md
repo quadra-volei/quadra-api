@@ -29,6 +29,7 @@ Carta do Jogador = PlayerCard · Janela de Confirmação = ConfirmationWindow.
 | Season ranking | Points from recurring matches played this month (Brasília), among me and who I follow, inside one recurring group, or general (3+ games); optional court position filter; ties share a rank (DECISIONS #63) | `rankings` (`scope`, `groupId`, `position`), `rankings/groups` |
 | Feedback | Stores the app's feedback form, 20 per user per day | `POST feedback` |
 | Update gate | Minimum and recommended app version from configuration (DECISIONS #74) | `GET app/version` |
+| Notifications | In-app list, unread counter, mark read; push through Expo Push by preference; sent for a waiting list spot, the reminder of a match within 24 h (confirm / see you), MVP voting open, summary ready (DECISIONS #77) | `notifications`, `notifications/unread-count`, `notifications/{id}/read`, `notifications/read-all`, `notifications/push-token`, `notifications/preferences` |
 | Rede: feed | A post is a text and/or one photo, optionally tied to a finished match the author played or inviting to an open match still to come (organizer or confirmed player); likes; comments; the organizer of an open match still to come can share it as a card with no text (nothing is posted automatically); everyone's posts or only those of the players the caller follows; 20 posts per user per day | `GET posts` (`scope=following`), `POST posts`, `DELETE posts/{id}`, `PUT / DELETE posts/{id}/like`, `GET / POST posts/{id}/comments`, `DELETE posts/{id}/comments/{commentId}` |
 | Rede: follows | One player follows another, with no approval; followers and following counts | `GET / PUT / DELETE profiles/{userId}/follow` |
 | Rede: search | Find players by @handle prefix only, never by name, blocks respected, rate limited (DECISIONS #75) | `GET profiles/search` |
@@ -46,9 +47,7 @@ Needs configuration only (no code):
 
 Needs code:
 
-- **In-app notifications** (`notifications` table, list, mark as read, unread counter): the
-  module is empty.
-- **Push notifications** (planned: Expo Push): nothing implemented.
+- **Push on the phone** needs the app side (`expo-notifications`, waiting for Johny's OK on the package) and FCM credentials in EAS; the API already stores tokens and sends through Expo Push (DECISIONS #77).
 - **Summary of a game with rotating teams** does not record which pair played each set
   (DECISIONS #30).
 - **Per-player stats**: the score is recorded by team; the app shows zeros in "Meu desempenho".

@@ -78,6 +78,7 @@ public sealed class MatchesWebApplicationFactory : IAsyncLifetime
         using var scope = Factory.Services.CreateScope();
         var authCtx = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
         await authCtx.Database.MigrateAsync();
+        await scope.ServiceProvider.GetRequiredService<Quadra.Modules.Notifications.NotificationsDbContext>().Database.MigrateAsync();
         var matchesCtx = scope.ServiceProvider.GetRequiredService<MatchesDbContext>();
         await matchesCtx.Database.MigrateAsync();
         // The match detail reads the game state from InGame.
