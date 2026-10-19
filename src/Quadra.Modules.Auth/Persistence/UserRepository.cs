@@ -62,4 +62,7 @@ public sealed class UserRepository : IUserRepository
             return false;
         }
     }
+
+    public Task DeleteAsync(Guid id, CancellationToken cancellationToken) =>
+        _dbContext.Users.Where(u => u.Id == id).ExecuteDeleteAsync(cancellationToken);
 }

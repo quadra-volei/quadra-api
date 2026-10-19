@@ -61,6 +61,7 @@ public static class InGameModuleExtensions
         services.AddScoped<ITeamRepository, TeamRepository>();
         services.AddScoped<IScoreboardRepository, ScoreboardRepository>();
         services.AddScoped<IMvpVotingRepository, MvpVotingRepository>();
+        services.AddScoped<Quadra.Shared.Contracts.IPersonalDataStore, InGamePersonalData>();
 
         // Cross-module read interface implemented by the InGame module (consumed by Matches, F1.6).
         services.AddScoped<IMatchResultReader, MatchResultReader>();

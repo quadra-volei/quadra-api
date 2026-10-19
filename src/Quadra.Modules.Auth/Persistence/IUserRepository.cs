@@ -21,4 +21,7 @@ public interface IUserRepository
     /// request created the same phone number or external identity first (unique-index race).
     /// </summary>
     Task<bool> TryAddAsync(User user, CancellationToken cancellationToken);
+
+    /// <summary>Deletes the account; its refresh tokens (sessions) go with it (cascade).</summary>
+    Task DeleteAsync(Guid id, CancellationToken cancellationToken);
 }

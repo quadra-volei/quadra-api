@@ -174,6 +174,7 @@ public static class AuthModuleExtensions
         services.AddScoped<OidcLoginHandler>();
         services.AddScoped<RefreshHandler>();
         services.AddScoped<LogoutHandler>();
+        services.AddScoped<AccountDataHandler>();
 
         services.AddScoped<IValidator<SmsOtpLoginRequest>, SmsOtpLoginRequestValidator>();
         services.AddScoped<IValidator<OidcLoginRequest>, OidcLoginRequestValidator>();

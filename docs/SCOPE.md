@@ -11,7 +11,7 @@ Carta do Jogador = PlayerCard · Janela de Confirmação = ConfirmationWindow.
 
 | Area | What exists | Main routes (`/api/v1`) |
 | --- | --- | --- |
-| Auth (FA.1, FA.3) | SMS OTP (6 digits) and Google login; the first valid login creates the user; own JWT + rotating refresh token; logout | `auth/login/sms-otp`, `auth/login/google`, `auth/refresh`, `auth/logout`, `auth/me` |
+| Auth (FA.1, FA.3) | SMS OTP (6 digits) and Google login; the first valid login creates the user; own JWT + rotating refresh token; logout ends the session; export and delete the account (LGPD, DECISIONS #69) | `auth/login/sms-otp`, `auth/login/google`, `auth/refresh`, `auth/logout`, `auth/me`, `auth/me/export`, `DELETE auth/me` |
 | Match creation (F1.1) | Recurring or one-off match with format, level, duration, prices, visibility (open / private by code / private by guests), confirmations open from creation (an explicit window or "opens N hours before" still accepted); optional cover photo (key from the profile-photo upload, read URL in the detail) | `POST matches`, `GET matches/mine`, `GET matches/{id}/detail` |
 | Edit and cancel | The organizer edits the details (not type nor visibility) and cancels until the game starts; slots never below the confirmed players | `PUT matches/{id}`, `DELETE matches/{id}` |
 | Next game of a recurring group | Generating a recurring game's summary creates the group's next game (next week day by frequency, same settings and invite code, same window distance), with everyone who had confirmed as Pending (DECISIONS #64) | `POST matches/{id}/summary` |
