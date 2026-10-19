@@ -93,7 +93,8 @@ the workspace root `.claude/`, also outside git: start Claude from the workspace
 - The caller's id comes from the token, never from the body or the route.
 - Every read or write of a resource by id checks ownership or membership (owner, organizer,
   participant, or public). Being logged in is not permission; private matches stay private.
-- New controllers keep `[Authorize]`; `[AllowAnonymous]` only for login, refresh, logout.
+- New controllers keep `[Authorize]`; `[AllowAnonymous]` only for login, refresh, logout and the
+  app version gate (`GET app/version`), whitelisted in `MatchVisibilityAuditTests`.
 - Least privilege: return only the fields the caller may see; no extra DB or service rights.
 - No tokens, passwords, phone numbers or personal data in logs, errors or responses to others;
   errors go out as ProblemDetails without internals.

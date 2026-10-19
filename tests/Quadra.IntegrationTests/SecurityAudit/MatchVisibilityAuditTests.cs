@@ -316,6 +316,7 @@ public sealed class MatchVisibilityAuditTests : IClassFixture<AuditWebApplicatio
         [
             "AuthController.LoginSmsOtp", "AuthController.LoginGoogle", "AuthController.LoginApple",
             "AuthController.Refresh", "AuthController.Logout",
+            "AppVersionController.Get", // public version gate, read before login (DECISIONS #74)
         ];
         var controllers = AppDomain.CurrentDomain.GetAssemblies()
             .Where(asm => asm.GetName().Name?.StartsWith("Quadra.", StringComparison.Ordinal) == true)

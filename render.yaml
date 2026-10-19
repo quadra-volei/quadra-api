@@ -61,6 +61,14 @@ services:
       - key: Moderation__AdminUserIds__0
         sync: false
 
+      # Update gate (GET /api/v1/app/version): below the minimum the app blocks with "atualize o
+      # app"; below the recommended it only suggests. Empty = no requirement. Raise the minimum
+      # only after the new version is live in the store.
+      - key: App__MinimumVersion
+        sync: false
+      - key: App__RecommendedVersion
+        sync: false
+
       # Address search in "create match". Empty key = the free OpenStreetMap search (Photon).
       # Paste a Google Places API (New) key in the dashboard to switch to Google.
       - key: Places__GoogleApiKey
