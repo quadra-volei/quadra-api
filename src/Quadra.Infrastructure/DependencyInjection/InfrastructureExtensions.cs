@@ -49,6 +49,11 @@ public static class InfrastructureExtensions
                     options.PhotoUploadUrlTtlMinutes = uploadTtl;
                 }
 
+                if (long.TryParse(section[nameof(options.MaxPhotoBytes)], out var maxBytes) && maxBytes > 0)
+                {
+                    options.MaxPhotoBytes = maxBytes;
+                }
+
                 if (int.TryParse(section[nameof(options.PhotoReadUrlTtlMinutes)], out var readTtl))
                 {
                     options.PhotoReadUrlTtlMinutes = readTtl;
@@ -67,6 +72,25 @@ public static class InfrastructureExtensions
             CreateS3Client(sp.GetRequiredService<IOptions<ProfilePhotoStorageOptions>>().Value));
         services.TryAddSingleton(TimeProvider.System);
 
+        // Adult-content check of uploaded photos (DECISIONS #76): off unless Moderation:Images:Provider
+        // is GoogleVision, which then needs its API key.
+        services
+            .AddOptions<ImageModerationOptions>()
+            .Configure<IConfiguration>(static (options, cfg) =>
+            {
+                var section = cfg.GetSection(ImageModerationOptions.SectionName);
+                options.Provider = section[nameof(options.Provider)] ?? ImageModerationOptions.None;
+                options.GoogleVisionApiKey = section[nameof(options.GoogleVisionApiKey)];
+            })
+            .Validate(
+                static options => !options.UsesGoogleVision || !string.IsNullOrWhiteSpace(options.GoogleVisionApiKey),
+                "Moderation:Images:GoogleVisionApiKey is required when Moderation:Images:Provider is GoogleVision.")
+            .ValidateOnStart();
+        services.TryAddSingleton<IImageModerator>(static sp =>
+            sp.GetRequiredService<IOptions<ImageModerationOptions>>().Value.UsesGoogleVision
+                ? ActivatorUtilities.CreateInstance<GoogleVisionImageModerator>(sp)
+                : new NoImageModerator());
+
         services.TryAddScoped<IProfilePhotoStorage>(static sp =>
         {
             var options = sp.GetRequiredService<IOptions<ProfilePhotoStorageOptions>>();
@@ -74,7 +98,8 @@ public static class InfrastructureExtensions
                 ? new S3ProfilePhotoStorage(
                     sp.GetRequiredService<IAmazonS3>(),
                     options,
-                    sp.GetRequiredService<TimeProvider>())
+                    sp.GetRequiredService<TimeProvider>(),
+                    sp.GetRequiredService<IImageModerator>())
                 : new UnconfiguredProfilePhotoStorage();
         });
 
