@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore.Storage;
 using Quadra.Modules.Matches.Entities;
 
 namespace Quadra.Modules.Matches.Persistence;
@@ -10,6 +11,13 @@ public interface IMatchRepository
     Task AddAsync(Match match, CancellationToken cancellationToken);
     Task<Match?> FindByIdAsync(Guid id, CancellationToken cancellationToken);
     Task UpdateAsync(Match match, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Begins a transaction that holds the match row lock (<c>SELECT … FOR UPDATE</c>) until it is
+    /// committed or disposed. Every change of slots, presences or waiting-list positions of one
+    /// match runs inside it, so concurrent requests cannot overfill the match (SEC-03, SEC-11).
+    /// </summary>
+    Task<IDbContextTransaction> LockAsync(Guid matchId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Returns a filtered, ordered, paginated page of matches together with the total count
