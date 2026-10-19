@@ -12,6 +12,13 @@ public interface IMatchAccessReader
     /// <summary>Whether <paramref name="callerId"/> may see the match. False when it does not exist.</summary>
     Task<bool> CanViewAsync(Guid matchId, Guid callerId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Whether <paramref name="inviteCode"/> is the invite code of this private match: the holder of
+    /// an invite link may see the match before joining (DECISIONS #73). Never true for a match
+    /// without a code.
+    /// </summary>
+    Task<bool> IsValidInviteAsync(Guid matchId, string inviteCode, CancellationToken cancellationToken);
+
     /// <summary>The subset of <paramref name="matchIds"/> that <paramref name="callerId"/> may see.</summary>
     Task<IReadOnlySet<Guid>> ListViewableAsync(
         IReadOnlyCollection<Guid> matchIds,
