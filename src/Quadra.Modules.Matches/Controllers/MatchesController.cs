@@ -498,6 +498,7 @@ public sealed class MatchesController : ControllerBase
     [HttpGet("{id:guid}/detail")]
     public async Task<ActionResult<MatchDetailResponse>> GetDetail(
         Guid id,
+        [FromQuery] string? inviteCode,
         CancellationToken cancellationToken)
     {
         if (!TryGetCallerId(out var callerId))
@@ -505,7 +506,10 @@ public sealed class MatchesController : ControllerBase
             return Unauthorized();
         }
 
-        if (!await _access.CanViewAsync(id, callerId, cancellationToken))
+        // An invite link carries the code: its holder sees the private match before joining.
+        if (!await _access.CanViewAsync(id, callerId, cancellationToken)
+            && (string.IsNullOrWhiteSpace(inviteCode) || inviteCode.Length > 16
+                || !await _access.IsValidInviteAsync(id, inviteCode, cancellationToken)))
         {
             return NotFound();
         }

@@ -17,6 +17,14 @@ public sealed class MatchAccessReader : IMatchAccessReader
     public Task<bool> CanViewAsync(Guid matchId, Guid callerId, CancellationToken cancellationToken) =>
         _context.VisibleTo(callerId).AnyAsync(m => m.Id == matchId, cancellationToken);
 
+    public Task<bool> IsValidInviteAsync(Guid matchId, string inviteCode, CancellationToken cancellationToken)
+    {
+        var code = inviteCode.Trim().ToUpperInvariant();
+        return _context.Matches.AsNoTracking().AnyAsync(
+            m => m.Id == matchId && m.InviteMode == MatchInviteMode.Code && m.InviteCode == code,
+            cancellationToken);
+    }
+
     public async Task<IReadOnlySet<Guid>> ListViewableAsync(
         IReadOnlyCollection<Guid> matchIds,
         Guid callerId,
