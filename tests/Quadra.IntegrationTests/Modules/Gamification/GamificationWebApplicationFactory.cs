@@ -95,7 +95,7 @@ public sealed class GamificationWebApplicationFactory : IAsyncLifetime
     public HttpClient CreateAuthenticatedClient(Guid userId)
     {
         var client = Factory.CreateClient();
-        var token = TestJwtFactory.CreateAccessToken(subject: userId.ToString());
+        var token = TestJwtFactory.CreateSessionToken(Factory.Services, userId);
         client.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         return client;

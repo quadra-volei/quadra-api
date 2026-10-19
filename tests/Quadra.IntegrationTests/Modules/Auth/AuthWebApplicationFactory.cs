@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using NSubstitute;
+using Quadra.Modules.Auth.Persistence;
 
 namespace Quadra.IntegrationTests.Modules.Auth;
 
@@ -42,6 +44,12 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
             services
                 .AddControllers()
                 .AddApplicationPart(typeof(TestProtectedController).Assembly);
+
+            // No database here: every session counts as active, so these tests exercise only the
+            // token checks. The session check itself is covered by SecurityAudit/SessionAuditTests.
+            var sessions = Substitute.For<IRefreshTokenRepository>();
+            sessions.IsSessionActiveAsync(default, default, default, default).ReturnsForAnyArgs(true);
+            services.AddScoped(_ => sessions);
         });
     }
 }

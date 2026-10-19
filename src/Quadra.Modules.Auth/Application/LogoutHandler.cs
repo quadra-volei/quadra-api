@@ -4,9 +4,9 @@ using Quadra.Modules.Auth.Persistence;
 namespace Quadra.Modules.Auth.Application;
 
 /// <summary>
-/// Ends one session by revoking its refresh token. Idempotent and silent: an unknown or already
+/// Ends one session by revoking its refresh-token family. Idempotent and silent: an unknown or already
 /// revoked token is not an error, so the endpoint reveals nothing about token validity. The
-/// short-lived access token simply expires on its own.
+/// session's access tokens stop working at once (their <c>sid</c> is checked on every request).
 /// </summary>
 public sealed class LogoutHandler
 {
@@ -36,7 +36,8 @@ public sealed class LogoutHandler
             return;
         }
 
-        await _refreshTokenRepository.RevokeAsync(stored, now, cancellationToken);
+        // The whole session: its access tokens stop working too (they carry the family as sid).
+        await _refreshTokenRepository.RevokeFamilyAsync(stored.FamilyId, now, cancellationToken);
 
         _logger.LogInformation("Logout succeeded. {OutcomeCategory} {UserId}", "success", stored.UserId);
     }

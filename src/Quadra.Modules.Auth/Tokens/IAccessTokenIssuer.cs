@@ -13,5 +13,7 @@ public sealed record AccessToken(string Value, int ExpiresIn);
 /// </summary>
 public interface IAccessTokenIssuer
 {
-    AccessToken Issue(User user, DateTimeOffset now);
+    /// <param name="sessionId">The refresh-token family, carried as <c>sid</c>: the token only works
+    /// while that session is active (SEC-09, SEC-10).</param>
+    AccessToken Issue(User user, Guid sessionId, DateTimeOffset now);
 }

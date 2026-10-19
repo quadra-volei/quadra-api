@@ -61,13 +61,20 @@ public sealed class RefreshTokenRepository : IRefreshTokenRepository
         return true;
     }
 
-    public async Task RevokeAsync(
-        RefreshToken refreshToken,
-        DateTimeOffset now,
-        CancellationToken cancellationToken)
+    public Task RevokeFamilyAsync(Guid familyId, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(refreshToken);
-        refreshToken.Revoke(now);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        DateTimeOffset? revokedAt = now;
+        return _dbContext.RefreshTokens
+            .Where(t => t.FamilyId == familyId && t.RevokedAt == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(t => t.RevokedAt, revokedAt), cancellationToken);
     }
+
+    public Task<bool> IsSessionActiveAsync(
+        Guid userId,
+        Guid familyId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken) =>
+        _dbContext.RefreshTokens.AnyAsync(
+            t => t.FamilyId == familyId && t.UserId == userId && t.RevokedAt == null && t.ExpiresAt > now,
+            cancellationToken);
 }

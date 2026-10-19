@@ -41,7 +41,7 @@ public sealed class JwtAccessTokenIssuerTests
     [Fact]
     public async Task Issued_token_validates_and_carries_the_user_id_as_subject()
     {
-        var accessToken = CreateSut().Issue(PhoneUser, Now);
+        var accessToken = CreateSut().Issue(PhoneUser, Guid.NewGuid(), Now);
 
         accessToken.ExpiresIn.Should().Be(15 * 60);
 
@@ -63,7 +63,7 @@ public sealed class JwtAccessTokenIssuerTests
     [Fact]
     public async Task Issued_token_does_not_validate_with_another_key()
     {
-        var accessToken = CreateSut().Issue(PhoneUser, Now);
+        var accessToken = CreateSut().Issue(PhoneUser, Guid.NewGuid(), Now);
 
         var result = await new JsonWebTokenHandler().ValidateTokenAsync(
             accessToken.Value,

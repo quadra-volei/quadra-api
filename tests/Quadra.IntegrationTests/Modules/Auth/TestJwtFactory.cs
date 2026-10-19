@@ -1,7 +1,11 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using Quadra.Modules.Auth.Entities;
+using Quadra.Modules.Auth.Persistence;
 
 namespace Quadra.IntegrationTests.Modules.Auth;
 
@@ -35,6 +39,27 @@ internal static class TestJwtFactory
 
     public const string FakeOtpCode = "123456";
 
+    /// <summary>
+    /// A token for <paramref name="userId"/> backed by an account and an active session in the
+    /// host's database, as the API requires (SEC-09, SEC-10). Creates the account when missing.
+    /// </summary>
+    public static string CreateSessionToken(IServiceProvider services, Guid userId)
+    {
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var now = DateTimeOffset.UtcNow;
+        if (!db.Users.Any(u => u.Id == userId))
+        {
+            db.Users.Add(User.CreateForExternal(userId, IdentityProvider.Google, $"test-{userId:N}", null, now));
+        }
+
+        var sessionId = Guid.NewGuid();
+        db.RefreshTokens.Add(RefreshToken.Issue(Guid.NewGuid(), userId, $"test-{sessionId:N}", null, now, now.AddDays(1), sessionId));
+        db.SaveChanges();
+
+        return CreateAccessToken(subject: userId.ToString(), sessionId: sessionId);
+    }
+
     public static string CreateAccessToken(
         string subject = "11111111-1111-1111-1111-111111111111",
         string? role = null,
@@ -43,10 +68,12 @@ internal static class TestJwtFactory
         string audience = Audience,
         string signingKey = SigningKey,
         DateTime? notBefore = null,
-        DateTime? expires = null)
+        DateTime? expires = null,
+        Guid? sessionId = null)
     {
         var now = DateTime.UtcNow;
-        var claims = new List<Claim> { new("sub", subject) };
+        // Every API token carries its session; a random one belongs to no session (refused by the API).
+        var claims = new List<Claim> { new("sub", subject), new("sid", (sessionId ?? Guid.NewGuid()).ToString()) };
 
         if (!string.IsNullOrEmpty(role))
         {

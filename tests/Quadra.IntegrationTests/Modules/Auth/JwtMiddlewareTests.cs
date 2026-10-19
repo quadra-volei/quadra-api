@@ -69,7 +69,7 @@ public sealed class JwtMiddlewareTests : IClassFixture<AuthWebApplicationFactory
     public async Task Protected_route_with_valid_token_returns_200_and_populates_claims()
     {
         var token = TestJwtFactory.CreateAccessToken(
-            subject: "abc-123",
+            subject: "0b6f3c1e-2d4a-4e8b-9c7d-1a2b3c4d5e6f",
             email: "alice@example.com",
             role: "player");
 
@@ -81,7 +81,7 @@ public sealed class JwtMiddlewareTests : IClassFixture<AuthWebApplicationFactory
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
 
         body.GetProperty("isAuthenticated").GetBoolean().Should().BeTrue();
-        body.GetProperty("nameIdentifier").GetString().Should().Be("abc-123");
+        body.GetProperty("nameIdentifier").GetString().Should().Be("0b6f3c1e-2d4a-4e8b-9c7d-1a2b3c4d5e6f");
         body.GetProperty("email").GetString().Should().Be("alice@example.com");
         body.GetProperty("role").GetString().Should().Be("player");
     }

@@ -329,13 +329,14 @@ public sealed class LoginEndpointsTests : IClassFixture<LoginEndpointsTests.Fixt
         var replay = await client.PostAsJsonAsync(RefreshEndpoint, new { refreshToken = oldRefresh }, Ct);
         replay.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
 
+        // The replay revoked the whole session (SEC-09): the newer token is dead too.
         var again = await client.PostAsJsonAsync(RefreshEndpoint, new { refreshToken = newRefresh }, Ct);
-        again.StatusCode.Should().Be(HttpStatusCode.OK);
+        again.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     /// <summary>
     /// Covers the concurrent-refresh guard against the real database: two simultaneous refreshes
-    /// of one token yield exactly one success.
+    /// of one token yield exactly one success, and the reuse ends the session.
     /// </summary>
     [Fact]
     public async Task Concurrent_refreshes_of_the_same_token_succeed_only_once()
@@ -350,7 +351,8 @@ public sealed class LoginEndpointsTests : IClassFixture<LoginEndpointsTests.Fixt
 
         responses.Count(r => r.StatusCode == HttpStatusCode.OK).Should().Be(1);
         responses.Count(r => r.StatusCode == HttpStatusCode.Unauthorized).Should().Be(3);
-        (await QueryAsync(ctx => ctx.RefreshTokens.CountAsync(t => t.RevokedAt == null, Ct))).Should().Be(1);
+        // The losers count as reuse of the token: the whole session is revoked (SEC-09).
+        (await QueryAsync(ctx => ctx.RefreshTokens.CountAsync(t => t.RevokedAt == null, Ct))).Should().Be(0);
     }
 
     /// <summary>

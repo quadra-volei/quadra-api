@@ -29,8 +29,12 @@ public interface IRefreshTokenRepository
         DateTimeOffset now,
         CancellationToken cancellationToken);
 
+    /// <summary>Revokes every still-active token of a session (logout, reuse of a rotated token).</summary>
+    Task RevokeFamilyAsync(Guid familyId, DateTimeOffset now, CancellationToken cancellationToken);
+
     /// <summary>
-    /// Marks the supplied tracked row revoked and commits.
+    /// True while the session has an unrevoked, unexpired token of that user. Deleting the account
+    /// deletes its tokens (cascade), so this also refuses tokens of deleted accounts (SEC-10).
     /// </summary>
-    Task RevokeAsync(RefreshToken refreshToken, DateTimeOffset now, CancellationToken cancellationToken);
+    Task<bool> IsSessionActiveAsync(Guid userId, Guid familyId, DateTimeOffset now, CancellationToken cancellationToken);
 }

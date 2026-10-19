@@ -14,6 +14,7 @@ namespace Quadra.Modules.Auth.Tokens;
 public sealed class JwtAccessTokenIssuer : IAccessTokenIssuer
 {
     public const string ProviderClaim = "provider";
+    public const string SessionClaim = "sid";
 
     private readonly IOptionsMonitor<JwtOptions> _options;
     private readonly JsonWebTokenHandler _tokenHandler = new();
@@ -23,7 +24,7 @@ public sealed class JwtAccessTokenIssuer : IAccessTokenIssuer
         _options = options;
     }
 
-    public AccessToken Issue(User user, DateTimeOffset now)
+    public AccessToken Issue(User user, Guid sessionId, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(user);
 
@@ -42,6 +43,7 @@ public sealed class JwtAccessTokenIssuer : IAccessTokenIssuer
                 [JwtRegisteredClaimNames.Sub] = user.Id.ToString(),
                 [JwtRegisteredClaimNames.Jti] = Guid.NewGuid().ToString(),
                 [ProviderClaim] = user.Provider.ToString().ToLowerInvariant(),
+                [SessionClaim] = sessionId.ToString(),
             },
             SigningCredentials = new SigningCredentials(
                 CreateSigningKey(options),
