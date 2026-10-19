@@ -54,7 +54,7 @@ Needs code:
   the next game (DECISIONS #64).
 - **Event retry**: a failed in-process handler is logged and not retried (no outbox).
 - **Cleanup**: the `Aws:Sqs:*` settings are still required at startup although nothing is
-  sent; the Redis packages and the `Quadra.Workers.*` projects are unused.
+  sent; the `StackExchange.Redis` package and the `Quadra.Workers.*` projects are unused.
 
 ## Out of the MVP
 
