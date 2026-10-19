@@ -32,6 +32,11 @@ services:
       - key: ASPNETCORE_ENVIRONMENT
         value: Staging
 
+      # Take the client IP from the X-Forwarded-For entry Render's proxy appends (last hop only),
+      # so the per-IP login rate limit sees each client instead of the proxy.
+      - key: ASPNETCORE_FORWARDEDHEADERS_ENABLED
+        value: "true"
+
       # Apply pending EF migrations when the service boots.
       - key: Database__MigrateOnStartup
         value: "true"

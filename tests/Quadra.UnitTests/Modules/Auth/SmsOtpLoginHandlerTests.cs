@@ -1,5 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Quadra.Modules.Auth.Configuration;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Quadra.Infrastructure.Messaging;
@@ -30,6 +32,7 @@ public sealed class SmsOtpLoginHandlerTests
 
     private SmsOtpLoginHandler CreateSut() => new(
         _phoneVerification,
+        new PhoneOtpThrottle(Options.Create(new AuthRateLimitOptions())),
         new UserProvisioner(_users, _publisher, NullLogger<UserProvisioner>.Instance),
         AuthTestSupport.SessionFactory(),
         _refreshTokens,

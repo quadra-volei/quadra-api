@@ -17,7 +17,12 @@ public sealed class PlacesOptions
     public const string OpenStreetMap = "OpenStreetMap";
     public const string None = "None";
 
+    public const string RateLimitPolicy = "places";
+
     public string Provider { get; set; } = string.Empty;
+
+    /// <summary>Calls to <c>/places/*</c> per account per minute (SEC-07).</summary>
+    public int RequestsPerMinute { get; set; } = 30;
 
     /// <summary>Server-side key for the Google Places API (New). Never sent to clients.</summary>
     public string GoogleApiKey { get; set; } = string.Empty;

@@ -2,17 +2,20 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Quadra.Modules.Geo.Places;
 
 namespace Quadra.Modules.Geo.Controllers;
 
 /// <summary>
 /// Address / venue search for the create-match form. A thin proxy over
-/// <see cref="IPlaceSearchService"/>: the provider key stays on the server.
+/// <see cref="IPlaceSearchService"/>: the provider key stays on the server. Rate limited per
+/// account (<see cref="PlacesOptions.RequestsPerMinute"/>): each call can cost a Google request.
 /// </summary>
 [ApiController]
 [Route("api/v1/places")]
 [Authorize]
+[EnableRateLimiting(PlacesOptions.RateLimitPolicy)]
 public sealed partial class PlacesController : ControllerBase
 {
     public const int MinQueryLength = 3;
