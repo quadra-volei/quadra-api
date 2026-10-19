@@ -169,6 +169,10 @@ public sealed class CreateMatchRequestValidator : AbstractValidator<CreateMatchR
             .WithMessage("Level must be one of: Beginner, Intermediate, Advanced.")
             .When(x => x.Level is not null);
 
+        RuleFor(x => x.GamePoints)
+            .InclusiveBetween(Match.MinGamePoints, Match.MaxGamePoints)
+            .When(x => x.GamePoints.HasValue);
+
         RuleFor(x => x.DurationMinutes)
             .InclusiveBetween(30, 600)
             .When(x => x.DurationMinutes.HasValue);

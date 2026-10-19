@@ -97,7 +97,7 @@ public sealed class RecordPointHandler
 
         // 9. Evaluate the set.
         var gameEnded = false;
-        var target = VolleyballScoringRules.TargetForSet(scoreboard.Format, currentSet.SetNumber);
+        var target = VolleyballScoringRules.TargetForSet(scoreboard.Format, currentSet.SetNumber, scoreboard.PointsToWin);
         if (VolleyballScoringRules.IsSetWon(currentSet.TeamAPoints, currentSet.TeamBPoints, target))
         {
             var setWinnerTeamId = currentSet.TeamAPoints > currentSet.TeamBPoints

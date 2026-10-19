@@ -14,6 +14,7 @@ public sealed record MatchEdit(
     string? Format,
     MatchLevel? Level,
     int? DurationMinutes,
+    int? GamePoints,
     decimal? PriceMonthly,
     IReadOnlyList<int>? RecurrenceDays,
     string? CoverObjectKey);

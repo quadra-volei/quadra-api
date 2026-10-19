@@ -84,6 +84,7 @@ public sealed class UpdateMatchHandler
                 Format: request.Format?.ToUpperInvariant(),
                 Level: request.Level is null ? null : Enum.Parse<MatchLevel>(request.Level, ignoreCase: true),
                 DurationMinutes: request.DurationMinutes,
+                GamePoints: request.GamePoints,
                 PriceMonthly: request.PriceMonthly,
                 RecurrenceDays: request.RecurrenceDays,
                 CoverObjectKey: cover),

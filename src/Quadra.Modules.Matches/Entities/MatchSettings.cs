@@ -8,6 +8,7 @@ namespace Quadra.Modules.Matches.Entities;
 /// <param name="Format">Players per side: <c>2X2</c>, <c>4X4</c> or <c>6X6</c>.</param>
 /// <param name="Level">Skill level the match is aimed at.</param>
 /// <param name="DurationMinutes">Planned playing time.</param>
+/// <param name="GamePoints">Points that win the single game (the scoreboard plays to it).</param>
 /// <param name="Visibility">Open (listed, anyone joins) or Private.</param>
 /// <param name="InviteMode">How players join a private match; null for an open one.</param>
 /// <param name="PriceMonthly">Monthly price for regulars of a recurring match.</param>
@@ -17,6 +18,7 @@ public sealed record MatchSettings(
     string? Format = null,
     MatchLevel? Level = null,
     int? DurationMinutes = null,
+    int? GamePoints = null,
     MatchVisibility Visibility = MatchVisibility.Open,
     MatchInviteMode? InviteMode = null,
     decimal? PriceMonthly = null,

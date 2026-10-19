@@ -67,6 +67,7 @@ public sealed class CreateMatchHandler
                 Format: command.Format?.ToUpperInvariant(),
                 Level: command.Level is null ? null : Enum.Parse<MatchLevel>(command.Level, ignoreCase: true),
                 DurationMinutes: command.DurationMinutes,
+                GamePoints: command.GamePoints,
                 Visibility: command.Visibility is null
                     ? MatchVisibility.Open
                     : Enum.Parse<MatchVisibility>(command.Visibility, ignoreCase: true),

@@ -63,10 +63,10 @@ public sealed class ScoreboardEndpointsTests : IClassFixture<InGameWebApplicatio
         _fx.Notifier.ClearReceivedCalls();
     }
 
-    private async Task<Guid> CreateMatchAsync(Guid organizerId)
+    private async Task<Guid> CreateMatchAsync(Guid organizerId, int? gamePoints = null)
     {
         var client = _fx.CreateAuthenticatedClient(organizerId);
-        var response = await client.PostAsJsonAsync("/api/v1/matches", BuildMatchPayload(), TestContext.Current.CancellationToken);
+        var response = await client.PostAsJsonAsync("/api/v1/matches", BuildMatchPayload() with { GamePoints = gamePoints }, TestContext.Current.CancellationToken);
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         return body.GetProperty("id").GetGuid();
@@ -93,10 +93,10 @@ public sealed class ScoreboardEndpointsTests : IClassFixture<InGameWebApplicatio
     }
 
     /// <summary>Creates a match, adds confirmed players, closes it and drafts the two teams.</summary>
-    private async Task<Guid> CreateClosedMatchWithTeamsAsync(Guid organizerId, int players = 4)
+    private async Task<Guid> CreateClosedMatchWithTeamsAsync(Guid organizerId, int players = 4, int? gamePoints = null)
     {
         await ResetAsync();
-        var matchId = await CreateMatchAsync(organizerId);
+        var matchId = await CreateMatchAsync(organizerId, gamePoints);
         for (var i = 0; i < players; i++)
         {
             await AddConfirmedPresenceAsync(matchId, Guid.NewGuid());
@@ -494,6 +494,46 @@ public sealed class ScoreboardEndpointsTests : IClassFixture<InGameWebApplicatio
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 
+    // ─── Single game (DECISIONS #72) ─────────────────────────────────────────
+
+    /// <summary>A scoreboard without a format is one game to the match's points, won by 2.</summary>
+    [Fact]
+    public async Task Single_game_plays_to_the_matchs_points_and_ends_there()
+    {
+        var matchId = await CreateClosedMatchWithTeamsAsync(OrganizerUserId, gamePoints: 15);
+        var client = _fx.CreateAuthenticatedClient(OrganizerUserId);
+        var created = await client.PostAsJsonAsync(
+            $"/api/v1/matches/{matchId}/scoreboard", new { }, TestContext.Current.CancellationToken);
+        created.StatusCode.Should().Be(HttpStatusCode.Created);
+        var body = await created.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        body.GetProperty("format").GetString().Should().Be("SingleGame");
+        body.GetProperty("pointsToWin").GetInt32().Should().Be(15);
+        var teamA = body.GetProperty("teamAId").GetGuid();
+        var teamB = body.GetProperty("teamBId").GetGuid();
+        (await client.PostAsync($"/api/v1/matches/{matchId}/scoreboard/start", null, TestContext.Current.CancellationToken))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // 14-14: nobody is two ahead yet, the game goes on past 15.
+        await RecordPointsAsync(client, matchId, 1, teamA, 14);
+        await RecordPointsAsync(client, matchId, 1, teamB, 14);
+        (await RecordPointsAsync(client, matchId, 1, teamA, 1)).GetProperty("state").GetString().Should().Be("InProgress");
+        var last = await RecordPointsAsync(client, matchId, 1, teamA, 1);
+
+        last.GetProperty("state").GetString().Should().Be("Ended");
+        last.GetProperty("winnerTeamId").GetGuid().Should().Be(teamA);
+        last.GetProperty("sets").GetArrayLength().Should().Be(1);
+    }
+
+    /// <summary>Game points outside 5–50 are refused when creating the match.</summary>
+    [Fact]
+    public async Task Game_points_out_of_range_are_refused()
+    {
+        var client = _fx.CreateAuthenticatedClient(OrganizerUserId);
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/matches", BuildMatchPayload() with { GamePoints = 4 }, TestContext.Current.CancellationToken);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     // ─── Shared setup for started scoreboards ────────────────────────────────
 
     /// <summary>Creates a closed match with teams, a BestOf3 scoreboard, and starts it (set 1 open).</summary>
@@ -544,5 +584,6 @@ public sealed class ScoreboardEndpointsTests : IClassFixture<InGameWebApplicatio
         string? Frequency,
         int? DayOfWeek,
         DateTimeOffset WindowOpensAt,
-        DateTimeOffset WindowClosesAt);
+        DateTimeOffset WindowClosesAt,
+        int? GamePoints = null);
 }

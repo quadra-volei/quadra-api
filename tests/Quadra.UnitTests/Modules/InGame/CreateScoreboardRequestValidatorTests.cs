@@ -25,16 +25,16 @@ public sealed class CreateScoreboardRequestValidatorTests
         result.IsValid.Should().BeTrue();
     }
 
-    /// <summary>Covers: F1.4 — an empty Format fails validation (400).</summary>
-    [Theory]
-    [InlineData("")]
-    [InlineData(null)]
-    public void Empty_format_fails(string? format)
+    /// <summary>Covers: an empty Format fails (400); no Format at all means a single game (DECISIONS #72).</summary>
+    [Fact]
+    public void Empty_format_fails_and_missing_format_is_a_single_game()
     {
-        var result = _sut.Validate(new CreateScoreboardRequest(format!));
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateScoreboardRequest.Format));
+        var empty = _sut.Validate(new CreateScoreboardRequest(""));
+        empty.IsValid.Should().BeFalse();
+        empty.Errors.Should().Contain(e => e.PropertyName == nameof(CreateScoreboardRequest.Format));
+        _sut.Validate(new CreateScoreboardRequest()).IsValid.Should().BeTrue();
     }
+
 
     /// <summary>Covers: F1.4 — an unrecognised Format value fails validation (400).</summary>
     [Theory]

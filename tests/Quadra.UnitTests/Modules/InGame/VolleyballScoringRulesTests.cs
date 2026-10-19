@@ -15,6 +15,18 @@ namespace Quadra.UnitTests.Modules.InGame;
 /// </summary>
 public sealed class VolleyballScoringRulesTests
 {
+    // ─── SingleGame (DECISIONS #72) ──────────────────────────────────────────
+
+    [Fact]
+    public void Single_game_is_one_set_to_the_matchs_points_never_deciding()
+    {
+        VolleyballScoringRules.SetsToWin(ScoreboardFormat.SingleGame).Should().Be(1);
+        VolleyballScoringRules.IsDecidingSet(ScoreboardFormat.SingleGame, 1).Should().BeFalse();
+        VolleyballScoringRules.TargetForSet(ScoreboardFormat.SingleGame, 1, 21).Should().Be(21);
+        VolleyballScoringRules.TargetForSet(ScoreboardFormat.SingleGame, 3, null).Should().Be(25);
+        VolleyballScoringRules.TargetForSet(ScoreboardFormat.BestOf3, 3, 21).Should().Be(15, "best-of games ignore the game points");
+    }
+
     // ─── SetsToWin ───────────────────────────────────────────────────────────
 
     /// <summary>Covers: F1.4 — a team must win 2 sets to take a BestOf3 match.</summary>

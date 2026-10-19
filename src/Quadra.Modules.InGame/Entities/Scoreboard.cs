@@ -16,6 +16,9 @@ public sealed class Scoreboard
 
     public ScoreboardFormat Format { get; private set; }
 
+    /// <summary>Points that win a <see cref="ScoreboardFormat.SingleGame"/> (from the match); null for best-of games.</summary>
+    public int? PointsToWin { get; private set; }
+
     public ScoreboardState State { get; private set; }
 
     /// <summary>App-layer FK to <c>teams.id</c> (owned by InGame, F1.3).</summary>
@@ -63,13 +66,15 @@ public sealed class Scoreboard
         Guid teamAId,
         Guid teamBId,
         DateTimeOffset now,
-        bool rotatesTeams = false)
+        bool rotatesTeams = false,
+        int? pointsToWin = null)
     {
         return new Scoreboard
         {
             Id = Guid.NewGuid(),
             MatchId = matchId,
             Format = format,
+            PointsToWin = pointsToWin,
             State = ScoreboardState.NotStarted,
             TeamAId = teamAId,
             TeamBId = teamBId,
