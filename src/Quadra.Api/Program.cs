@@ -19,6 +19,10 @@ using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Errors and traces to Sentry, configured from the "Sentry" section; off while Sentry:Dsn is empty.
+// Render sets RENDER_GIT_COMMIT, so each event names the deployed commit.
+builder.WebHost.UseSentry(options => options.Release ??= Environment.GetEnvironmentVariable("RENDER_GIT_COMMIT"));
+
 builder.Services.AddControllers();
 // Unhandled exceptions answer ProblemDetails without internals; unique-index races answer 409.
 builder.Services.AddProblemDetails();
