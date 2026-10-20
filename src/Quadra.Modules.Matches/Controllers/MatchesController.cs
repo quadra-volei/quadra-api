@@ -30,6 +30,7 @@ public sealed class MatchesController : ControllerBase
     private readonly UpdateMyPresenceHandler _updateMyPresenceHandler;
     private readonly GetPresenceListHandler _getPresenceListHandler;
     private readonly RemovePresenceHandler _removePresenceHandler;
+    private readonly LeaveWaitingListHandler _leaveWaitingListHandler;
     private readonly GetMatchDetailHandler _getDetailHandler;
     private readonly ListMyMatchesHandler _listMineHandler;
     private readonly AddMatchGuestHandler _addGuestHandler;
@@ -52,6 +53,7 @@ public sealed class MatchesController : ControllerBase
         UpdateMyPresenceHandler updateMyPresenceHandler,
         GetPresenceListHandler getPresenceListHandler,
         RemovePresenceHandler removePresenceHandler,
+        LeaveWaitingListHandler leaveWaitingListHandler,
         GetMatchDetailHandler getDetailHandler,
         ListMyMatchesHandler listMineHandler,
         AddMatchGuestHandler addGuestHandler,
@@ -73,6 +75,7 @@ public sealed class MatchesController : ControllerBase
         _updateMyPresenceHandler = updateMyPresenceHandler;
         _getPresenceListHandler = getPresenceListHandler;
         _removePresenceHandler = removePresenceHandler;
+        _leaveWaitingListHandler = leaveWaitingListHandler;
         _getDetailHandler = getDetailHandler;
         _listMineHandler = listMineHandler;
         _addGuestHandler = addGuestHandler;
@@ -418,6 +421,21 @@ public sealed class MatchesController : ControllerBase
                 Extensions = { ["waitingListPosition"] = ex.WaitingListPosition },
             });
         }
+    }
+
+    /// <summary>DELETE /api/v1/matches/{id}/waiting-list/me — the caller leaves the waiting list.</summary>
+    [HttpDelete("{id:guid}/waiting-list/me")]
+    public async Task<IActionResult> LeaveWaitingList(Guid id, CancellationToken cancellationToken)
+    {
+        if (!TryGetCallerId(out var callerId))
+        {
+            return Unauthorized();
+        }
+
+        // Only the caller's own entry is touched, so nothing about the match leaks: 404 either way.
+        return await _leaveWaitingListHandler.HandleAsync(id, callerId, cancellationToken)
+            ? NoContent()
+            : NotFound();
     }
 
     /// <summary>GET /api/v1/matches/{id}/presences</summary>

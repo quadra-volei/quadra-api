@@ -103,7 +103,10 @@ public sealed class GetMatchDetailHandler
             MyPresence: myPresence is null
                 ? null
                 : new MyPresenceResponse(myPresence.PlayerType.ToString(), myPresence.Status.ToString()),
-            MyWaitingListPosition: myWaiting?.Position,
+            // The place in line, not the stored position: leaving and promotions leave gaps.
+            MyWaitingListPosition: myWaiting is null
+                ? null
+                : waitingList.Count(w => w.Position < myWaiting.Position) + 1,
             CanJoin: myPresence is null && match.AllowsSelfEnrollment(callerId, inviteCode: null),
             Game: game is null
                 ? null

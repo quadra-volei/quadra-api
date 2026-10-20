@@ -102,6 +102,7 @@ public static class MatchesModuleExtensions
         services.AddScoped<UpdateMyPresenceHandler>();
         services.AddScoped<GetPresenceListHandler>();
         services.AddScoped<RemovePresenceHandler>();
+        services.AddScoped<LeaveWaitingListHandler>();
         services.AddScoped<OpenMatchWindowHandler>();
         services.AddScoped<CloseMatchWindowHandler>();
         services.AddScoped<GenerateMatchSummaryHandler>();
