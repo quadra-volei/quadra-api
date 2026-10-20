@@ -496,9 +496,12 @@ public sealed class ScoreboardEndpointsTests : IClassFixture<InGameWebApplicatio
 
     // ─── Single game (DECISIONS #72) ─────────────────────────────────────────
 
-    /// <summary>A scoreboard without a format is one game to the match's points, won by 2.</summary>
+    /// <summary>
+    /// A scoreboard without a format plays games to the match's points, won by 2. With two teams
+    /// too, a game won does not end the match: it waits for the next game until the organizer ends it.
+    /// </summary>
     [Fact]
-    public async Task Single_game_plays_to_the_matchs_points_and_ends_there()
+    public async Task Single_game_plays_to_the_matchs_points_and_waits_for_the_organizer()
     {
         var matchId = await CreateClosedMatchWithTeamsAsync(OrganizerUserId, gamePoints: 15);
         var client = _fx.CreateAuthenticatedClient(OrganizerUserId);
@@ -519,9 +522,17 @@ public sealed class ScoreboardEndpointsTests : IClassFixture<InGameWebApplicatio
         (await RecordPointsAsync(client, matchId, 1, teamA, 1)).GetProperty("state").GetString().Should().Be("InProgress");
         var last = await RecordPointsAsync(client, matchId, 1, teamA, 1);
 
-        last.GetProperty("state").GetString().Should().Be("Ended");
-        last.GetProperty("winnerTeamId").GetGuid().Should().Be(teamA);
+        // Game 1 is won, but the match goes on: the organizer picks the next game or ends it.
+        last.GetProperty("state").GetString().Should().Be("InProgress");
+        last.GetProperty("awaitingNextSet").GetBoolean().Should().BeTrue();
         last.GetProperty("sets").GetArrayLength().Should().Be(1);
+
+        var ended = await client.PostAsync(
+            $"/api/v1/matches/{matchId}/scoreboard/end", null, TestContext.Current.CancellationToken);
+        ended.StatusCode.Should().Be(HttpStatusCode.OK);
+        var final = await ended.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        final.GetProperty("state").GetString().Should().Be("Ended");
+        final.GetProperty("winnerTeamId").GetGuid().Should().Be(teamA);
     }
 
     /// <summary>Game points outside 5–50 are refused when creating the match.</summary>
