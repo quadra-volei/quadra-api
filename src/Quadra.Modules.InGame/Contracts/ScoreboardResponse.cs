@@ -6,7 +6,7 @@ namespace Quadra.Modules.InGame.Contracts;
 public sealed record ScoreboardResponse(
     Guid Id,
     Guid MatchId,
-    string Format,               // BestOf3 | BestOf5
+    string Format,               // SingleGame | BestOf3 | BestOf5 (games before SingleGame)
     string State,                // NotStarted | InProgress | Ended
     Guid TeamAId,
     Guid TeamBId,
@@ -18,4 +18,7 @@ public sealed record ScoreboardResponse(
     DateTimeOffset? StartedAt,
     DateTimeOffset? EndedAt,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    bool RotatesTeams = false,      // more than two teams: TeamA/TeamB are the pair of the current set
+    bool AwaitingNextSet = false,   // in progress with no open set: the organizer picks who plays next
+    int? PointsToWin = null);       // SingleGame: points that win the game

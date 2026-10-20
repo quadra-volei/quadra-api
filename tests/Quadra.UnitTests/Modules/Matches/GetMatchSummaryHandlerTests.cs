@@ -58,7 +58,7 @@ public sealed class GetMatchSummaryHandlerTests
     {
         var matchId = Guid.NewGuid();
         _matchReader.FindMatchSummaryAsync(matchId, Arg.Any<CancellationToken>())
-            .Returns(new MatchSummaryProjection(matchId, Guid.NewGuid(), "Ended"));
+            .Returns(new MatchSummaryProjection(matchId, Guid.NewGuid(), "Ended", DateTimeOffset.UtcNow.AddHours(-2)));
         _summaryRepository.FindByMatchAsync(matchId, Arg.Any<CancellationToken>()).ReturnsNull();
 
         var act = async () => await CreateSut().HandleAsync(matchId, CancellationToken.None);
@@ -79,7 +79,7 @@ public sealed class GetMatchSummaryHandlerTests
         var matchId = Guid.NewGuid();
         var summary = BuildSummary(matchId);
         _matchReader.FindMatchSummaryAsync(matchId, Arg.Any<CancellationToken>())
-            .Returns(new MatchSummaryProjection(matchId, Guid.NewGuid(), "Ended"));
+            .Returns(new MatchSummaryProjection(matchId, Guid.NewGuid(), "Ended", DateTimeOffset.UtcNow.AddHours(-2)));
         _summaryRepository.FindByMatchAsync(matchId, Arg.Any<CancellationToken>()).Returns(summary);
 
         var response = await CreateSut().HandleAsync(matchId, CancellationToken.None);

@@ -14,4 +14,7 @@ public sealed record FinishedMatchParticipation(
     string Outcome,
     bool WasMvp,
     int? DurationSeconds,
-    DateTimeOffset FinishedAt);
+    DateTimeOffset FinishedAt,
+    string? Format = null,      // match format (2X2 | 4X4 | 6X6)
+    int? SetsWon = null,        // sets won by the player's team
+    int? SetsLost = null);      // sets won by the best opposing team

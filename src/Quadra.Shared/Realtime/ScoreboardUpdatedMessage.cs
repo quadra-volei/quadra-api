@@ -7,7 +7,7 @@ namespace Quadra.Shared.Realtime;
 public sealed record ScoreboardUpdatedMessage(
     Guid MatchId,
     string State,                    // NotStarted | InProgress | Ended
-    string Format,                   // BestOf3 | BestOf5
+    string Format,                   // SingleGame | BestOf3 | BestOf5 (games before SingleGame)
     Guid TeamAId,
     Guid TeamBId,
     int TeamASetsWon,
@@ -16,4 +16,5 @@ public sealed record ScoreboardUpdatedMessage(
     int CurrentSetTeamAPoints,
     int CurrentSetTeamBPoints,
     Guid? WinnerTeamId,
-    DateTimeOffset OccurredAt);
+    DateTimeOffset OccurredAt,
+    int? PointsToWin = null);       // SingleGame: points that win the game

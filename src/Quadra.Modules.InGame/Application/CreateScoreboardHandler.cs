@@ -36,7 +36,9 @@ public sealed class CreateScoreboardHandler
         Guid matchId,
         Guid callerId,
         ScoreboardFormat format,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? firstTeamAId = null,
+        Guid? firstTeamBId = null)
     {
         // 1. Verify match exists.
         var matchSummary = await _matchReader.FindMatchSummaryAsync(matchId, cancellationToken)
@@ -49,11 +51,14 @@ public sealed class CreateScoreboardHandler
         }
 
         // 3. Match must be Closed (confirmation window closed and teams formed).
-        if (matchSummary.Status != "Closed")
+        if (matchSummary.Status is not ("Open" or "Closed"))
         {
             throw new InvalidScoreboardStateException(
-                "A scoreboard can only be created after the confirmation window closes and teams are formed.");
+                "A scoreboard can only be created once confirmations have opened and teams are formed.");
         }
+
+        // 3b. No game before the match happens (no farming points ahead of kickoff).
+        Kickoff.EnsureReached(matchSummary.StartsAt, _timeProvider.GetUtcNow());
 
         // 4. Load teams; must have the two formed teams.
         var teams = await _teamRepository.ListByMatchAsync(matchId, cancellationToken);
@@ -70,12 +75,22 @@ public sealed class CreateScoreboardHandler
         }
 
         // 6. Deterministic team assignment: teams are ordered by name ascending by the repository.
-        var teamAId = teams[0].Id;
-        var teamBId = teams[1].Id;
+        //    With more than two teams the organizer may say which pair plays the first set.
+        var teamAId = firstTeamAId ?? teams[0].Id;
+        var teamBId = firstTeamBId ?? teams[1].Id;
+        if (teamAId == teamBId || teams.All(t => t.Id != teamAId) || teams.All(t => t.Id != teamBId))
+        {
+            throw new TeamNotInScoreboardException();
+        }
 
         // 7. Create the aggregate in NotStarted state (no sets yet).
         var now = _timeProvider.GetUtcNow();
-        var scoreboard = Scoreboard.Create(matchId, format, teamAId, teamBId, now);
+        // A single game plays to the points the organizer chose for the match.
+        var pointsToWin = format == ScoreboardFormat.SingleGame ? matchSummary.GamePoints ?? VolleyballScoringRules.DefaultGamePoints : (int?)null;
+        // A single game rotates even with two teams: a match is the day's session, game after
+        // game, and only the organizer ends it (DECISIONS #80).
+        var rotatesTeams = teams.Count > 2 || format == ScoreboardFormat.SingleGame;
+        var scoreboard = Scoreboard.Create(matchId, format, teamAId, teamBId, now, rotatesTeams, pointsToWin);
 
         // 8. Persist. The UNIQUE (match_id) constraint is a last-resort guard against races.
         try

@@ -1,12 +1,19 @@
+using System.Security.Claims;
 using FluentValidation;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using Quadra.Infrastructure.DependencyInjection;
+using Quadra.Infrastructure.Persistence;
 using Quadra.Modules.Profile.Abstractions;
 using Quadra.Modules.Profile.Application;
 using Quadra.Modules.Profile.Contracts;
+using Quadra.Modules.Profile.Moderation;
 using Quadra.Modules.Profile.Persistence;
 using Quadra.Modules.Profile.Validation;
 using Quadra.Shared.Contracts;
@@ -37,7 +44,7 @@ public static class ProfileModuleExtensions
                     "ConnectionStrings:Profile (or ConnectionStrings:Default) must be configured.");
 
             builder.UseNpgsql(
-                connectionString,
+                PostgresConnectionString.Normalize(connectionString),
                 npgsql => npgsql.UseNetTopologySuite());
         });
 
@@ -59,9 +66,50 @@ public static class ProfileModuleExtensions
         // registered via TryAddScoped, so team drafting now balances on real levels.
         services.AddScoped<IPlayerLevelReader, PlayerLevelReader>();
 
+        // Player identities for other modules (match rosters, rankings).
+        services.AddScoped<IPlayerSummaryReader, PlayerSummaryReader>();
+
         services.AddScoped<IValidator<UpdateProfileRequest>, UpdateProfileRequestValidator>();
         services.AddScoped<IValidator<PhotoUploadUrlRequest>, PhotoUploadUrlRequestValidator>();
         services.AddScoped<IValidator<MatchHistoryQuery>, MatchHistoryQueryValidator>();
+
+        // "Enviar feedback" (app settings): stored in the feedback table.
+        services.AddScoped<Quadra.Modules.Profile.Feedback.SendFeedbackHandler>();
+        services.AddScoped<IValidator<Quadra.Modules.Profile.Feedback.SendFeedbackRequest>, Quadra.Modules.Profile.Feedback.SendFeedbackRequestValidator>();
+
+        // "Rede" feed: posts with an optional photo and match.
+        services.AddScoped<Quadra.Modules.Profile.Posts.PostsHandler>();
+        services.AddScoped<IValidator<Quadra.Modules.Profile.Posts.CreatePostRequest>, Quadra.Modules.Profile.Posts.CreatePostRequestValidator>();
+        services.AddScoped<Quadra.Modules.Profile.Posts.CommentsHandler>();
+        services.AddScoped<Quadra.Modules.Profile.Follows.FollowsHandler>();
+        services.AddScoped<IFollowingReader>(sp => sp.GetRequiredService<Quadra.Modules.Profile.Follows.FollowsHandler>());
+        services.AddScoped<Quadra.Modules.Profile.Activities.ActivityWriter>();
+        services.AddScoped<Quadra.Modules.Profile.Activities.ActivitiesHandler>();
+        services.AddScoped<IPersonalDataStore, Quadra.Modules.Profile.Account.ProfilePersonalData>();
+
+        // Finding a player by @handle (never by name), rate limited per account.
+        services.AddScoped<Quadra.Modules.Profile.Search.PlayerSearchHandler>();
+        services.AddRateLimiter(options => options.AddPolicy(Quadra.Modules.Profile.Search.PlayerSearchHandler.RateLimitPolicy, context =>
+            System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous",
+                _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 30,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                })));
+
+        // Rede safety: report a post, block a player; admins (by account id) review reports.
+        services.AddScoped<ModerationHandler>();
+        services.AddScoped<IValidator<ReportPostRequest>, ReportPostRequestValidator>();
+        services.AddOptions<ModerationOptions>().BindConfiguration(ModerationOptions.SectionName);
+        services.AddAuthorizationBuilder().AddPolicy(ModerationOptions.AdminPolicy, policy => policy.RequireAssertion(context =>
+            context.Resource is HttpContext http
+            && Guid.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)
+            && http.RequestServices.GetRequiredService<IOptions<ModerationOptions>>().Value.AdminUserIds.Contains(userId)));
+        services.AddScoped<Quadra.Modules.Profile.CardStyle.CardStyleHandler>();
+        services.AddScoped<IValidator<Quadra.Modules.Profile.CardStyle.UpdateCardStyleRequest>, Quadra.Modules.Profile.CardStyle.UpdateCardStyleRequestValidator>();
+        services.AddScoped<IValidator<Quadra.Modules.Profile.Posts.CreateCommentRequest>, Quadra.Modules.Profile.Posts.CreateCommentRequestValidator>();
 
         // S3-backed profile-photo storage (Infrastructure). Fails fast if the bucket is unconfigured.
         services.AddProfilePhotoStorage(configuration);

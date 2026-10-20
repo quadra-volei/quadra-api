@@ -40,7 +40,10 @@ public sealed class NearbyMatchRepository : INearbyMatchRepository
         var rows = await _context.Matches
             .AsNoTracking()
             .Where(m => m.Location.IsWithinDistance(point, radiusMeters))
-            .Where(m => m.Status == "Open" || m.Status == "Closed")
+            // Draft = confirmation window not open yet: the match is still worth finding.
+            .Where(m => m.Status == "Draft" || m.Status == "Open" || m.Status == "Closed")
+            // Private matches are reached by invitation, never listed.
+            .Where(m => m.Visibility == "Open")
             .Where(m => m.DateTime > now)
             // Order by the raw spatial expression BEFORE projecting so it translates to
             // ORDER BY ST_Distance(...); ordering by a member of the projected record is untranslatable.
@@ -56,6 +59,8 @@ public sealed class NearbyMatchRepository : INearbyMatchRepository
                 m.Price,
                 m.Type,
                 m.Status,
+                m.Format,
+                m.Level,
                 m.Location.Distance(point)))
             .ToListAsync(cancellationToken);
 
@@ -72,6 +77,8 @@ public sealed class NearbyMatchRepository : INearbyMatchRepository
                 r.Price,
                 r.Type,
                 r.Status,
+                r.Format,
+                r.Level,
                 r.DistanceMeters))
             .ToList();
     }
@@ -90,5 +97,7 @@ public sealed class NearbyMatchRepository : INearbyMatchRepository
         decimal? Price,
         string Type,
         string Status,
+        string? Format,
+        string? Level,
         double DistanceMeters);
 }

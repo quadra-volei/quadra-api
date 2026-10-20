@@ -1,10 +1,12 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using Quadra.Infrastructure.Messaging;
 using Quadra.Modules.Profile.Abstractions;
 using Quadra.Modules.Profile.Application;
 using Quadra.Modules.Profile.Entities;
 using Quadra.Modules.Profile.Persistence;
+using Quadra.Shared.Events.Profile;
 
 namespace Quadra.UnitTests.Modules.Profile;
 
@@ -28,6 +30,7 @@ public sealed class ApplyFinishedMatchHandlerTests
     private readonly IPlayerProfileRepository _profiles = Substitute.For<IPlayerProfileRepository>();
     private readonly IPlayerMatchHistoryRepository _history = Substitute.For<IPlayerMatchHistoryRepository>();
     private readonly IPlayerCardRepository _cards = Substitute.For<IPlayerCardRepository>();
+    private readonly IEventPublisher _events = Substitute.For<IEventPublisher>();
     private readonly TimeProvider _time = new FixedTimeProvider(Now);
 
     public ApplyFinishedMatchHandlerTests()
@@ -38,7 +41,7 @@ public sealed class ApplyFinishedMatchHandlerTests
     }
 
     private ApplyFinishedMatchHandler CreateSut() =>
-        new(_profiles, _history, _cards, _time, NullLogger<ApplyFinishedMatchHandler>.Instance);
+        new(_profiles, _history, _cards, _events, _time, NullLogger<ApplyFinishedMatchHandler>.Instance);
 
     private static FinishedMatchParticipation Participation(string outcome = "Win", bool wasMvp = false) =>
         new(
@@ -61,6 +64,36 @@ public sealed class ApplyFinishedMatchHandlerTests
         _profiles.FindByUserIdAsync(UserId, Arg.Any<CancellationToken>())
             .Returns(new ProfileWithStats(profile, stats));
         return (profile, stats);
+    }
+
+    // ─── Level number ───────────────────────────────────────────────────────
+
+    /// <summary>A finished match that takes the player to a new level number announces it.</summary>
+    [Fact]
+    public async Task ApplyFinishedMatchAsync_publishes_PlayerLevelUp_when_the_level_number_rises()
+    {
+        SeedExistingProfile(); // 0 points, level 1
+        _history.GetOutcomeCountsAsync(UserId, Arg.Any<CancellationToken>())
+            .Returns(new OutcomeCounts(1, 0, 0, 0)); // 10 + 15 = 25 points, level 2
+
+        await CreateSut().ApplyFinishedMatchAsync(Participation(outcome: "Win"), CancellationToken.None);
+
+        await _events.Received(1).PublishAsync(
+            Arg.Is<PlayerLevelUp>(e => e.PlayerId == UserId && e.FromLevel == 1 && e.ToLevel == 2),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A redelivered match recomputes the same stats: no level up is announced.</summary>
+    [Fact]
+    public async Task ApplyFinishedMatchAsync_does_not_announce_a_level_twice_on_redelivery()
+    {
+        SeedExistingProfile(wins: 1); // already applied: 25 points, level 2
+        _history.GetOutcomeCountsAsync(UserId, Arg.Any<CancellationToken>())
+            .Returns(new OutcomeCounts(1, 0, 0, 0));
+
+        await CreateSut().ApplyFinishedMatchAsync(Participation(outcome: "Win"), CancellationToken.None);
+
+        await _events.DidNotReceive().PublishAsync(Arg.Any<PlayerLevelUp>(), Arg.Any<CancellationToken>());
     }
 
     // ─── History upsert ──────────────────────────────────────────────────────
@@ -232,7 +265,7 @@ public sealed class ApplyFinishedMatchHandlerTests
         var (profile, _) = SeedExistingProfile();
         var generatedAt = Now.AddDays(-5);
         var existing = PlayerCard.Generate(
-            UserId, profile.DisplayName, null, null, PlayerLevel.Beginner,
+            UserId, profile.DisplayName, null, PlayerLevel.Beginner,
             matchesPlayed: 3, wins: 3, losses: 0, draws: 0, mvpsReceived: 0, generatedAt);
         _cards.FindByUserIdAsync(UserId, Arg.Any<CancellationToken>())
             .Returns(new PlayerCardLookup(existing, ProfileExists: true, MatchesPlayed: 3));
@@ -260,7 +293,7 @@ public sealed class ApplyFinishedMatchHandlerTests
         var (profile, _) = SeedExistingProfile();
         var generatedAt = Now.AddDays(-1);
         var existing = PlayerCard.Generate(
-            UserId, profile.DisplayName, null, null, PlayerLevel.Beginner,
+            UserId, profile.DisplayName, null, PlayerLevel.Beginner,
             matchesPlayed: 3, wins: 2, losses: 1, draws: 0, mvpsReceived: 1, generatedAt);
         _cards.FindByUserIdAsync(UserId, Arg.Any<CancellationToken>())
             .Returns(new PlayerCardLookup(existing, ProfileExists: true, MatchesPlayed: 3));

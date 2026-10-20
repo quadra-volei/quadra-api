@@ -38,6 +38,11 @@ namespace Quadra.Modules.Matches.Migrations
                         .HasColumnType("character varying(300)")
                         .HasColumnName("address");
 
+                    b.Property<string>("CoverObjectKey")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("cover_object_key");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -62,10 +67,42 @@ namespace Quadra.Modules.Matches.Migrations
                         .HasColumnName("drop_in_slots")
                         .HasComputedColumnSql("max_players - regular_slots", true);
 
+                    b.Property<short?>("DurationMinutes")
+                        .HasColumnType("smallint")
+                        .HasColumnName("duration_minutes");
+
+                    b.Property<string>("Format")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("format");
+
                     b.Property<string>("Frequency")
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)")
                         .HasColumnName("frequency");
+
+                    b.Property<short?>("GamePoints")
+                        .HasColumnType("smallint")
+                        .HasColumnName("game_points");
+
+                    b.Property<Guid?>("GroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("group_id");
+
+                    b.Property<string>("InviteCode")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("invite_code");
+
+                    b.Property<string>("InviteMode")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("invite_mode");
+
+                    b.Property<string>("Level")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("level");
 
                     b.Property<Point>("Location")
                         .IsRequired()
@@ -89,6 +126,14 @@ namespace Quadra.Modules.Matches.Migrations
                     b.Property<decimal?>("Price")
                         .HasColumnType("numeric(10,2)")
                         .HasColumnName("price");
+
+                    b.Property<decimal?>("PriceMonthly")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("price_monthly");
+
+                    b.PrimitiveCollection<int[]>("RecurrenceDays")
+                        .HasColumnType("integer[]")
+                        .HasColumnName("recurrence_days");
 
                     b.Property<short>("RegularSlots")
                         .HasColumnType("smallint")
@@ -118,6 +163,14 @@ namespace Quadra.Modules.Matches.Migrations
                         .HasColumnName("updated_at")
                         .HasDefaultValueSql("now()");
 
+                    b.Property<string>("Visibility")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("Open")
+                        .HasColumnName("visibility");
+
                     b.Property<DateTimeOffset>("WindowClosesAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("window_closes_at");
@@ -130,6 +183,9 @@ namespace Quadra.Modules.Matches.Migrations
 
                     b.HasIndex("DateTime")
                         .HasDatabaseName("ix_matches_date_time");
+
+                    b.HasIndex("GroupId")
+                        .HasDatabaseName("ix_matches_group_id");
 
                     b.HasIndex("Location")
                         .HasDatabaseName("ix_matches_location_gist");
@@ -146,6 +202,47 @@ namespace Quadra.Modules.Matches.Migrations
                         .HasDatabaseName("ix_matches_type_status");
 
                     b.ToTable("matches", (string)null);
+                });
+
+            modelBuilder.Entity("Quadra.Modules.Matches.Entities.MatchGuest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("AddedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("added_by");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("MatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("match_id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Position")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("position");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchId")
+                        .HasDatabaseName("ix_match_guests_match_id");
+
+                    b.ToTable("match_guests", (string)null);
                 });
 
             modelBuilder.Entity("Quadra.Modules.Matches.Entities.MatchPresence", b =>
@@ -454,6 +551,15 @@ namespace Quadra.Modules.Matches.Migrations
                         .HasDatabaseName("ix_waiting_list_match_position");
 
                     b.ToTable("waiting_list", (string)null);
+                });
+
+            modelBuilder.Entity("Quadra.Modules.Matches.Entities.MatchGuest", b =>
+                {
+                    b.HasOne("Quadra.Modules.Matches.Entities.Match", null)
+                        .WithMany()
+                        .HasForeignKey("MatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

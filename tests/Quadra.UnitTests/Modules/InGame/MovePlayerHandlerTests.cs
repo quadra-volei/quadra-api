@@ -16,7 +16,7 @@ namespace Quadra.UnitTests.Modules.InGame;
 ///   - F1.3 Criterion: PUT moves player to specified team and returns updated composition
 ///   - F1.3 Criterion: 403 when caller is not the organizer
 ///   - F1.3 Criterion: 404 when match not found
-///   - F1.3 Criterion: 409 when match status is not Closed
+///   - F1.3 Criterion: 409 before confirmations open (same window as the draw)
 ///   - F1.3 Criterion: 404 when teams not yet formed
 ///   - F1.3 Criterion: 404 when teamId not found for this match
 ///   - F1.3 Criterion: 404 when player not in any team
@@ -30,19 +30,21 @@ public sealed class MovePlayerHandlerTests
 
     private readonly IMatchReader _matchReader = Substitute.For<IMatchReader>();
     private readonly ITeamRepository _teamRepository = Substitute.For<ITeamRepository>();
+    private readonly IScoreboardRepository _scoreboardRepository = Substitute.For<IScoreboardRepository>();
     private readonly IPlayerLevelReader _playerLevelReader = Substitute.For<IPlayerLevelReader>();
 
     private MovePlayerHandler CreateSut() =>
         new(
             _matchReader,
             _teamRepository,
+            _scoreboardRepository,
             _playerLevelReader,
             NullLogger<MovePlayerHandler>.Instance);
 
     private void SetupMatch(Guid matchId, Guid organizerId, string status = "Closed")
     {
         _matchReader.FindMatchSummaryAsync(matchId, Arg.Any<CancellationToken>())
-            .Returns(new MatchSummary(matchId, organizerId, status));
+            .Returns(new MatchSummary(matchId, organizerId, status, DateTimeOffset.UtcNow.AddHours(-1)));
     }
 
     /// <summary>
@@ -114,20 +116,20 @@ public sealed class MovePlayerHandlerTests
     // ─── 409: Wrong Match Status ─────────────────────────────────────────────
 
     /// <summary>
-    /// Covers: F1.3 — 409 when match status is not Closed.
+    /// Covers: F1.3 — 409 before confirmations open (teams can be edited while Open or Closed).
     /// </summary>
     [Fact]
-    public async Task HandleAsync_throws_InvalidMatchStatusForTeamsException_when_match_is_not_Closed()
+    public async Task HandleAsync_throws_InvalidMatchStatusForTeamsException_when_match_is_Draft()
     {
         var matchId = Guid.NewGuid();
-        SetupMatch(matchId, OrganizerUserId, status: "Open");
+        SetupMatch(matchId, OrganizerUserId, status: "Draft");
 
         var sut = CreateSut();
         var act = async () => await sut.HandleAsync(
             matchId, Guid.NewGuid(), Guid.NewGuid(), OrganizerUserId, CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidMatchStatusForTeamsException>()
-            .WithMessage("*Closed*");
+            .Where(e => e.Code == "ConfirmationsNotOpen");
     }
 
     // ─── 404: Teams Not Yet Formed ───────────────────────────────────────────

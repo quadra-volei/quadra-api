@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Quadra.Modules.InGame.Application;
 using Quadra.Modules.InGame.Contracts;
+using Quadra.Shared.Contracts;
 
 namespace Quadra.Modules.InGame.Controllers;
 
@@ -33,6 +34,7 @@ public sealed class TeamsController : ControllerBase
     [HttpPost("draft")]
     public async Task<ActionResult<TeamsResponse>> DraftTeams(
         Guid matchId,
+        [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] DraftTeamsRequest? request,
         CancellationToken cancellationToken)
     {
         if (!TryGetCallerId(out var callerId))
@@ -42,8 +44,13 @@ public sealed class TeamsController : ControllerBase
 
         try
         {
-            var response = await _draftHandler.HandleAsync(matchId, callerId, cancellationToken);
+            var response = await _draftHandler.HandleAsync(
+                matchId, callerId, request ?? new DraftTeamsRequest(), cancellationToken);
             return Ok(response);
+        }
+        catch (InvalidDraftOptionsException ex)
+        {
+            return BadRequest(new ProblemDetails { Title = "InvalidOptions", Detail = ex.Message });
         }
         catch (MatchNotFoundException)
         {
@@ -55,11 +62,15 @@ public sealed class TeamsController : ControllerBase
         }
         catch (InvalidMatchStatusForTeamsException ex)
         {
-            return Conflict(new ProblemDetails { Detail = ex.Message });
+            return Conflict(new ProblemDetails { Title = ex.Code, Detail = ex.Message });
         }
         catch (NoConfirmedPlayersException ex)
         {
-            return Conflict(new ProblemDetails { Detail = ex.Message });
+            return Conflict(new ProblemDetails { Title = "NoConfirmedPlayers", Detail = ex.Message });
+        }
+        catch (NotEnoughPlayersException ex)
+        {
+            return Conflict(new ProblemDetails { Title = "NotEnoughPlayers", Detail = ex.Message });
         }
     }
 
@@ -67,8 +78,14 @@ public sealed class TeamsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<TeamsResponse>> GetTeams(
         Guid matchId,
+        [FromServices] IMatchAccessReader access,
         CancellationToken cancellationToken)
     {
+        if (!TryGetCallerId(out var callerId) || !await access.CanViewAsync(matchId, callerId, cancellationToken))
+        {
+            return NotFound();
+        }
+
         try
         {
             var response = await _getHandler.HandleAsync(matchId, cancellationToken);
@@ -112,7 +129,7 @@ public sealed class TeamsController : ControllerBase
         }
         catch (InvalidMatchStatusForTeamsException ex)
         {
-            return Conflict(new ProblemDetails { Detail = ex.Message });
+            return Conflict(new ProblemDetails { Title = ex.Code, Detail = ex.Message });
         }
         catch (TeamsNotFoundException ex)
         {

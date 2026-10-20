@@ -29,7 +29,7 @@ public sealed class GetScoreboardHandlerTests
 
     private void SetupMatch(Guid matchId) =>
         _matchReader.FindMatchSummaryAsync(matchId, Arg.Any<CancellationToken>())
-            .Returns(new MatchSummary(matchId, Guid.NewGuid(), "Closed"));
+            .Returns(new MatchSummary(matchId, Guid.NewGuid(), "Closed", DateTimeOffset.UtcNow.AddHours(-1)));
 
     /// <summary>Covers: F1.4 — 404 when match not found.</summary>
     [Fact]

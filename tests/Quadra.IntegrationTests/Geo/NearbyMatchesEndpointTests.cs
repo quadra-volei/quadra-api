@@ -220,6 +220,32 @@ public sealed class NearbyMatchesEndpointTests : IClassFixture<MatchesWebApplica
         body.GetProperty("items").GetArrayLength().Should().Be(0);
     }
 
+    /// <summary>
+    /// Covers: private matches are reached by invitation and never listed; a match whose
+    /// confirmation window has not opened yet (Draft) is listed, with its format and level.
+    /// </summary>
+    [Fact]
+    public async Task GET_nearby_hides_private_matches_and_lists_matches_not_open_yet()
+    {
+        await ResetAsync();
+
+        await SeedMatchAsync(
+            name: "Private", lat: QueryLat, lon: QueryLon, maxPlayers: 10, confirmedRegular: 0,
+            settings: new MatchSettings(Visibility: MatchVisibility.Private, InviteMode: MatchInviteMode.Code));
+        await SeedMatchAsync(
+            name: "Not Open Yet", lat: QueryLat, lon: QueryLon, maxPlayers: 10, confirmedRegular: 0,
+            settings: new MatchSettings(Format: "4X4", Level: MatchLevel.Advanced), open: false);
+
+        var items = await GetNearbyAsync(radiusKm: 5);
+
+        items.Should().ContainSingle();
+        items[0].GetProperty("name").GetString().Should().Be("Not Open Yet");
+        items[0].GetProperty("status").GetString().Should().Be("Draft");
+        items[0].GetProperty("format").GetString().Should().Be("4X4");
+        items[0].GetProperty("level").GetString().Should().Be("Advanced");
+        items[0].GetProperty("confirmedCount").GetInt32().Should().Be(0);
+    }
+
     // ─── helpers ──────────────────────────────────────────────────────────────
 
     private async Task<IReadOnlyList<JsonElement>> GetNearbyAsync(double radiusKm, bool openToDropIns = false)
@@ -257,7 +283,9 @@ public sealed class NearbyMatchesEndpointTests : IClassFixture<MatchesWebApplica
         int maxPlayers,
         int confirmedRegular,
         int? regularSlots = null,
-        int confirmedDropIn = 0)
+        int confirmedDropIn = 0,
+        MatchSettings? settings = null,
+        bool open = true)
     {
         using var scope = _fx.Factory.Services.CreateScope();
         var ctx = scope.ServiceProvider.GetRequiredService<MatchesDbContext>();
@@ -281,10 +309,15 @@ public sealed class NearbyMatchesEndpointTests : IClassFixture<MatchesWebApplica
             dayOfWeekIso: null,
             windowOpensAt: now.AddDays(1),
             windowClosesAt: now.AddDays(5),
-            now: now);
+            now: now,
+            settings: settings);
 
-        // Make it joinable (status IN ('Open','Closed')).
-        match.OpenWindow(now);
+        // Open by default; a match left in Draft has its window still to come.
+        if (open)
+        {
+            match.OpenWindow(now);
+        }
+
         ctx.Matches.Add(match);
 
         for (var i = 0; i < confirmedRegular; i++)

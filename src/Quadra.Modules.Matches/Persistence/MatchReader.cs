@@ -24,7 +24,7 @@ public sealed class MatchReader : IMatchReader
         return await _context.Matches
             .AsNoTracking()
             .Where(m => m.Id == matchId)
-            .Select(m => new MatchSummary(m.Id, m.OrganizerId, m.Status.ToString()))
+            .Select(m => new MatchSummary(m.Id, m.OrganizerId, m.Status.ToString(), m.DateTime, (int?)m.GamePoints))
             .FirstOrDefaultAsync(cancellationToken);
     }
 }

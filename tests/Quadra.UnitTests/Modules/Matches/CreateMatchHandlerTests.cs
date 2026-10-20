@@ -22,7 +22,7 @@ public sealed class CreateMatchHandlerTests
     private readonly TimeProvider _timeProvider = new FixedTimeProvider(FixedNow);
 
     private CreateMatchHandler CreateSut() =>
-        new(_repository, _eventPublisher, _timeProvider);
+        new(_repository, _eventPublisher, _timeProvider, MatchTestSupport.Synchronizer(_repository, _timeProvider));
 
     private static CreateMatchCommand BuildValidOneOffCommand(Guid? organizerId = null) =>
         new(
@@ -94,6 +94,30 @@ public sealed class CreateMatchHandlerTests
         result.Type.Should().Be(MatchType.Recurring);
         result.Frequency.Should().Be(MatchFrequency.Weekly);
         result.DayOfWeek.Should().Be(3);
+    }
+
+    /// <summary>
+    /// Covers: with no window sent (the mobile form), confirmations are open from creation
+    /// until the match starts.
+    /// </summary>
+    [Fact]
+    public async Task HandleAsync_without_a_window_opens_confirmations_from_creation()
+    {
+        var command = BuildValidOneOffCommand() with { WindowOpensAt = null, WindowClosesAt = null };
+        var sut = CreateSut();
+
+        // The window is due at once, so the handler opens the match it just stored.
+        Match? stored = null;
+        _repository.AddAsync(Arg.Do<Match>(m => stored = m), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+        _repository.FindByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(_ => stored);
+
+        var result = await sut.HandleAsync(command, CancellationToken.None);
+
+        result.WindowOpensAt.Should().Be(FixedNow);
+        result.WindowClosesAt.Should().Be(command.DateTime);
+        result.Status.Should().Be(MatchStatus.Open);
     }
 
     /// <summary>

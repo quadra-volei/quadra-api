@@ -13,15 +13,18 @@ public sealed class S3ProfilePhotoStorage : IProfilePhotoStorage
     private readonly IAmazonS3 _s3;
     private readonly ProfilePhotoStorageOptions _options;
     private readonly TimeProvider _timeProvider;
+    private readonly IImageModerator _moderator;
 
     public S3ProfilePhotoStorage(
         IAmazonS3 s3,
         IOptions<ProfilePhotoStorageOptions> options,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IImageModerator? moderator = null)
     {
         _s3 = s3;
         _options = options.Value;
         _timeProvider = timeProvider;
+        _moderator = moderator ?? new NoImageModerator();
     }
 
     /// <inheritdoc/>
@@ -46,7 +49,31 @@ public sealed class S3ProfilePhotoStorage : IProfilePhotoStorage
     }
 
     /// <inheritdoc/>
-    public async Task<string> GetReadUrlAsync(string objectKey, CancellationToken cancellationToken)
+    public async Task<bool> IsWithinLimitsAsync(string objectKey, CancellationToken cancellationToken)
+    {
+        GetObjectMetadataResponse metadata;
+        try
+        {
+            metadata = await _s3.GetObjectMetadataAsync(_options.ProfilePhotosBucket, objectKey, cancellationToken);
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return false;
+        }
+
+        // Small enough, and (when a moderation provider is on) no adult content (DECISIONS #76).
+        if (metadata.ContentLength <= _options.MaxPhotoBytes
+            && await _moderator.IsAllowedAsync((await GetReadUrlAsync(objectKey, cancellationToken))!, cancellationToken))
+        {
+            return true;
+        }
+
+        await _s3.DeleteObjectAsync(_options.ProfilePhotosBucket, objectKey, cancellationToken);
+        return false;
+    }
+
+    /// <inheritdoc/>
+    public async Task<string?> GetReadUrlAsync(string objectKey, CancellationToken cancellationToken)
     {
         var expiresAt = _timeProvider.GetUtcNow().AddMinutes(_options.PhotoReadUrlTtlMinutes);
 

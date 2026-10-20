@@ -1,14 +1,12 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.IdentityModel.Protocols;
-using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using NSubstitute;
 using Quadra.Infrastructure.Messaging;
+using Quadra.IntegrationTests.Modules.Auth;
 using Quadra.Infrastructure.Storage;
 using Quadra.Modules.Auth.Persistence;
 using Quadra.Modules.Profile.Persistence;
@@ -24,11 +22,6 @@ namespace Quadra.IntegrationTests.Modules.Profile;
 /// </summary>
 public sealed class ProfileWebApplicationFactory : IAsyncLifetime
 {
-    public const string TestUserPoolId = "us-east-1_PROFILE_TEST";
-    public const string TestRegion = "us-east-1";
-    public const string TestAudience = "profile-test-client-id";
-    public static string TestIssuer => $"https://cognito-idp.{TestRegion}.amazonaws.com/{TestUserPoolId}";
-
     /// <summary>Deterministic stand-in URLs returned by the photo-storage substitute.</summary>
     public const string StubUploadUrl = "https://s3.test.local/upload";
 
@@ -37,7 +30,7 @@ public sealed class ProfileWebApplicationFactory : IAsyncLifetime
 
     public IEventPublisher Publisher { get; } = Substitute.For<IEventPublisher>();
 
-    public IProfilePhotoStorage PhotoStorage { get; } = Substitute.For<IProfilePhotoStorage>();
+    public IProfilePhotoStorage PhotoStorage { get; } = TestPhotoStorage.Create();
 
     public WebApplicationFactory<Program> Factory { get; private set; } = default!;
 
@@ -60,20 +53,10 @@ public sealed class ProfileWebApplicationFactory : IAsyncLifetime
 
                 builder.ConfigureAppConfiguration((_, config) =>
                 {
+                    // Auth module options (own JWT, fake phone verification)
+                    config.AddInMemoryCollection(TestJwtFactory.AuthSettings());
                     config.AddInMemoryCollection(new Dictionary<string, string?>
                     {
-                        // Auth module options
-                        ["Auth:Cognito:UserPoolId"] = TestUserPoolId,
-                        ["Auth:Cognito:Region"] = TestRegion,
-                        ["Auth:Cognito:Audience"] = TestAudience,
-                        ["Auth:Cognito:AppClientId"] = TestAudience,
-                        ["Auth:Cognito:ClockSkewSeconds"] = "30",
-                        ["Auth:Google:ClientId"] = "test-google-client",
-                        ["Auth:Google:Issuer"] = "https://accounts.google.com",
-                        ["Auth:Google:JwksUri"] = "https://accounts.google.com/.well-known/openid-configuration",
-                        ["Auth:Apple:ClientId"] = "test-apple-client",
-                        ["Auth:Apple:Issuer"] = "https://appleid.apple.com",
-                        ["Auth:Apple:JwksUri"] = "https://appleid.apple.com/.well-known/openid-configuration",
                         // Database — all modules share the same container
                         ["ConnectionStrings:Default"] = _postgres.GetConnectionString(),
                         // SQS — required by AddMatchesModule fail-fast
@@ -98,37 +81,18 @@ public sealed class ProfileWebApplicationFactory : IAsyncLifetime
                 {
                     ReplaceService(services, typeof(IEventPublisher), Publisher);
                     ReplaceService(services, typeof(IProfilePhotoStorage), PhotoStorage);
-
-                    services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, jwt =>
-                    {
-                        jwt.Authority = null;
-                        jwt.MetadataAddress = null!;
-                        jwt.RequireHttpsMetadata = false;
-
-                        var staticConfig = new OpenIdConnectConfiguration
-                        {
-                            Issuer = TestIssuer,
-                        };
-                        staticConfig.SigningKeys.Add(ProfileTestSigningKeys.PublicKey);
-
-                        jwt.ConfigurationManager =
-                            new StaticConfigurationManager<OpenIdConnectConfiguration>(staticConfig);
-
-                        jwt.TokenValidationParameters.ValidIssuer = TestIssuer;
-                        jwt.TokenValidationParameters.IssuerSigningKeys = new[] { ProfileTestSigningKeys.PublicKey };
-                        jwt.TokenValidationParameters.ValidateIssuerSigningKey = true;
-                        jwt.TokenValidationParameters.ValidateIssuer = true;
-                        jwt.TokenValidationParameters.ValidateLifetime = true;
-                        jwt.TokenValidationParameters.ValidateAudience = false;
-                    });
                 });
             });
 
         using var scope = Factory.Services.CreateScope();
         var authCtx = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
         await authCtx.Database.MigrateAsync();
+        await scope.ServiceProvider.GetRequiredService<Quadra.Modules.Notifications.NotificationsDbContext>().Database.MigrateAsync();
         var profileCtx = scope.ServiceProvider.GetRequiredService<ProfileDbContext>();
         await profileCtx.Database.MigrateAsync();
+        // Posts ask the Matches module whether a match can be invited to.
+        await scope.ServiceProvider.GetRequiredService<Quadra.Modules.Matches.Persistence.MatchesDbContext>()
+            .Database.MigrateAsync();
     }
 
     public async ValueTask DisposeAsync()
@@ -141,7 +105,7 @@ public sealed class ProfileWebApplicationFactory : IAsyncLifetime
     public HttpClient CreateAuthenticatedClient(Guid userId)
     {
         var client = Factory.CreateClient();
-        var token = ProfileTestJwtFactory.CreateAccessToken(TestIssuer, TestAudience, userId.ToString());
+        var token = TestJwtFactory.CreateSessionToken(Factory.Services, userId);
         client.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         return client;

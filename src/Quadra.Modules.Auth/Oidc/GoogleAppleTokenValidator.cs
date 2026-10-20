@@ -47,6 +47,14 @@ public sealed class GoogleAppleTokenValidator : IOidcTokenValidator
         ArgumentException.ThrowIfNullOrWhiteSpace(idToken);
 
         var providerOptions = GetProviderOptions(provider);
+        if (string.IsNullOrWhiteSpace(providerOptions.ClientId)
+            || string.IsNullOrWhiteSpace(providerOptions.JwksUri)
+            || string.IsNullOrWhiteSpace(providerOptions.Issuer))
+        {
+            // A provider that is not configured (e.g. Apple, until it is enabled) accepts no token.
+            throw new OidcTokenInvalidException($"{provider} login is not configured.");
+        }
+
         var configManager = _configurationManagers.GetOrAdd(provider, _ => CreateConfigurationManager(providerOptions));
 
         OpenIdConnectConfiguration configuration;

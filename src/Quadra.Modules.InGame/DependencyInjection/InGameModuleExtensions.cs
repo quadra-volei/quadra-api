@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Quadra.Infrastructure.Contracts;
+using Quadra.Infrastructure.Persistence;
 using Quadra.Modules.InGame.Application;
 using Quadra.Modules.InGame.Contracts;
 using Quadra.Modules.InGame.Persistence;
@@ -53,13 +54,14 @@ public static class InGameModuleExtensions
                     "ConnectionStrings:InGame (or ConnectionStrings:Default) must be configured.");
 
             builder.UseNpgsql(
-                connectionString,
+                PostgresConnectionString.Normalize(connectionString),
                 npgsql => npgsql.UseNetTopologySuite());
         });
 
         services.AddScoped<ITeamRepository, TeamRepository>();
         services.AddScoped<IScoreboardRepository, ScoreboardRepository>();
         services.AddScoped<IMvpVotingRepository, MvpVotingRepository>();
+        services.AddScoped<Quadra.Shared.Contracts.IPersonalDataStore, InGamePersonalData>();
 
         // Cross-module read interface implemented by the InGame module (consumed by Matches, F1.6).
         services.AddScoped<IMatchResultReader, MatchResultReader>();
@@ -72,9 +74,14 @@ public static class InGameModuleExtensions
         services.AddScoped<StartScoreboardHandler>();
         services.AddScoped<RecordPointHandler>();
         services.AddScoped<EndScoreboardHandler>();
+        services.AddScoped<UndoPointHandler>();
+        services.AddScoped<EndSetHandler>();
+        services.AddScoped<OpenNextSetHandler>();
         services.AddScoped<GetScoreboardHandler>();
 
         services.AddScoped<OpenMvpVotingHandler>();
+        // Reacts to the game ending (in-process event) by opening the voting.
+        services.AddScoped<Quadra.Infrastructure.Messaging.IEventHandler<Quadra.Shared.Events.InGame.MatchEnded>, OpenMvpVotingOnMatchEnded>();
         services.AddScoped<CastMvpVoteHandler>();
         services.AddScoped<CloseMvpVotingHandler>();
         services.AddScoped<GetMvpVotingHandler>();

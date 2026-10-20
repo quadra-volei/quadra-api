@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Quadra.Infrastructure.Contracts;
+using Quadra.Infrastructure.Persistence;
 using Quadra.Infrastructure.Realtime;
 using Quadra.Modules.Matches.Application;
 using Quadra.Modules.Matches.Contracts;
@@ -69,7 +71,7 @@ public static class MatchesModuleExtensions
                     "ConnectionStrings:Matches (or ConnectionStrings:Default) must be configured.");
 
             builder.UseNpgsql(
-                connectionString,
+                PostgresConnectionString.Normalize(connectionString),
                 npgsql => npgsql.UseNetTopologySuite());
         });
 
@@ -77,31 +79,50 @@ public static class MatchesModuleExtensions
         services.AddScoped<IPresenceRepository, PresenceRepository>();
         services.AddScoped<IWaitingListRepository, WaitingListRepository>();
         services.AddScoped<IMatchSummaryRepository, MatchSummaryRepository>();
+        services.AddScoped<IMatchGuestRepository, MatchGuestRepository>();
 
         // Cross-module read interfaces implemented by the Matches module.
         services.AddScoped<IMatchReader, MatchReader>();
         services.AddScoped<IConfirmedPlayersReader, ConfirmedPlayersReader>();
         services.AddScoped<IMatchAvailabilityReader, MatchAvailabilityReader>();
         services.AddScoped<IMatchDescriptorReader, MatchDescriptorReader>();
+        services.AddScoped<IMatchInviteReader, MatchInviteReader>();
+        services.AddScoped<IMatchCoverReader, MatchCoverReader>();
         services.AddScoped<IMatchGroupReader, MatchGroupReader>();
+        services.AddScoped<IMatchAccessReader, MatchAccessReader>();
 
         services.AddScoped<CreateMatchHandler>();
         services.AddScoped<GetMatchHandler>();
         services.AddScoped<ListMatchesHandler>();
         services.AddScoped<CancelMatchHandler>();
+        services.AddScoped<IPersonalDataStore, MatchesPersonalData>();
+        services.AddScoped<IUpcomingMatchReader, UpcomingMatchReader>();
+        services.AddScoped<UpdateMatchHandler>();
         services.AddScoped<AddPresenceHandler>();
         services.AddScoped<UpdateMyPresenceHandler>();
         services.AddScoped<GetPresenceListHandler>();
         services.AddScoped<RemovePresenceHandler>();
+        services.AddScoped<LeaveWaitingListHandler>();
         services.AddScoped<OpenMatchWindowHandler>();
         services.AddScoped<CloseMatchWindowHandler>();
         services.AddScoped<GenerateMatchSummaryHandler>();
+        services.AddScoped<ScheduleNextGameHandler>();
         services.AddScoped<GetMatchSummaryHandler>();
+        services.AddScoped<MatchWindowSynchronizer>();
+        services.AddScoped<GetMatchDetailHandler>();
+        services.AddScoped<ListMyMatchesHandler>();
+        services.AddScoped<AddMatchGuestHandler>();
+        services.AddScoped<RemoveMatchGuestHandler>();
 
         services.AddScoped<IValidator<CreateMatchRequest>, CreateMatchRequestValidator>();
+        services.AddScoped<IValidator<UpdateMatchRequest>, UpdateMatchRequestValidator>();
         services.AddScoped<IValidator<ListMatchesQuery>, ListMatchesQueryValidator>();
         services.AddScoped<IValidator<AddPresenceRequest>, AddPresenceRequestValidator>();
         services.AddScoped<IValidator<UpdateMyPresenceRequest>, UpdateMyPresenceRequestValidator>();
+        services.AddScoped<IValidator<AddGuestRequest>, AddGuestRequestValidator>();
+
+        // Player identities for rosters come from Profile; hosts without it get placeholders.
+        services.TryAddScoped<IPlayerSummaryReader, NoOpPlayerSummaryReader>();
 
         // IMatchRoomNotifier — no-op until the SignalR implementation is delivered by Quadra.Modules.Realtime.
         services.TryAddSingleton<IMatchRoomNotifier, NoOpMatchRoomNotifier>();

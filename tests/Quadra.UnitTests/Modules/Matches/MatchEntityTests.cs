@@ -264,11 +264,10 @@ public sealed class MatchEntityTests
     }
 
     /// <summary>
-    /// Covers: F1.6 — MarkEnded is rejected from pre-game states (Draft / Open).
+    /// Covers: F1.6 — MarkEnded is rejected before confirmations open (Draft).
     /// </summary>
     [Theory]
     [InlineData(MatchStatus.Draft)]
-    [InlineData(MatchStatus.Open)]
     public void MarkEnded_from_pre_game_states_throws(MatchStatus status)
     {
         var match = CreateDraftMatch(status);

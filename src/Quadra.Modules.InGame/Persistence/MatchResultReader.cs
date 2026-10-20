@@ -51,7 +51,7 @@ public sealed class MatchResultReader : IMatchResultReader
             .Select(t => new MatchResultTeam(
                 TeamId: t.Id,
                 Name: t.Name,
-                PlayerIds: t.Members.Select(m => m.PlayerId).OrderBy(id => id).ToList()))
+                PlayerIds: t.PlayerIds.OrderBy(id => id).ToList()))
             .ToList();
 
         var mvpVotingState = voting is null ? "None" : voting.State.ToString();

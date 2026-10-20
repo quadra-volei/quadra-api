@@ -1,10 +1,12 @@
 using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Quadra.Modules.InGame.Application;
 using Quadra.Modules.InGame.Contracts;
 using Quadra.Modules.InGame.Entities;
+using Quadra.Shared.Contracts;
 
 namespace Quadra.Modules.InGame.Controllers;
 
@@ -25,12 +27,19 @@ public sealed class ScoreboardController : ControllerBase
     private readonly IValidator<CreateScoreboardRequest> _createValidator;
     private readonly IValidator<RecordPointRequest> _recordPointValidator;
 
+    private readonly UndoPointHandler _undoPointHandler;
+    private readonly EndSetHandler _endSetHandler;
+    private readonly OpenNextSetHandler _openNextSetHandler;
+
     public ScoreboardController(
         CreateScoreboardHandler createHandler,
         StartScoreboardHandler startHandler,
         RecordPointHandler recordPointHandler,
         EndScoreboardHandler endHandler,
         GetScoreboardHandler getHandler,
+        UndoPointHandler undoPointHandler,
+        EndSetHandler endSetHandler,
+        OpenNextSetHandler openNextSetHandler,
         IValidator<CreateScoreboardRequest> createValidator,
         IValidator<RecordPointRequest> recordPointValidator)
     {
@@ -39,6 +48,9 @@ public sealed class ScoreboardController : ControllerBase
         _recordPointHandler = recordPointHandler;
         _endHandler = endHandler;
         _getHandler = getHandler;
+        _undoPointHandler = undoPointHandler;
+        _endSetHandler = endSetHandler;
+        _openNextSetHandler = openNextSetHandler;
         _createValidator = createValidator;
         _recordPointValidator = recordPointValidator;
     }
@@ -66,12 +78,21 @@ public sealed class ScoreboardController : ControllerBase
             return ValidationProblem(ModelState);
         }
 
-        var format = Enum.Parse<ScoreboardFormat>(request.Format, ignoreCase: true);
+        var format = Enum.Parse<ScoreboardFormat>(request.Format ?? nameof(ScoreboardFormat.SingleGame), ignoreCase: true);
 
         try
         {
-            var response = await _createHandler.HandleAsync(matchId, callerId, format, cancellationToken);
+            var response = await _createHandler.HandleAsync(
+                matchId, callerId, format, cancellationToken, request.TeamAId, request.TeamBId);
             return CreatedAtAction(nameof(GetScoreboard), new { matchId }, response);
+        }
+        catch (TeamNotInScoreboardException ex)
+        {
+            return BadRequest(new ProblemDetails { Detail = ex.Message });
+        }
+        catch (MatchNotStartedYetException ex)
+        {
+            return TooEarly(ex);
         }
         catch (MatchNotFoundException)
         {
@@ -110,6 +131,10 @@ public sealed class ScoreboardController : ControllerBase
         {
             var response = await _startHandler.HandleAsync(matchId, callerId, cancellationToken);
             return Ok(response);
+        }
+        catch (MatchNotStartedYetException ex)
+        {
+            return TooEarly(ex);
         }
         catch (MatchNotFoundException)
         {
@@ -186,6 +211,64 @@ public sealed class ScoreboardController : ControllerBase
     }
 
     /// <summary>POST /api/v1/matches/{matchId}/scoreboard/end</summary>
+    /// <summary>DELETE /api/v1/matches/{matchId}/scoreboard/sets/{setNumber}/points/last — undo the last point.</summary>
+    [HttpDelete("sets/{setNumber:int}/points/last")]
+    public Task<ActionResult<ScoreboardResponse>> UndoPoint(Guid matchId, int setNumber, CancellationToken cancellationToken) =>
+        RunSetOperationAsync(callerId => _undoPointHandler.HandleAsync(matchId, setNumber, callerId, cancellationToken));
+
+    /// <summary>POST /api/v1/matches/{matchId}/scoreboard/sets/{setNumber}/end — end the set early; the leader takes it.</summary>
+    [HttpPost("sets/{setNumber:int}/end")]
+    public Task<ActionResult<ScoreboardResponse>> EndSet(Guid matchId, int setNumber, CancellationToken cancellationToken) =>
+        RunSetOperationAsync(callerId => _endSetHandler.HandleAsync(matchId, setNumber, callerId, cancellationToken));
+
+    /// <summary>POST /api/v1/matches/{matchId}/scoreboard/sets — open the next set between two teams.</summary>
+    [HttpPost("sets")]
+    public Task<ActionResult<ScoreboardResponse>> OpenNextSet(
+        Guid matchId,
+        [FromBody] OpenNextSetRequest request,
+        CancellationToken cancellationToken) =>
+        RunSetOperationAsync(callerId => _openNextSetHandler.HandleAsync(
+            matchId, request.TeamAId, request.TeamBId, callerId, cancellationToken));
+
+    /// <summary>Runs an organizer set operation with the error mapping they all share.</summary>
+    private async Task<ActionResult<ScoreboardResponse>> RunSetOperationAsync(
+        Func<Guid, Task<ScoreboardResponse>> operation)
+    {
+        if (!TryGetCallerId(out var callerId))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            return Ok(await operation(callerId));
+        }
+        catch (MatchNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (MatchAccessDeniedException)
+        {
+            return Forbid();
+        }
+        catch (ScoreboardNotFoundException ex)
+        {
+            return NotFound(new ProblemDetails { Detail = ex.Message });
+        }
+        catch (TeamNotInScoreboardException ex)
+        {
+            return NotFound(new ProblemDetails { Detail = ex.Message });
+        }
+        catch (SetNotCurrentException ex)
+        {
+            return Conflict(new ProblemDetails { Detail = ex.Message });
+        }
+        catch (InvalidScoreboardStateException ex)
+        {
+            return Conflict(new ProblemDetails { Detail = ex.Message });
+        }
+    }
+
     [HttpPost("end")]
     public async Task<ActionResult<ScoreboardResponse>> EndScoreboard(
         Guid matchId,
@@ -223,8 +306,14 @@ public sealed class ScoreboardController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<ScoreboardResponse>> GetScoreboard(
         Guid matchId,
+        [FromServices] IMatchAccessReader access,
         CancellationToken cancellationToken)
     {
+        if (!TryGetCallerId(out var callerId) || !await access.CanViewAsync(matchId, callerId, cancellationToken))
+        {
+            return NotFound();
+        }
+
         try
         {
             var response = await _getHandler.HandleAsync(matchId, cancellationToken);
@@ -241,6 +330,15 @@ public sealed class ScoreboardController : ControllerBase
     }
 
     // --- Private helpers ---
+
+    /// <summary>422: the game cannot be put on court yet; <c>startsAt</c> tells the app when.</summary>
+    private ObjectResult TooEarly(MatchNotStartedYetException ex) =>
+        UnprocessableEntity(new ProblemDetails
+        {
+            Status = StatusCodes.Status422UnprocessableEntity,
+            Detail = ex.Message,
+            Extensions = { ["startsAt"] = ex.StartsAt },
+        });
 
     private bool TryGetCallerId(out Guid callerId)
     {

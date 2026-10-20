@@ -43,5 +43,14 @@ public sealed class NearbyMatchConfiguration : IEntityTypeConfiguration<NearbyMa
 
         builder.Property(m => m.Status)
             .HasColumnName("status");
+
+        builder.Property(m => m.Visibility)
+            .HasColumnName("visibility");
+
+        builder.Property(m => m.Format)
+            .HasColumnName("format");
+
+        builder.Property(m => m.Level)
+            .HasColumnName("level");
     }
 }

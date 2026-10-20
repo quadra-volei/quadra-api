@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using NetTopologySuite.Geometries;
 using Quadra.Modules.Matches.Application;
 
@@ -52,8 +53,124 @@ public sealed class Match
     /// </summary>
     public short? ReleasedDropInSlots { get; private set; }
 
+    /// <summary>Players per side: <c>2X2</c>, <c>4X4</c> or <c>6X6</c>. Null when not declared.</summary>
+    public string? Format { get; private set; }
+
+    /// <summary>Skill level the match is aimed at. Null when not declared.</summary>
+    public MatchLevel? Level { get; private set; }
+
+    /// <summary>Planned playing time in minutes. Null when not declared.</summary>
+    public short? DurationMinutes { get; private set; }
+
+    /// <summary>Points that win the single game; null on matches created before it existed (they played best of 3 or 5).</summary>
+    public short? GamePoints { get; private set; }
+
+    public const int DefaultGamePoints = 25;
+    public const int MinGamePoints = 5;
+    public const int MaxGamePoints = 50;
+
+    /// <summary>Open matches are listed and joinable by anyone; private ones are not.</summary>
+    public MatchVisibility Visibility { get; private set; }
+
+    /// <summary>How players join a private match. Null for an open match.</summary>
+    public MatchInviteMode? InviteMode { get; private set; }
+
+    /// <summary>
+    /// Code that lets its holder join a private match with <see cref="MatchInviteMode.Code"/>.
+    /// Only ever shown to the organizer.
+    /// </summary>
+    public string? InviteCode { get; private set; }
+
+    /// <summary>Monthly price for regulars of a recurring match.</summary>
+    public decimal? PriceMonthly { get; private set; }
+
+    /// <summary>
+    /// ISO week days (1 = Monday … 7 = Sunday) a recurring match repeats on. When set,
+    /// <see cref="DayOfWeek"/> holds the first of them.
+    /// </summary>
+    public int[]? RecurrenceDays { get; private set; }
+
+    /// <summary>Storage key of the cover image (same bucket as profile photos). Null: no cover.</summary>
+    public string? CoverObjectKey { get; private set; }
+
+    /// <summary>
+    /// The recurring group this game belongs to: the id of the group's first game. Null on the
+    /// first game itself and on one-off matches (the group is then the match's own id).
+    /// </summary>
+    public Guid? GroupId { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
+
+    /// <summary>
+    /// The next game of this recurring group (DECISIONS #64): a copy of this one (same organizer,
+    /// place, slots, prices, settings and invite code) on <paramref name="dateTime"/>, in Draft, with
+    /// the confirmation window as far from the game as this one's was (never opening before now).
+    /// </summary>
+    public Match CreateNext(DateTimeOffset dateTime, DateTimeOffset now)
+    {
+        var next = (Match)MemberwiseClone();
+        next.Id = Guid.NewGuid();
+        next.GroupId = GroupId ?? Id;
+        next.DateTime = dateTime;
+        var opens = dateTime - (DateTime - WindowOpensAt);
+        next.WindowOpensAt = opens < now ? now : opens;
+        var closes = dateTime - (DateTime - WindowClosesAt);
+        next.WindowClosesAt = closes < next.WindowOpensAt ? next.WindowOpensAt : closes;
+        next.Status = MatchStatus.Draft;
+        next.ReleasedDropInSlots = null;
+        next.Location = (Point)Location.Copy();
+        next.RecurrenceDays = RecurrenceDays?.ToArray();
+        next.CreatedAt = now;
+        next.UpdatedAt = now;
+        return next;
+    }
+
+    /// <summary>
+    /// When the group plays after <paramref name="current"/>, in Brasília wall-clock time: the
+    /// next of its week days, and when that falls in a later week, that day 1 (weekly), 2
+    /// (biweekly) or 4 (monthly) weeks on. Rolled forward until it is after <paramref name="now"/>.
+    /// </summary>
+    public static DateTimeOffset NextGameTime(
+        DateTimeOffset current,
+        MatchFrequency? frequency,
+        IReadOnlyCollection<int>? recurrenceDays,
+        DateTimeOffset now)
+    {
+        // ponytail: "monthly" is every 4 weeks on the same week day, not a calendar day of the month.
+        var weeks = frequency switch
+        {
+            MatchFrequency.Biweekly => 2,
+            MatchFrequency.Monthly => 4,
+            _ => 1,
+        };
+        var brasilia = TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
+        var next = current;
+        do
+        {
+            var local = TimeZoneInfo.ConvertTime(next, brasilia).DateTime;
+            var days = recurrenceDays is { Count: > 0 } ? recurrenceDays : [IsoDay(local)];
+            var candidate = local;
+            do
+            {
+                candidate = candidate.AddDays(1);
+            }
+            while (!days.Contains(IsoDay(candidate)));
+
+            // Crossing Sunday→Monday (or landing on the same week day again) starts a new week.
+            if (IsoDay(candidate) <= IsoDay(local))
+            {
+                candidate = candidate.AddDays(7 * (weeks - 1));
+            }
+
+            next = new DateTimeOffset(candidate, brasilia.GetUtcOffset(candidate)).ToUniversalTime();
+        }
+        while (next <= now);
+
+        return next;
+    }
+
+    private static int IsoDay(System.DateTime date) => date.DayOfWeek == System.DayOfWeek.Sunday ? 7 : (int)date.DayOfWeek;
 
     /// <summary>
     /// Factory method — the only way to create a new <see cref="Match"/> instance.
@@ -74,8 +191,14 @@ public sealed class Match
         int? dayOfWeekIso,
         DateTimeOffset windowOpensAt,
         DateTimeOffset windowClosesAt,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        MatchSettings? settings = null)
     {
+        settings ??= new MatchSettings();
+        var recurrenceDays = settings.RecurrenceDays is { Count: > 0 } days
+            ? days.Distinct().Order().ToArray()
+            : null;
+
         // PostGIS Point: X = longitude, Y = latitude, SRID 4326.
         var location = new Point(longitude, latitude) { SRID = 4326 };
 
@@ -95,10 +218,24 @@ public sealed class Match
             Price = price,
             Type = type,
             Frequency = frequency,
-            DayOfWeek = dayOfWeekIso.HasValue ? (short)dayOfWeekIso.Value : null,
+            DayOfWeek = dayOfWeekIso.HasValue
+                ? (short)dayOfWeekIso.Value
+                : recurrenceDays is null ? null : (short)recurrenceDays[0],
             WindowOpensAt = windowOpensAt,
             WindowClosesAt = windowClosesAt,
             Status = MatchStatus.Draft,
+            Format = settings.Format,
+            Level = settings.Level,
+            DurationMinutes = settings.DurationMinutes.HasValue ? (short)settings.DurationMinutes.Value : null,
+            GamePoints = (short)(settings.GamePoints ?? DefaultGamePoints),
+            Visibility = settings.Visibility,
+            InviteMode = settings.Visibility == MatchVisibility.Private ? settings.InviteMode : null,
+            InviteCode = settings is { Visibility: MatchVisibility.Private, InviteMode: MatchInviteMode.Code }
+                ? GenerateInviteCode()
+                : null,
+            PriceMonthly = settings.PriceMonthly,
+            RecurrenceDays = recurrenceDays,
+            CoverObjectKey = settings.CoverObjectKey,
             CreatedAt = now,
             UpdatedAt = now,
         };
@@ -108,6 +245,29 @@ public sealed class Match
     /// Transitions the match from <see cref="MatchStatus.Draft"/> to <see cref="MatchStatus.Open"/>.
     /// Throws <see cref="InvalidMatchStatusTransitionException"/> if not currently <see cref="MatchStatus.Draft"/>.
     /// </summary>
+    /// <summary>
+    /// Whether <paramref name="playerId"/> may put themselves on the presence list: the organizer
+    /// always can; anyone can for an open match; a private match needs its invite code.
+    /// </summary>
+    public bool AllowsSelfEnrollment(Guid playerId, string? inviteCode)
+    {
+        if (playerId == OrganizerId || Visibility == MatchVisibility.Open)
+        {
+            return true;
+        }
+
+        return InviteMode == MatchInviteMode.Code
+            && !string.IsNullOrWhiteSpace(inviteCode)
+            && string.Equals(inviteCode.Trim(), InviteCode, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // 8 characters from an alphabet without look-alikes (no 0/O, 1/I/L).
+    private static string GenerateInviteCode()
+    {
+        const string alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+        return RandomNumberGenerator.GetString(alphabet, 8);
+    }
+
     public void OpenWindow(DateTimeOffset now)
     {
         if (Status is not MatchStatus.Draft)
@@ -139,6 +299,52 @@ public sealed class Match
     }
 
     /// <summary>
+    /// Organizer edit of the match details. Type (one-off / recurring), visibility and invite mode
+    /// stay as created. Moving the date moves the confirmation window by the same amount.
+    /// Only while <see cref="MatchStatus.Draft"/> or <see cref="MatchStatus.Open"/>; the caller
+    /// checks that the slots still fit who has confirmed and that the game has not started.
+    /// </summary>
+    public void Update(MatchEdit edit, DateTimeOffset now)
+    {
+        if (Status is not (MatchStatus.Draft or MatchStatus.Open))
+        {
+            throw new InvalidMatchStatusTransitionException(
+                $"Cannot edit a match with status '{Status}'. Only Draft or Open matches can be edited.");
+        }
+
+        var shift = edit.DateTime - DateTime;
+        WindowOpensAt += shift;
+        WindowClosesAt += shift;
+
+        Name = edit.Name;
+        Description = edit.Description;
+        Address = edit.Address;
+        Location = new Point(edit.Longitude, edit.Latitude) { SRID = 4326 };
+        DateTime = edit.DateTime;
+        MaxPlayers = (short)edit.MaxPlayers;
+        RegularSlots = (short)edit.RegularSlots;
+        DropInSlots = (short)(edit.MaxPlayers - edit.RegularSlots);
+        Price = edit.Price;
+        Format = edit.Format;
+        Level = edit.Level;
+        DurationMinutes = edit.DurationMinutes.HasValue ? (short)edit.DurationMinutes.Value : null;
+        GamePoints = edit.GamePoints.HasValue ? (short)edit.GamePoints.Value : GamePoints;
+        CoverObjectKey = edit.CoverObjectKey;
+
+        if (Type == MatchType.Recurring)
+        {
+            PriceMonthly = edit.PriceMonthly;
+            if (edit.RecurrenceDays is { Count: > 0 } days)
+            {
+                RecurrenceDays = days.Distinct().Order().ToArray();
+                DayOfWeek = (short)RecurrenceDays[0];
+            }
+        }
+
+        UpdatedAt = now;
+    }
+
+    /// <summary>
     /// Transitions the match to <see cref="MatchStatus.Cancelled"/>.
     /// Throws <see cref="InvalidMatchStatusTransitionException"/> if the match is
     /// <see cref="MatchStatus.InProgress"/> or <see cref="MatchStatus.Ended"/> (terminal states).
@@ -157,7 +363,8 @@ public sealed class Match
 
     /// <summary>
     /// Transitions the match to <see cref="MatchStatus.Ended"/> when the immutable summary is finalized (F1.6).
-    /// Valid from <see cref="MatchStatus.Closed"/> or <see cref="MatchStatus.InProgress"/>.
+    /// Valid from <see cref="MatchStatus.Open"/> (a game played while confirmations were still
+    /// open), <see cref="MatchStatus.Closed"/> or <see cref="MatchStatus.InProgress"/>.
     /// No-op when already <see cref="MatchStatus.Ended"/>.
     /// Throws <see cref="InvalidMatchStatusTransitionException"/> when the match is <see cref="MatchStatus.Cancelled"/>.
     /// </summary>
@@ -169,10 +376,10 @@ public sealed class Match
             return false;
         }
 
-        if (Status is not (MatchStatus.Closed or MatchStatus.InProgress))
+        if (Status is not (MatchStatus.Open or MatchStatus.Closed or MatchStatus.InProgress))
         {
             throw new InvalidMatchStatusTransitionException(
-                $"Cannot end a match with status '{Status}'. Only Closed or InProgress matches can be ended.");
+                $"Cannot end a match with status '{Status}'. Only Open, Closed or InProgress matches can be ended.");
         }
 
         Status = MatchStatus.Ended;

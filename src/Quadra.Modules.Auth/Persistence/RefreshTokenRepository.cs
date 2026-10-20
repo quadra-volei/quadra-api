@@ -29,13 +29,52 @@ public sealed class RefreshTokenRepository : IRefreshTokenRepository
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task RevokeAsync(
-        RefreshToken refreshToken,
+    public async Task<bool> TryRotateAsync(
+        RefreshToken current,
+        RefreshToken replacement,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(refreshToken);
-        refreshToken.Revoke(now);
+        ArgumentNullException.ThrowIfNull(current);
+        ArgumentNullException.ThrowIfNull(replacement);
+
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        // Conditional UPDATE: only one of several concurrent refreshes sees the row un-revoked.
+        var currentId = current.Id;
+        DateTimeOffset? revokedAt = now;
+        var revoked = await _dbContext.RefreshTokens
+            .Where(t => t.Id == currentId && t.RevokedAt == null)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(t => t.RevokedAt, revokedAt),
+                cancellationToken);
+
+        if (revoked == 0)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return false;
+        }
+
+        await _dbContext.RefreshTokens.AddAsync(replacement, cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
     }
+
+    public Task RevokeFamilyAsync(Guid familyId, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        DateTimeOffset? revokedAt = now;
+        return _dbContext.RefreshTokens
+            .Where(t => t.FamilyId == familyId && t.RevokedAt == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(t => t.RevokedAt, revokedAt), cancellationToken);
+    }
+
+    public Task<bool> IsSessionActiveAsync(
+        Guid userId,
+        Guid familyId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken) =>
+        _dbContext.RefreshTokens.AnyAsync(
+            t => t.FamilyId == familyId && t.UserId == userId && t.RevokedAt == null && t.ExpiresAt > now,
+            cancellationToken);
 }

@@ -53,6 +53,9 @@ public sealed class StartScoreboardHandler
             throw new MatchAccessDeniedException(matchId, callerId);
         }
 
+        // 2b. No game before the match happens (no farming points ahead of kickoff).
+        Kickoff.EnsureReached(matchSummary.StartsAt, _timeProvider.GetUtcNow());
+
         // 3. Load scoreboard.
         var scoreboard = await _scoreboardRepository.FindByMatchAsync(matchId, cancellationToken)
             ?? throw new ScoreboardNotFoundException();

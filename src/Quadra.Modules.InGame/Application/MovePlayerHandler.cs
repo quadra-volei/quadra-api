@@ -12,17 +12,20 @@ public sealed class MovePlayerHandler
 {
     private readonly IMatchReader _matchReader;
     private readonly ITeamRepository _teamRepository;
+    private readonly IScoreboardRepository _scoreboardRepository;
     private readonly IPlayerLevelReader _playerLevelReader;
     private readonly ILogger<MovePlayerHandler> _logger;
 
     public MovePlayerHandler(
         IMatchReader matchReader,
         ITeamRepository teamRepository,
+        IScoreboardRepository scoreboardRepository,
         IPlayerLevelReader playerLevelReader,
         ILogger<MovePlayerHandler> logger)
     {
         _matchReader = matchReader;
         _teamRepository = teamRepository;
+        _scoreboardRepository = scoreboardRepository;
         _playerLevelReader = playerLevelReader;
         _logger = logger;
     }
@@ -44,12 +47,9 @@ public sealed class MovePlayerHandler
             throw new MatchAccessDeniedException(matchId, callerId);
         }
 
-        // 3. Verify match is Closed.
-        if (matchSummary.Status != "Closed")
-        {
-            throw new InvalidMatchStatusForTeamsException(
-                "Manual team adjustments are only allowed while the match is Closed.");
-        }
+        // 3. Same window as the draw: confirmations open, game not started.
+        InvalidMatchStatusForTeamsException.ThrowUnlessEditable(
+            matchSummary.Status, await _scoreboardRepository.FindByMatchAsync(matchId, cancellationToken));
 
         // 4. Load teams.
         var teams = await _teamRepository.ListByMatchAsync(matchId, cancellationToken);

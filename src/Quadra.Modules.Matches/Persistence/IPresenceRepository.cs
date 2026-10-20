@@ -27,4 +27,12 @@ public interface IPresenceRepository
     /// Counts confirmed presences for a given match and player type.
     /// </summary>
     Task<int> CountConfirmedAsync(Guid matchId, PlayerType playerType, CancellationToken cancellationToken);
+
+    /// <summary>Confirmed presences of the match, whatever the player type.</summary>
+    Task<int> CountConfirmedAsync(Guid matchId, CancellationToken cancellationToken);
+
+    /// <summary>Every presence row of the given matches.</summary>
+    Task<IReadOnlyList<MatchPresence>> ListByMatchesAsync(
+        IReadOnlyCollection<Guid> matchIds,
+        CancellationToken cancellationToken);
 }

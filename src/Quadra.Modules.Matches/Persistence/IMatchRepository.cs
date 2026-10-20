@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore.Storage;
 using Quadra.Modules.Matches.Entities;
 
 namespace Quadra.Modules.Matches.Persistence;
@@ -12,11 +13,34 @@ public interface IMatchRepository
     Task UpdateAsync(Match match, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Begins a transaction that holds the match row lock (<c>SELECT … FOR UPDATE</c>) until it is
+    /// committed or disposed. Every change of slots, presences or waiting-list positions of one
+    /// match runs inside it, so concurrent requests cannot overfill the match (SEC-03, SEC-11).
+    /// </summary>
+    Task<IDbContextTransaction> LockAsync(Guid matchId, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Returns a filtered, ordered, paginated page of matches together with the total count
     /// of rows that match the filter (before paging).
     /// </summary>
     Task<(IReadOnlyList<Match> Items, int TotalCount)> ListAsync(
         ListMatchesFilter filter,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Matches whose confirmation window is due for a transition at <paramref name="now"/>:
+    /// Draft with the window already open, or Open with the window already closed.
+    /// </summary>
+    Task<IReadOnlyList<Match>> ListWindowDueAsync(DateTimeOffset now, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Matches starting at or after <paramref name="since"/>, neither cancelled nor ended, that
+    /// <paramref name="playerId"/> organizes, is on the presence list of (not declined) or waits
+    /// for. Soonest first, capped at 50.
+    /// </summary>
+    Task<IReadOnlyList<Match>> ListUpcomingForPlayerAsync(
+        Guid playerId,
+        DateTimeOffset since,
         CancellationToken cancellationToken);
 }
 
@@ -24,6 +48,7 @@ public interface IMatchRepository
 /// Filter criteria for <see cref="IMatchRepository.ListAsync"/>.
 /// </summary>
 public sealed record ListMatchesFilter(
+    Guid CallerId,
     Guid? OrganizerId,
     MatchStatus? Status,
     int Page,

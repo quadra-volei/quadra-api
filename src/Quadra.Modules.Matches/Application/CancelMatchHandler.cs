@@ -1,6 +1,7 @@
 using Quadra.Infrastructure.Messaging;
 using Quadra.Modules.Matches.Entities;
 using Quadra.Modules.Matches.Persistence;
+using Quadra.Shared.Contracts;
 using Quadra.Shared.Events.Matches;
 
 namespace Quadra.Modules.Matches.Application;
@@ -13,12 +14,15 @@ public sealed class CancelMatchHandler
     private readonly IMatchRepository _repository;
     private readonly IEventPublisher _eventPublisher;
     private readonly TimeProvider _timeProvider;
+    private readonly IMatchResultReader _matchResultReader;
 
     public CancelMatchHandler(
         IMatchRepository repository,
         IEventPublisher eventPublisher,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IMatchResultReader matchResultReader)
     {
+        _matchResultReader = matchResultReader;
         _repository = repository;
         _eventPublisher = eventPublisher;
         _timeProvider = timeProvider;
@@ -33,6 +37,9 @@ public sealed class CancelMatchHandler
         {
             throw new MatchAccessDeniedException(matchId, callerId);
         }
+
+        // Match.Status never becomes InProgress (the scoreboard tracks the game), so ask InGame.
+        await MatchGameGuard.EnsureNotStartedAsync(_matchResultReader, matchId, cancellationToken);
 
         var previousStatus = match.Status;
         var now = _timeProvider.GetUtcNow();

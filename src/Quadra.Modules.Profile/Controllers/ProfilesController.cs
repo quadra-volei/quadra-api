@@ -3,6 +3,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Quadra.Infrastructure.Storage;
 using Quadra.Modules.Profile.Application;
 using Quadra.Modules.Profile.Contracts;
 using Quadra.Modules.Profile.Validation;
@@ -58,7 +59,7 @@ public sealed class ProfilesController : ControllerBase
 
         try
         {
-            return Ok(await _getProfileHandler.HandleAsync(callerId, cancellationToken));
+            return Ok(await _getProfileHandler.HandleAsync(callerId, callerId, cancellationToken));
         }
         catch (ProfileNotFoundException)
         {
@@ -72,9 +73,11 @@ public sealed class ProfilesController : ControllerBase
         Guid userId,
         CancellationToken cancellationToken)
     {
+        Guid? callerId = TryGetCallerId(out var id) ? id : null;
+
         try
         {
-            return Ok(await _getProfileHandler.HandleAsync(userId, cancellationToken));
+            return Ok(await _getProfileHandler.HandleAsync(userId, callerId, cancellationToken));
         }
         catch (ProfileNotFoundException)
         {
@@ -86,6 +89,7 @@ public sealed class ProfilesController : ControllerBase
     [HttpPut("me")]
     public async Task<ActionResult<PlayerProfileResponse>> UpdateMe(
         [FromBody] UpdateProfileRequest request,
+        [FromServices] IProfilePhotoStorage photoStorage,
         CancellationToken cancellationToken)
     {
         if (!TryGetCallerId(out var callerId))
@@ -104,6 +108,14 @@ public sealed class ProfilesController : ControllerBase
             return ValidationFailure(validation);
         }
 
+        // The key is the caller's (validator); the uploaded object must also fit the limit (SEC-13).
+        if (!string.IsNullOrEmpty(request.PhotoObjectKey)
+            && !await photoStorage.IsWithinLimitsAsync(request.PhotoObjectKey, cancellationToken))
+        {
+            ModelState.AddModelError(nameof(request.PhotoObjectKey), "The photo is missing, larger than 10 MB or refused by the content check.");
+            return ValidationProblem(ModelState);
+        }
+
         try
         {
             return Ok(await _updateProfileHandler.HandleAsync(callerId, request, cancellationToken));
@@ -112,11 +124,38 @@ public sealed class ProfilesController : ControllerBase
         {
             return NotFound();
         }
-        catch (InvalidPositionException ex)
+        catch (ProfileUpdateRejectedException ex)
         {
-            ModelState.AddModelError(nameof(UpdateProfileRequest.PrimaryPosition), ex.Message);
+            ModelState.AddModelError(ex.Field, ex.Message);
             return ValidationProblem(ModelState);
         }
+        catch (HandleAlreadyTakenException ex)
+        {
+            return Conflict(new ProblemDetails { Detail = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// GET /api/v1/profiles/handle-availability?handle=… — whether the caller can use a handle
+    /// (free, or already their own). 400 when the handle is not well-formed.
+    /// </summary>
+    [HttpGet("handle-availability")]
+    public async Task<ActionResult<HandleAvailabilityResponse>> GetHandleAvailability(
+        [FromQuery] string? handle,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetCallerId(out var callerId))
+        {
+            return Unauthorized();
+        }
+
+        if (!ProfileHandle.IsValid(handle))
+        {
+            ModelState.AddModelError(nameof(handle), ProfileHandle.RuleMessage);
+            return ValidationProblem(ModelState);
+        }
+
+        return Ok(await _getProfileHandler.CheckHandleAsync(handle!, callerId, cancellationToken));
     }
 
     /// <summary>POST /api/v1/profiles/me/photo/upload-url</summary>
@@ -136,10 +175,20 @@ public sealed class ProfilesController : ControllerBase
             return ValidationFailure(validation);
         }
 
-        var response = await _createPhotoUploadUrlHandler.HandleAsync(
-            callerId, request.ContentType, cancellationToken);
+        try
+        {
+            var response = await _createPhotoUploadUrlHandler.HandleAsync(
+                callerId, request.ContentType, cancellationToken);
 
-        return StatusCode(StatusCodes.Status201Created, response);
+            return StatusCode(StatusCodes.Status201Created, response);
+        }
+        catch (ProfilePhotoStorageUnavailableException)
+        {
+            // No object storage in this environment: photos are optional, everything else works.
+            return Problem(
+                statusCode: StatusCodes.Status503ServiceUnavailable,
+                title: "Profile photos are not available in this environment.");
+        }
     }
 
     /// <summary>GET /api/v1/profiles/me/match-history</summary>
@@ -154,7 +203,7 @@ public sealed class ProfilesController : ControllerBase
             return Unauthorized();
         }
 
-        return await GetMatchHistoryAsync(callerId, page, pageSize, cancellationToken);
+        return await GetMatchHistoryAsync(callerId, callerId, page, pageSize, cancellationToken);
     }
 
     /// <summary>GET /api/v1/profiles/{userId}/match-history</summary>
@@ -165,7 +214,12 @@ public sealed class ProfilesController : ControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        return await GetMatchHistoryAsync(userId, page, pageSize, cancellationToken);
+        if (!TryGetCallerId(out var callerId))
+        {
+            return Unauthorized();
+        }
+
+        return await GetMatchHistoryAsync(userId, callerId, page, pageSize, cancellationToken);
     }
 
     /// <summary>GET /api/v1/profiles/me/card</summary>
@@ -211,6 +265,7 @@ public sealed class ProfilesController : ControllerBase
 
     private async Task<ActionResult<PagedResponse<MatchHistoryEntryResponse>>> GetMatchHistoryAsync(
         Guid userId,
+        Guid callerId,
         int page,
         int pageSize,
         CancellationToken cancellationToken)
@@ -224,7 +279,7 @@ public sealed class ProfilesController : ControllerBase
 
         try
         {
-            return Ok(await _getMatchHistoryHandler.HandleAsync(userId, page, pageSize, cancellationToken));
+            return Ok(await _getMatchHistoryHandler.HandleAsync(userId, callerId, page, pageSize, cancellationToken));
         }
         catch (ProfileNotFoundException)
         {

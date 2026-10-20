@@ -67,12 +67,19 @@ public sealed class GetScoreboardHandler
                     IsDecidingSet: s.IsDecidingSet,
                     WinnerTeamId: s.WinnerTeamId,
                     StartedAt: s.StartedAt,
-                    FinishedAt: s.FinishedAt))
+                    FinishedAt: s.FinishedAt,
+                    TeamAId: s.TeamAId ?? scoreboard.TeamAId,
+                    TeamBId: s.TeamBId ?? scoreboard.TeamBId,
+                    CanUndo: s.Status == SetStatus.InProgress && s.LastPointTeamId is not null))
                 .ToList(),
             StartedAt: scoreboard.StartedAt,
             EndedAt: scoreboard.EndedAt,
             CreatedAt: scoreboard.CreatedAt,
-            UpdatedAt: scoreboard.UpdatedAt);
+            UpdatedAt: scoreboard.UpdatedAt,
+            RotatesTeams: scoreboard.RotatesTeams,
+            PointsToWin: scoreboard.PointsToWin,
+            AwaitingNextSet: scoreboard.State == ScoreboardState.InProgress
+                && scoreboard.Sets.All(s => s.Status == SetStatus.Finished));
     }
 
     /// <summary>
@@ -95,6 +102,7 @@ public sealed class GetScoreboardHandler
             CurrentSetTeamAPoints: currentSet?.TeamAPoints ?? 0,
             CurrentSetTeamBPoints: currentSet?.TeamBPoints ?? 0,
             WinnerTeamId: scoreboard.WinnerTeamId,
-            OccurredAt: occurredAt);
+            OccurredAt: occurredAt,
+            PointsToWin: scoreboard.PointsToWin);
     }
 }

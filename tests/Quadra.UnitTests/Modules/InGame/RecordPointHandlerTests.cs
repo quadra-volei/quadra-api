@@ -46,7 +46,7 @@ public sealed class RecordPointHandlerTests
 
     private void SetupMatch(Guid matchId, Guid organizerId, string status = "Closed") =>
         _matchReader.FindMatchSummaryAsync(matchId, Arg.Any<CancellationToken>())
-            .Returns(new MatchSummary(matchId, organizerId, status));
+            .Returns(new MatchSummary(matchId, organizerId, status, DateTimeOffset.UtcNow.AddHours(-1)));
 
     /// <summary>Builds an in-progress scoreboard (set 1 open) and wires the repository substitute
     /// to return that same, in-place-mutated instance on every lookup.</summary>

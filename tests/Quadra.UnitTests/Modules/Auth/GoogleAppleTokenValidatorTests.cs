@@ -71,4 +71,24 @@ public sealed class GoogleAppleTokenValidatorTests
 
         await act.Should().ThrowAsync<OidcTokenInvalidException>();
     }
+
+    /// <summary>
+    /// Covers: a provider with no client ID configured (Apple, until it is enabled) accepts no
+    /// token — it fails as <see cref="OidcTokenInvalidException"/> without any network call.
+    /// </summary>
+    [Fact]
+    public async Task Validate_for_unconfigured_provider_throws_oidc_token_invalid()
+    {
+        var monitor = Substitute.For<IOptionsMonitor<OidcProvidersOptions>>();
+        monitor.CurrentValue.Returns(new OidcProvidersOptions());
+        var sut = new GoogleAppleTokenValidator(monitor, TimeProvider.System);
+
+        var act = async () => await sut.ValidateAsync(
+            "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIxIn0.signature",
+            OidcProvider.Apple,
+            TestContext.Current.CancellationToken);
+
+        (await act.Should().ThrowAsync<OidcTokenInvalidException>())
+            .WithMessage("*not configured*");
+    }
 }

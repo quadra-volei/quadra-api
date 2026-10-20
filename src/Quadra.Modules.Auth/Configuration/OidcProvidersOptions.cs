@@ -1,7 +1,7 @@
 namespace Quadra.Modules.Auth.Configuration;
 
 /// <summary>
-/// Configuration for the external OIDC providers (Google and Apple) used by the signup endpoint.
+/// Configuration for the external OIDC providers (Google and Apple) used by the login endpoints.
 /// </summary>
 public sealed class OidcProvidersOptions
 {

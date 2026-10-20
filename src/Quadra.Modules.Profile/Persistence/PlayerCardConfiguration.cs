@@ -28,15 +28,10 @@ public sealed class PlayerCardConfiguration : IEntityTypeConfiguration<PlayerCar
             .HasMaxLength(80)
             .IsRequired();
 
-        builder.Property(c => c.PrimaryPosition)
-            .HasColumnName("primary_position")
+        builder.Property(c => c.Position)
+            .HasColumnName("position")
             .HasConversion<string>()
-            .HasMaxLength(24);
-
-        builder.Property(c => c.SecondaryPosition)
-            .HasColumnName("secondary_position")
-            .HasConversion<string>()
-            .HasMaxLength(24);
+            .HasMaxLength(8);
 
         builder.Property(c => c.Level)
             .HasColumnName("level")

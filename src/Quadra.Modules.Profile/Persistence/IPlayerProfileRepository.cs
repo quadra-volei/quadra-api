@@ -19,6 +19,18 @@ public interface IPlayerProfileRepository
     /// <summary>Persists changes to an already-tracked or detached <paramref name="profile"/>.</summary>
     Task UpdateAsync(PlayerProfile profile, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Saves <paramref name="profile"/>. Returns <c>false</c> — saving nothing — when its handle
+    /// collides with another player's (unique-index race).
+    /// </summary>
+    Task<bool> TryUpdateAsync(PlayerProfile profile, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// True when the normalized <paramref name="handle"/> belongs to a player other than
+    /// <paramref name="exceptUserId"/>.
+    /// </summary>
+    Task<bool> IsHandleTakenAsync(string handle, Guid exceptUserId, CancellationToken cancellationToken);
+
     /// <summary>Returns <c>true</c> when a profile already exists for <paramref name="userId"/>.</summary>
     Task<bool> ExistsAsync(Guid userId, CancellationToken cancellationToken);
 }

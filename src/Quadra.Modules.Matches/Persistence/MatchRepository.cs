@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Quadra.Modules.Matches.Entities;
 
 namespace Quadra.Modules.Matches.Persistence;
@@ -19,6 +20,7 @@ public sealed class MatchRepository : IMatchRepository
     {
         await _context.Matches.AddAsync(match, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
+        Detach(match);
     }
 
     public async Task<Match?> FindByIdAsync(Guid id, CancellationToken cancellationToken)
@@ -28,17 +30,32 @@ public sealed class MatchRepository : IMatchRepository
             .FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
     }
 
+    public async Task<IDbContextTransaction> LockAsync(Guid matchId, CancellationToken cancellationToken)
+    {
+        var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        await _context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM matches WHERE id = {matchId} FOR UPDATE",
+            cancellationToken);
+        return transaction;
+    }
+
     public async Task UpdateAsync(Match match, CancellationToken cancellationToken)
     {
         _context.Matches.Update(match);
         await _context.SaveChangesAsync(cancellationToken);
+        Detach(match);
     }
+
+    // Matches are always read untracked, so a saved instance must not stay tracked: a later
+    // update of a freshly read copy in the same scope would collide with it.
+    private void Detach(Match match) => _context.Entry(match).State = EntityState.Detached;
 
     public async Task<(IReadOnlyList<Match> Items, int TotalCount)> ListAsync(
         ListMatchesFilter filter,
         CancellationToken cancellationToken)
     {
-        var query = _context.Matches.AsNoTracking();
+        // Others' private matches are never listed (CanViewMatch).
+        var query = _context.VisibleTo(filter.CallerId);
 
         if (filter.OrganizerId.HasValue)
         {
@@ -59,5 +76,38 @@ public sealed class MatchRepository : IMatchRepository
             .ToListAsync(cancellationToken);
 
         return (items, totalCount);
+    }
+
+    public async Task<IReadOnlyList<Match>> ListWindowDueAsync(
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        return await _context.Matches
+            .AsNoTracking()
+            .Where(m =>
+                (m.Status == MatchStatus.Draft && m.WindowOpensAt <= now)
+                || (m.Status == MatchStatus.Open && m.WindowClosesAt < now))
+            .OrderBy(m => m.WindowOpensAt)
+            .Take(200)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Match>> ListUpcomingForPlayerAsync(
+        Guid playerId,
+        DateTimeOffset since,
+        CancellationToken cancellationToken)
+    {
+        return await _context.Matches
+            .AsNoTracking()
+            .Where(m => m.DateTime >= since)
+            .Where(m => m.Status != MatchStatus.Cancelled && m.Status != MatchStatus.Ended)
+            .Where(m =>
+                m.OrganizerId == playerId
+                || _context.Presences.Any(p =>
+                    p.MatchId == m.Id && p.PlayerId == playerId && p.Status != PresenceStatus.Declined)
+                || _context.WaitingList.Any(w => w.MatchId == m.Id && w.PlayerId == playerId))
+            .OrderBy(m => m.DateTime)
+            .Take(50)
+            .ToListAsync(cancellationToken);
     }
 }

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Quadra.Infrastructure.Persistence;
 using Quadra.Modules.Gamification.Abstractions;
 using Quadra.Modules.Gamification.Application;
 using Quadra.Modules.Gamification.Contracts;
@@ -37,16 +38,22 @@ public static class GamificationModuleExtensions
                 ?? throw new InvalidOperationException(
                     "ConnectionStrings:Gamification (or ConnectionStrings:Default) must be configured.");
 
-            builder.UseNpgsql(connectionString);
+            builder.UseNpgsql(PostgresConnectionString.Normalize(connectionString));
         });
 
         services.AddScoped<IPointTransactionRepository, PointTransactionRepository>();
         services.AddScoped<IGroupRankingRepository, GroupRankingRepository>();
+        services.AddScoped<Quadra.Shared.Contracts.IPersonalDataStore, GamificationPersonalData>();
 
         // Gamification-owned write interface (invoked by the Background Worker).
         services.AddScoped<IMatchPointsWriter, ApplyFinishedMatchPointsHandler>();
 
         services.AddScoped<GetGroupRankingHandler>();
+        services.AddScoped<GetMyRankingHandler>();
+        services.AddScoped<GetRankingHandler>();
+        services.AddScoped<IValidator<RankingQuery>, RankingQueryValidator>();
+        // Player identities for the ranking rows; Profile registers the real reader.
+        services.TryAddScoped<Quadra.Shared.Contracts.IPlayerSummaryReader, Quadra.Infrastructure.Contracts.NoOpPlayerSummaryReader>();
 
         services.AddScoped<IValidator<GroupRankingQuery>, GroupRankingQueryValidator>();
 

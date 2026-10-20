@@ -30,9 +30,12 @@ public sealed class UpdateMyPresenceHandlerTests
     private readonly IWaitingListRepository _waitingListRepository = Substitute.For<IWaitingListRepository>();
     private readonly IEventPublisher _eventPublisher = Substitute.For<IEventPublisher>();
     private readonly IMatchRoomNotifier _roomNotifier = Substitute.For<IMatchRoomNotifier>();
+    private readonly IMatchGuestRepository _guestRepository = Substitute.For<IMatchGuestRepository>();
 
     private UpdateMyPresenceHandler CreateSut(DateTimeOffset now) =>
-        new(_matchRepository, _presenceRepository, _waitingListRepository,
+        new(_matchRepository, _presenceRepository, _waitingListRepository, _guestRepository,
+            MatchTestSupport.Synchronizer(
+                _matchRepository, new FixedTimeProvider(now), _presenceRepository, _waitingListRepository, _eventPublisher),
             _eventPublisher, _roomNotifier, new FixedTimeProvider(now),
             NullLogger<UpdateMyPresenceHandler>.Instance);
 
@@ -441,23 +444,187 @@ public sealed class UpdateMyPresenceHandlerTests
         await _waitingListRepository.Received(1).RemoveAsync(waiterEntry, Arg.Any<CancellationToken>());
     }
 
+    // ─── joining (no presence row yet) ───────────────────────────────────────
+
     /// <summary>
-    /// Covers: Presence not found returns PresenceNotFoundException.
+    /// Covers: F1.2 (mobile S12) — a player who is not on the list joins an open match by
+    /// confirming: a Confirmed Regular presence is created and PresenceConfirmed is published.
     /// </summary>
     [Fact]
-    public async Task HandleAsync_presence_not_found_throws_PresenceNotFoundException()
+    public async Task HandleAsync_player_without_presence_joins_an_open_match()
     {
         var match = BuildOpenMatch();
         _matchRepository.FindByIdAsync(match.Id, Arg.Any<CancellationToken>()).Returns(match);
         _presenceRepository.FindByMatchAndPlayerAsync(match.Id, PlayerId, Arg.Any<CancellationToken>())
             .ReturnsNull();
 
-        var request = new UpdateMyPresenceRequest(Status: "Confirmed");
         var sut = CreateSut(FixedNow);
+        var presence = await sut.HandleAsync(
+            match.Id, PlayerId, new UpdateMyPresenceRequest(Status: "Confirmed"), CancellationToken.None);
 
-        var act = async () => await sut.HandleAsync(match.Id, PlayerId, request, CancellationToken.None);
+        presence.PlayerId.Should().Be(PlayerId);
+        presence.PlayerType.Should().Be(PlayerType.Regular);
+        presence.Status.Should().Be(PresenceStatus.Confirmed);
+        await _presenceRepository.Received(1).AddAsync(presence, Arg.Any<CancellationToken>());
+        await _eventPublisher.Received(1).PublishAsync(
+            Arg.Is<PresenceConfirmed>(e => e.MatchId == match.Id && e.PlayerId == PlayerId),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Covers: declining a match you are not part of is not a join — PresenceNotFoundException.
+    /// </summary>
+    [Fact]
+    public async Task HandleAsync_declining_without_presence_throws_PresenceNotFoundException()
+    {
+        var match = BuildOpenMatch();
+        _matchRepository.FindByIdAsync(match.Id, Arg.Any<CancellationToken>()).Returns(match);
+        _presenceRepository.FindByMatchAndPlayerAsync(match.Id, PlayerId, Arg.Any<CancellationToken>())
+            .ReturnsNull();
+
+        var sut = CreateSut(FixedNow);
+        var act = async () => await sut.HandleAsync(
+            match.Id, PlayerId, new UpdateMyPresenceRequest(Status: "Declined"), CancellationToken.None);
 
         await act.Should().ThrowAsync<PresenceNotFoundException>();
+        await _presenceRepository.DidNotReceive().AddAsync(Arg.Any<MatchPresence>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Covers: a private match by invite code — no code or a wrong code is refused
+    /// (MatchInviteRequiredException); the right code (any casing) joins.
+    /// </summary>
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData("WRONGCODE", false)]
+    [InlineData("exact", true)]
+    [InlineData("lower", true)]
+    public async Task HandleAsync_private_match_by_code_requires_the_invite_code(string? code, bool joins)
+    {
+        var match = MatchTestSupport.Match(
+            OrganizerId, FixedNow, FixedNow.AddHours(-1), FixedNow.AddHours(1), MatchStatus.Open,
+            settings: new MatchSettings(Visibility: MatchVisibility.Private, InviteMode: MatchInviteMode.Code));
+        match.InviteCode.Should().HaveLength(8);
+        var sent = code switch
+        {
+            "exact" => match.InviteCode,
+            "lower" => match.InviteCode!.ToLowerInvariant(),
+            _ => code,
+        };
+        _matchRepository.FindByIdAsync(match.Id, Arg.Any<CancellationToken>()).Returns(match);
+        _presenceRepository.FindByMatchAndPlayerAsync(match.Id, PlayerId, Arg.Any<CancellationToken>())
+            .ReturnsNull();
+
+        var sut = CreateSut(FixedNow);
+        var act = async () => await sut.HandleAsync(
+            match.Id, PlayerId, new UpdateMyPresenceRequest("Confirmed", sent), CancellationToken.None);
+
+        if (joins)
+        {
+            (await act.Should().NotThrowAsync()).Which.Status.Should().Be(PresenceStatus.Confirmed);
+        }
+        else
+        {
+            await act.Should().ThrowAsync<MatchInviteRequiredException>();
+            await _presenceRepository.DidNotReceive().AddAsync(Arg.Any<MatchPresence>(), Arg.Any<CancellationToken>());
+        }
+    }
+
+    /// <summary>
+    /// Covers: a private "guests only" match never lets a stranger in, but its organizer can
+    /// always put themselves on the list.
+    /// </summary>
+    [Fact]
+    public async Task HandleAsync_private_guests_only_match_admits_only_the_organizer()
+    {
+        var match = MatchTestSupport.Match(
+            OrganizerId, FixedNow, FixedNow.AddHours(-1), FixedNow.AddHours(1), MatchStatus.Open,
+            settings: new MatchSettings(Visibility: MatchVisibility.Private, InviteMode: MatchInviteMode.Guests));
+        match.InviteCode.Should().BeNull();
+        _matchRepository.FindByIdAsync(match.Id, Arg.Any<CancellationToken>()).Returns(match);
+        _presenceRepository.FindByMatchAndPlayerAsync(match.Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .ReturnsNull();
+
+        var sut = CreateSut(FixedNow);
+        var stranger = async () => await sut.HandleAsync(
+            match.Id, PlayerId, new UpdateMyPresenceRequest("Confirmed"), CancellationToken.None);
+        var organizer = async () => await sut.HandleAsync(
+            match.Id, OrganizerId, new UpdateMyPresenceRequest("Confirmed"), CancellationToken.None);
+
+        await stranger.Should().ThrowAsync<MatchInviteRequiredException>();
+        await organizer.Should().NotThrowAsync();
+    }
+
+    /// <summary>
+    /// Covers: joining before the confirmation window opens is refused and creates nothing.
+    /// </summary>
+    [Fact]
+    public async Task HandleAsync_joining_before_the_window_opens_throws_and_creates_nothing()
+    {
+        var match = MatchTestSupport.Match(
+            OrganizerId, FixedNow, FixedNow.AddHours(2), FixedNow.AddDays(6), MatchStatus.Draft);
+        _matchRepository.FindByIdAsync(match.Id, Arg.Any<CancellationToken>()).Returns(match);
+        _presenceRepository.FindByMatchAndPlayerAsync(match.Id, PlayerId, Arg.Any<CancellationToken>())
+            .ReturnsNull();
+
+        var sut = CreateSut(FixedNow);
+        var act = async () => await sut.HandleAsync(
+            match.Id, PlayerId, new UpdateMyPresenceRequest("Confirmed"), CancellationToken.None);
+
+        await act.Should().ThrowAsync<PresenceWindowNotOpenException>();
+        await _presenceRepository.DidNotReceive().AddAsync(Arg.Any<MatchPresence>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Covers: nothing opens the window but the clock — a Draft match whose window is already
+    /// due is opened on the spot (MatchWindowOpened published) and the player joins.
+    /// </summary>
+    [Fact]
+    public async Task HandleAsync_opens_a_due_window_before_checking_it()
+    {
+        var match = MatchTestSupport.Match(
+            OrganizerId, FixedNow, FixedNow.AddMinutes(-5), FixedNow.AddDays(6), MatchStatus.Draft);
+        _matchRepository.FindByIdAsync(match.Id, Arg.Any<CancellationToken>()).Returns(match);
+        _presenceRepository.FindByMatchAndPlayerAsync(match.Id, PlayerId, Arg.Any<CancellationToken>())
+            .ReturnsNull();
+        _presenceRepository.ListByMatchAsync(match.Id, Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<MatchPresence>());
+
+        var sut = CreateSut(FixedNow);
+        var presence = await sut.HandleAsync(
+            match.Id, PlayerId, new UpdateMyPresenceRequest("Confirmed"), CancellationToken.None);
+
+        match.Status.Should().Be(MatchStatus.Open);
+        presence.Status.Should().Be(PresenceStatus.Confirmed);
+        await _eventPublisher.Received(1).PublishAsync(
+            Arg.Is<MatchWindowOpened>(e => e.MatchId == match.Id), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Covers: guests occupy Regular slots — with 2 regular slots, 1 confirmed player and 1 guest
+    /// the next player goes to the waiting list instead of joining.
+    /// </summary>
+    [Fact]
+    public async Task HandleAsync_guests_count_against_the_regular_slots()
+    {
+        var match = BuildOpenMatch(regularSlots: 2);
+        _matchRepository.FindByIdAsync(match.Id, Arg.Any<CancellationToken>()).Returns(match);
+        _presenceRepository.FindByMatchAndPlayerAsync(match.Id, PlayerId, Arg.Any<CancellationToken>())
+            .ReturnsNull();
+        _presenceRepository.CountConfirmedAsync(match.Id, PlayerType.Regular, Arg.Any<CancellationToken>())
+            .Returns(1);
+        _guestRepository.CountByMatchAsync(match.Id, Arg.Any<CancellationToken>()).Returns(1);
+        _waitingListRepository.GetNextPositionAsync(match.Id, Arg.Any<CancellationToken>()).Returns(1);
+
+        var sut = CreateSut(FixedNow);
+        var act = async () => await sut.HandleAsync(
+            match.Id, PlayerId, new UpdateMyPresenceRequest("Confirmed"), CancellationToken.None);
+
+        (await act.Should().ThrowAsync<SlotLimitReachedException>()).Which.WaitingListPosition.Should().Be(1);
+        await _presenceRepository.DidNotReceive().AddAsync(Arg.Any<MatchPresence>(), Arg.Any<CancellationToken>());
+        await _waitingListRepository.Received(1).AddAsync(
+            Arg.Is<WaitingListEntry>(w => w.PlayerId == PlayerId && w.PlayerType == PlayerType.Regular),
+            Arg.Any<CancellationToken>());
     }
 
     private sealed class FixedTimeProvider : TimeProvider

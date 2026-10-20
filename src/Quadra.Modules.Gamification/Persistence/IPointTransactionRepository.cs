@@ -5,6 +5,9 @@ namespace Quadra.Modules.Gamification.Persistence;
 /// <summary>The latest match a player attended within a group.</summary>
 public sealed record AttendedMatch(Guid MatchId, DateTimeOffset MatchDateTime);
 
+/// <summary>One player's points, games, wins and MVPs over a period.</summary>
+public sealed record SeasonTotals(Guid UserId, int Points, int Matches, int Wins, int Mvps);
+
 /// <summary>Persistence contract for the immutable <see cref="PointTransaction"/> ledger.</summary>
 public interface IPointTransactionRepository
 {
@@ -22,4 +25,17 @@ public interface IPointTransactionRepository
 
     /// <summary>The player's most recent attended match in a group, or <c>null</c> when none.</summary>
     Task<AttendedMatch?> LatestAttendedMatchAsync(Guid groupId, Guid userId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Each player's totals for matches played since <paramref name="since"/>, optionally only in
+    /// one group and / or only for some players. Feeds the season rankings.
+    /// </summary>
+    Task<IReadOnlyList<SeasonTotals>> GetTotalsSinceAsync(
+        DateTimeOffset since,
+        Guid? groupId,
+        IReadOnlyCollection<Guid>? userIds,
+        CancellationToken cancellationToken);
+
+    /// <summary>The groups the player scored in, most recent match first.</summary>
+    Task<IReadOnlyList<Guid>> GetGroupIdsAsync(Guid userId, CancellationToken cancellationToken);
 }

@@ -29,7 +29,7 @@
     <ProjectReference Include="..\..\src\Quadra.Modules.Geo\Quadra.Modules.Geo.csproj" />
     <ProjectReference Include="..\..\src\Quadra.Modules.Profile\Quadra.Modules.Profile.csproj" />
     <ProjectReference Include="..\..\src\Quadra.Modules.Gamification\Quadra.Modules.Gamification.csproj" />
-    <ProjectReference Include="..\..\src\Quadra.Workers.Background\Quadra.Workers.Background.csproj" />
+    <ProjectReference Include="..\..\src\Quadra.Api\Quadra.Api.csproj" />
   </ItemGroup>
 
 </Project>

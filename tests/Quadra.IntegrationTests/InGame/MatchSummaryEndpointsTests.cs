@@ -342,7 +342,7 @@ public sealed class MatchSummaryEndpointsTests : IClassFixture<InGameWebApplicat
         using var scope = _fx.Factory.Services.CreateScope();
         var ctx = scope.ServiceProvider.GetRequiredService<MatchesDbContext>();
         await ctx.Database.ExecuteSqlRawAsync(
-            "UPDATE matches SET status = {0} WHERE id = {1}", status, matchId);
+            "UPDATE matches SET status = {0}, date_time = now() WHERE id = {1}", status, matchId);
     }
 
     /// <summary>Creates a Closed match, adds the fixed confirmed participants and drafts the teams.</summary>

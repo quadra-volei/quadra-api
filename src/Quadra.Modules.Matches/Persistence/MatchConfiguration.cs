@@ -105,6 +105,54 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .HasDefaultValueSql("now()");
 
         // Indexes
+        builder.Property(m => m.Format)
+            .HasColumnName("format")
+            .HasMaxLength(8);
+
+        builder.Property(m => m.Level)
+            .HasColumnName("level")
+            .HasMaxLength(16)
+            .HasConversion<string?>();
+
+        builder.Property(m => m.GamePoints)
+            .HasColumnName("game_points");
+
+        builder.Property(m => m.DurationMinutes)
+            .HasColumnName("duration_minutes");
+
+        builder.Property(m => m.Visibility)
+            .HasColumnName("visibility")
+            .HasMaxLength(16)
+            .HasConversion<string>()
+            .HasDefaultValue(MatchVisibility.Open)
+            .IsRequired();
+
+        builder.Property(m => m.InviteMode)
+            .HasColumnName("invite_mode")
+            .HasMaxLength(16)
+            .HasConversion<string?>();
+
+        builder.Property(m => m.InviteCode)
+            .HasColumnName("invite_code")
+            .HasMaxLength(16);
+
+        builder.Property(m => m.PriceMonthly)
+            .HasColumnName("price_monthly")
+            .HasColumnType("numeric(10,2)");
+
+        builder.Property(m => m.RecurrenceDays)
+            .HasColumnName("recurrence_days");
+
+        builder.Property(m => m.CoverObjectKey)
+            .HasColumnName("cover_object_key")
+            .HasMaxLength(256);
+
+        builder.Property(m => m.GroupId)
+            .HasColumnName("group_id");
+
+        builder.HasIndex(m => m.GroupId)
+            .HasDatabaseName("ix_matches_group_id");
+
         builder.HasIndex(m => m.OrganizerId)
             .HasDatabaseName("ix_matches_organizer_id");
 

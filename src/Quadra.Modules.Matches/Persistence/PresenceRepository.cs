@@ -65,4 +65,23 @@ public sealed class PresenceRepository : IPresenceRepository
                      && p.Status == PresenceStatus.Confirmed,
                 cancellationToken);
     }
+
+    public async Task<int> CountConfirmedAsync(Guid matchId, CancellationToken cancellationToken)
+    {
+        return await _context.Presences
+            .CountAsync(
+                p => p.MatchId == matchId && p.Status == PresenceStatus.Confirmed,
+                cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MatchPresence>> ListByMatchesAsync(
+        IReadOnlyCollection<Guid> matchIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = matchIds.ToArray();
+        return await _context.Presences
+            .AsNoTracking()
+            .Where(p => ids.Contains(p.MatchId))
+            .ToListAsync(cancellationToken);
+    }
 }

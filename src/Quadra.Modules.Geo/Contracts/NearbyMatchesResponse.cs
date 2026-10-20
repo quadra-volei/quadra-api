@@ -24,4 +24,8 @@ public sealed record NearbyMatchResponse(
     bool OpenToDropIns,              // a DropIn can still join per Matches slot rules
     decimal? Price,
     string Type,                     // Recurring | OneOff
-    string Status);                  // Open | Closed
+    string Status,                   // Draft | Open | Closed
+    int ConfirmedCount = 0,          // confirmed players plus guests
+    string? Format = null,           // 2X2 | 4X4 | 6X6
+    string? Level = null,            // Beginner | Intermediate | Advanced
+    string? CoverUrl = null);        // read URL of the cover the organizer uploaded

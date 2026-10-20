@@ -4,7 +4,7 @@ using NSubstitute;
 using Quadra.Modules.Gamification.Abstractions;
 using Quadra.Shared.Contracts;
 using Quadra.Shared.Events.Matches;
-using Quadra.Workers.Background.Consumers;
+using Quadra.Api.Events;
 
 namespace Quadra.UnitTests.Modules.Gamification;
 

@@ -8,7 +8,6 @@ namespace Quadra.Shared.Events.Auth;
 /// </summary>
 public sealed record UserLoggedIn(
     Guid UserId,
-    string CognitoSub,
     string Provider,
     string? DeviceId,
     DateTimeOffset OccurredAt);

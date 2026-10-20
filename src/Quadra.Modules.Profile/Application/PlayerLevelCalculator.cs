@@ -3,26 +3,35 @@ using Quadra.Modules.Profile.Entities;
 namespace Quadra.Modules.Profile.Application;
 
 /// <summary>
-/// Pure function deriving a player's <see cref="PlayerLevel"/> from their aggregated stats.
-/// <b>MVP: two tiers only.</b>
-/// <list type="bullet">
-///   <item><c>Beginner</c> when <c>matches_played &lt; 10</c>.</item>
-///   <item><c>Intermediate</c> when <c>matches_played &gt;= 10 &amp;&amp; mvps_received &gt;= 1</c>.</item>
-/// </list>
-/// <c>Advanced</c>/<c>Elite</c> are deferred; a player above those thresholds stays
-/// <see cref="PlayerLevel.Intermediate"/>.
+/// Calculates a player's current level: the level earned from recorded matches, never lower than
+/// the level the player declared at onboarding.
+///
+/// Earned levels follow <c>docs/PRODUCT.md</c>: only Beginner and Intermediate are computed.
+/// Advanced (vote average undefined) and Elite (needs the global ranking) are deferred, so today
+/// a player is Advanced only by declaring it and nobody is Elite.
 /// </summary>
 public static class PlayerLevelCalculator
 {
+    public const int IntermediateMinMatches = 10;
+    public const int IntermediateMinMvps = 1;
+
+    /// <summary>The level earned from match statistics alone.</summary>
     public static PlayerLevel Calculate(PlayerStats stats)
     {
         ArgumentNullException.ThrowIfNull(stats);
 
-        if (stats.MatchesPlayed >= 10 && stats.MvpsReceived >= 1)
+        if (stats.MatchesPlayed >= IntermediateMinMatches && stats.MvpsReceived >= IntermediateMinMvps)
         {
             return PlayerLevel.Intermediate;
         }
 
         return PlayerLevel.Beginner;
+    }
+
+    /// <summary>The current level: earned from stats, with the declared level as the floor.</summary>
+    public static PlayerLevel Calculate(PlayerStats stats, PlayerLevel? declaredLevel)
+    {
+        var earned = Calculate(stats);
+        return declaredLevel is { } declared && declared > earned ? declared : earned;
     }
 }

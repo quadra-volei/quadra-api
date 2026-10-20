@@ -18,6 +18,7 @@ public sealed class ListMatchesHandler
 
     public async Task<(IReadOnlyList<Match> Items, int TotalCount)> HandleAsync(
         ListMatchesQuery query,
+        Guid callerId,
         CancellationToken cancellationToken)
     {
         MatchStatus? status = query.Status is not null
@@ -25,6 +26,7 @@ public sealed class ListMatchesHandler
             : null;
 
         var filter = new ListMatchesFilter(
+            CallerId: callerId,
             OrganizerId: query.OrganizerId,
             Status: status,
             Page: query.Page,

@@ -16,6 +16,9 @@ public sealed class Scoreboard
 
     public ScoreboardFormat Format { get; private set; }
 
+    /// <summary>Points that win a <see cref="ScoreboardFormat.SingleGame"/> (from the match); null for best-of games.</summary>
+    public int? PointsToWin { get; private set; }
+
     public ScoreboardState State { get; private set; }
 
     /// <summary>App-layer FK to <c>teams.id</c> (owned by InGame, F1.3).</summary>
@@ -32,6 +35,12 @@ public sealed class Scoreboard
 
     /// <summary>Set only when <see cref="State"/> is <see cref="ScoreboardState.Ended"/>; <c>null</c> on a forced end with equal sets.</summary>
     public Guid? WinnerTeamId { get; private set; }
+
+    /// <summary>
+    /// True when the match has more than two teams: each set is played by a pair the organizer
+    /// picks, so <see cref="TeamAId"/>/<see cref="TeamBId"/> are the pair of the current set.
+    /// </summary>
+    public bool RotatesTeams { get; private set; }
 
     public DateTimeOffset? StartedAt { get; private set; }
     public DateTimeOffset? EndedAt { get; private set; }
@@ -56,13 +65,16 @@ public sealed class Scoreboard
         ScoreboardFormat format,
         Guid teamAId,
         Guid teamBId,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        bool rotatesTeams = false,
+        int? pointsToWin = null)
     {
         return new Scoreboard
         {
             Id = Guid.NewGuid(),
             MatchId = matchId,
             Format = format,
+            PointsToWin = pointsToWin,
             State = ScoreboardState.NotStarted,
             TeamAId = teamAId,
             TeamBId = teamBId,
@@ -70,6 +82,7 @@ public sealed class Scoreboard
             TeamBSetsWon = 0,
             CurrentSetNumber = 0,
             WinnerTeamId = null,
+            RotatesTeams = rotatesTeams,
             StartedAt = null,
             EndedAt = null,
             CreatedAt = now,
@@ -93,7 +106,7 @@ public sealed class Scoreboard
     /// </summary>
     public ScoreboardSet OpenSet(int setNumber, bool isDecidingSet, DateTimeOffset now)
     {
-        var set = ScoreboardSet.Create(Id, MatchId, setNumber, isDecidingSet, now);
+        var set = ScoreboardSet.Create(Id, MatchId, setNumber, isDecidingSet, now, TeamAId, TeamBId);
         _sets.Add(set);
         CurrentSetNumber = setNumber;
         UpdatedAt = now;
@@ -103,6 +116,32 @@ public sealed class Scoreboard
     /// <summary>
     /// Increments the set tally for the winning team.
     /// </summary>
+    /// <summary>Sets won by a team across the whole game, whichever pairs it played in.</summary>
+    public int SetsWonBy(Guid teamId) => _sets.Count(s => s.WinnerTeamId == teamId);
+
+    /// <summary>The team with strictly the most sets won; null on a tie or with no set won.</summary>
+    public Guid? LeaderBySets()
+    {
+        var ranking = _sets
+            .Where(s => s.WinnerTeamId is not null)
+            .GroupBy(s => s.WinnerTeamId!.Value)
+            .Select(g => (TeamId: g.Key, Sets: g.Count()))
+            .OrderByDescending(t => t.Sets)
+            .ToList();
+        return ranking.Count > 0 && (ranking.Count == 1 || ranking[0].Sets > ranking[1].Sets)
+            ? ranking[0].TeamId
+            : null;
+    }
+
+    /// <summary>Puts another pair of teams on court for the next set.</summary>
+    public void SetPair(Guid teamAId, Guid teamBId)
+    {
+        TeamAId = teamAId;
+        TeamBId = teamBId;
+        TeamASetsWon = SetsWonBy(teamAId);
+        TeamBSetsWon = SetsWonBy(teamBId);
+    }
+
     public void RegisterSetWon(Guid winnerTeamId)
     {
         if (winnerTeamId == TeamAId)
@@ -128,10 +167,14 @@ public sealed class Scoreboard
     }
 
     /// <summary>
-    /// Appends sets loaded externally (used by the repository after a query).
+    /// Sets the sets loaded externally (used by the repository after a query). Replaces, never
+    /// appends: the scoreboard is change-tracked, so a second read in the same scope returns this
+    /// same instance and would otherwise count every set twice.
     /// </summary>
     internal void AttachSets(IEnumerable<ScoreboardSet> sets)
     {
-        _sets.AddRange(sets);
+        var loaded = sets.ToList();
+        _sets.Clear();
+        _sets.AddRange(loaded);
     }
 }

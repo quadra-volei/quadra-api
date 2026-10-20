@@ -46,9 +46,12 @@ public sealed class Team
     /// <summary>
     /// Adds a new <see cref="TeamMember"/> to this team.
     /// </summary>
-    public TeamMember AddMember(Guid playerId, DateTimeOffset now)
+    /// <summary>The members that are users (guests left out): who gets events, votes and stats.</summary>
+    public IEnumerable<Guid> PlayerIds => _members.Where(m => !m.IsGuest).Select(m => m.PlayerId);
+
+    public TeamMember AddMember(Guid playerId, DateTimeOffset now, bool isGuest = false)
     {
-        var member = TeamMember.Create(Id, MatchId, playerId, now);
+        var member = TeamMember.Create(Id, MatchId, playerId, now, isGuest);
         _members.Add(member);
         return member;
     }

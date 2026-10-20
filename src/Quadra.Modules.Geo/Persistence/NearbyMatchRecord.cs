@@ -23,4 +23,10 @@ public sealed class NearbyMatchRecord
     public decimal? Price { get; private set; }
     public string Type { get; private set; } = null!;
     public string Status { get; private set; } = null!;
+
+    public string Visibility { get; private set; } = null!;
+
+    public string? Format { get; private set; }
+
+    public string? Level { get; private set; }
 }

@@ -26,3 +26,34 @@ public sealed class InvalidMatchStatusTransitionException : Exception
     public InvalidMatchStatusTransitionException(string message)
         : base(message) { }
 }
+
+/// <summary>
+/// The caller may not join this private match: no (or a wrong) invite code, or the match only
+/// accepts players the organizer adds. Maps to HTTP 403.
+/// </summary>
+public sealed class MatchInviteRequiredException : Exception
+{
+    public MatchInviteRequiredException(Guid matchId)
+        : base($"Match '{matchId}' is private; a valid invite is required to join.") { }
+}
+
+/// <summary>Every slot of the match is taken. Maps to HTTP 409.</summary>
+public sealed class MatchFullException : Exception
+{
+    public MatchFullException(Guid matchId)
+        : base($"Match '{matchId}' has no free slot.") { }
+}
+
+/// <summary>The guest does not exist in this match. Maps to HTTP 404.</summary>
+public sealed class MatchGuestNotFoundException : Exception
+{
+    public MatchGuestNotFoundException(Guid matchId, Guid guestId)
+        : base($"Guest '{guestId}' was not found in match '{matchId}'.") { }
+}
+
+/// <summary>The edit leaves fewer slots than players already confirmed. Maps to HTTP 409.</summary>
+public sealed class MatchSlotsBelowConfirmedException : Exception
+{
+    public MatchSlotsBelowConfirmedException(int confirmed)
+        : base($"There are {confirmed} confirmed players; the slots cannot go below them.") { }
+}

@@ -1,197 +1,88 @@
-# SCOPE.md — MVP Constitution
+# SCOPE.md — Quadra API
 
-> This file defines what IS and what IS NOT in the MVP.
-> The `scope-guardian` uses this document as the single source of truth.
-> Any feature outside this list is REJECTED — no matter how useful it seems.
+State of the MVP on the `dev` branch, as of 2026-10-06. Reasons for each choice are in
+`docs/DECISIONS.md`. The per-feature IN/OUT contracts this file used to hold are in
+`docs/archive/SCOPE-2026-10-06-contratos-por-feature.md`.
 
----
+Glossary: Partida = Match · Organizador = Organizer · Mensalista = Regular · Avulso = DropIn ·
+Carta do Jogador = PlayerCard · Janela de Confirmação = ConfirmationWindow.
 
-## Glossary (domain terms)
+## Done
 
-| Portuguese (product docs) | English (code) | Meaning |
+| Area | What exists | Main routes (`/api/v1`) |
 | --- | --- | --- |
-| Quadra | Quadra | App name (kept) |
-| Jogo / Partida | Match | A volleyball session |
-| Organizador | Organizer | Player who creates and manages matches |
-| Mensalista | Regular | Fixed player in a recurring match |
-| Avulso | DropIn | Player without fixed bond, fills open slots |
-| Rede | Network | Community feed (Layer 3 — not in MVP) |
-| Carta do Jogador | PlayerCard | FIFA-style stats card |
-| Janela de Confirmação | ConfirmationWindow | Period when Regulars can confirm/decline |
+| Auth (FA.1, FA.3) | SMS OTP (6 digits) and Google login; the first valid login creates the user; own JWT + rotating refresh token; logout ends the session; export and delete the account (LGPD, DECISIONS #69) | `auth/login/sms-otp`, `auth/login/google`, `auth/refresh`, `auth/logout`, `auth/me`, `auth/me/export`, `DELETE auth/me` |
+| Match creation (F1.1) | Recurring or one-off match with format, level, duration, prices, visibility (open / private by code / private by guests), confirmations open from creation (an explicit window or "opens N hours before" still accepted); optional cover photo (key from the profile-photo upload, read URL in the detail) | `POST matches`, `GET matches/mine`, `GET matches/{id}/detail` |
+| Edit and cancel | The organizer edits the details (not type nor visibility) and cancels until the game starts; slots never below the confirmed players | `PUT matches/{id}`, `DELETE matches/{id}` |
+| Next game of a recurring group | Generating a recurring game's summary creates the group's next game (next week day by frequency, same settings and invite code, same window distance), with everyone who had confirmed as Pending (DECISIONS #64) | `POST matches/{id}/summary` |
+| Presence (F1.2) | Confirm / decline, self-enrollment by confirming, Regular vs DropIn slots, waiting list, guests without an account, window opened and closed by the clock | `PUT matches/{id}/presences/me`, `matches/{id}/guests` |
+| Teams (F1.3) | 2 to 4 teams, balanced or random draw, guests drawn in, manual adjustment | `matches/{id}/teams/draft`, `PUT matches/{id}/teams/{teamId}/members/{playerId}` |
+| Scoreboard (F1.4) | Sets best of 3 or 5, pair of teams per set (rotation), end set early, undo last point, live updates over SignalR | `matches/{id}/scoreboard/…`, hub `/hubs/match` |
+| MVP vote (F1.5) | One vote each (who played, plus the organizer even without playing), no self-vote, opens when the game ends, 24 h deadline | `matches/{id}/mvp-voting/…` |
+| Summary (F1.6) | Immutable summary; generating it is what records stats, history and ranking points | `matches/{id}/summary` |
+| Map (F1.7) | Nearby matches by radius (PostGIS), including drafts; private matches never listed | `matches/nearby` |
+| Address search | Proxy to Google Places or Photon, restricted to Brazil | `places/autocomplete`, `places/{id}` |
+| Profile (F2.1) | Name, surname, unique `@handle`, birth date, single position, modality, declared level, derived skills (ACE/BLK/ATA/DEF/GERAL), stats, match history, photo by signed URL; level number from accumulated points (attendance +10, win +15, MVP +25; 10 × n × (n − 1) points for level n) | `profiles/me`, `profiles/handle-availability`, `profiles/me/match-history`, `profiles/me/photo/upload-url` |
+| Player card (F2.2) | Card data after 3 matches; premium flag is a stub that always answers `false` | `profiles/me/card` |
+| Card style | Finish, identity title and card photo chosen by the player, shown to everyone who sees the profile | `PUT profiles/me/card-style`, `cardStyle` on `profiles/me` and `profiles/{id}` |
+| Group ranking (F2.3) | Points per recurring match: attendance +10, win +15, MVP +25, adding up over every game of the group (DECISIONS #64) | `matches/{id}/ranking`, `rankings/mine` |
+| Season ranking | Points from recurring matches played this month (Brasília), among me and who I follow, inside one recurring group, or general (3+ games); optional court position filter; ties share a rank (DECISIONS #63) | `rankings` (`scope`, `groupId`, `position`), `rankings/groups` |
+| Feedback | Stores the app's feedback form, 20 per user per day | `POST feedback` |
+| Update gate | Minimum and recommended app version from configuration (DECISIONS #74) | `GET app/version` |
+| Notifications | In-app list, unread counter, mark read; push through Expo Push by preference; sent for a waiting list spot, the reminder of a match within 24 h (confirm / see you), MVP voting open, summary ready (DECISIONS #77) | `notifications`, `notifications/unread-count`, `notifications/{id}/read`, `notifications/read-all`, `notifications/push-token`, `notifications/preferences` |
+| Rede: feed | A post is a text and/or one photo, optionally tied to a finished match the author played or inviting to an open match still to come (organizer or confirmed player); likes; comments; the organizer of an open match still to come can share it as a card with no text (nothing is posted automatically); everyone's posts or only those of the players the caller follows; 20 posts per user per day | `GET posts` (`scope=following`), `POST posts`, `DELETE posts/{id}`, `PUT / DELETE posts/{id}/like`, `GET / POST posts/{id}/comments`, `DELETE posts/{id}/comments/{commentId}` |
+| Rede: follows | One player follows another, with no approval; followers and following counts | `GET / PUT / DELETE profiles/{userId}/follow` |
+| Rede: search | Find players by @handle prefix only, never by name, blocks respected, rate limited (DECISIONS #75) | `GET profiles/search` |
+| Rede: safety | Report a post (leaves the reporter's feed); block a player (hides posts and comments both ways, ends follows, refuses new ones); admins by account id list reports and delete posts (DECISIONS #70) | `POST posts/{id}/report`, `PUT / DELETE profiles/{userId}/block`, `GET profiles/me/blocks`, `GET admin/reports`, `DELETE admin/posts/{id}`, `DELETE admin/reports/{postId}` |
+| Friends' activity | What the players I follow did (started or finished an open match, MVP, new level number), recorded from the game events, 30 days, grouped "started", sharing switch on by default (DECISIONS #57 to #60) | `GET activities`, `PUT profiles/me/activity-sharing` |
 
----
+## Pending
 
-## MVP principle
+Needs configuration only (no code):
 
-Layer 1 (Match Core) and Layer 2 (Retention) are in the MVP. Layer 3 (Growth) is NOT.
+- **Twilio Verify**. Until then the hosted API accepts the fixed code for any phone number,
+  so the app must not be shared outside the team.
+- **Google login**: the OAuth client IDs.
+- **Apple login**: code path exists, disabled until an Apple client ID is configured.
 
-Frontend is NOT in this phase — backend only. Specs describe **API contracts**, not screens.
+Needs code:
 
----
+- **Push on the phone** needs the app side (`expo-notifications`, waiting for Johny's OK on the package) and FCM credentials in EAS; the API already stores tokens and sends through Expo Push (DECISIONS #77).
+- **Summary of a game with rotating teams** does not record which pair played each set
+  (DECISIONS #30).
+- **Per-player stats**: the score is recorded by team; the app shows zeros in "Meu desempenho".
+  (Level number and points exist since DECISIONS #57.)
+- **A recurring group stops** when a game is cancelled or never summarized: only a summary creates
+  the next game (DECISIONS #64).
+- **Event retry**: a failed in-process handler is logged and not retried (no outbox).
+- **Cleanup**: the `Aws:Sqs:*` settings are still required at startup although nothing is
+  sent; the `StackExchange.Redis` package and the `Quadra.Workers.*` projects are unused.
 
-## Layer 1 — Match Core (MVP)
+## Out of the MVP
 
-### F1.1 — Match Creation
-- **Module**: `Matches`
-- **IN**: create recurring or one-off match; fields `name`, `location`, `address`, `lat/lon`, `dateTime`, `maxPlayers`, `price` (optional), `type` (Recurring/OneOff), `frequency` (if recurring), `dayOfWeek` (if recurring)
-- **IN**: confirmation window (`windowOpensAt`, `windowClosesAt`)
-- **IN**: slots reserved for Regulars vs slots open to DropIns
-- **OUT**: complex custom rules (only a free-text `description` field)
-- **OUT**: payment / cost splitting between players
-- **OUT**: external calendar integration
+Human rulings (do not implement without a new decision):
 
-### F1.2 — Presence Management
-- **Module**: `Matches`
-- **IN**: list of Regulars with status `Confirmed | Declined | Pending`
-- **IN**: push notification when window opens (delegated to `Notifications` module)
-- **IN**: automatic waiting list when slots exceeded
-- **IN**: automatic slot release to DropIns after `windowClosesAt`
-- **OUT**: partial confirmation (e.g. "I'll arrive late")
-- **OUT**: direct player-to-player substitution
+- **The 3-match streak bonus (+20)**: not in the MVP. Do not ship dormant streak code. (The old
+  ruling "recurring match = one game" ended on 2026-10-15: DECISIONS #64.)
+- **`player_xp` lifetime accumulator**: cut (2026-07-03); it only served the city ranking. The
+  level number (DECISIONS #57) is derived from the stats instead, with no new table.
+- **One-off matches earn no ranking points**; the ranking endpoint answers `409` for them.
+- **Premium**: no table or column; only the `IPremiumStatusReader` stub. No billing.
+- **+5 "first match as DropIn" bonus**: not in the MVP.
+- **Earning `Advanced` / `Elite` by playing**, the `frequency` stat and skill ratings that
+  grow with play: deferred until their formulas are defined.
+- **Separate signup** (`POST auth/signup`), passwords, account linking between providers.
 
-### F1.3 — In-Game: Teams
-- **Module**: `InGame`
-- **IN**: team draft balanced by player level (queries `Profile` via interface)
-- **IN**: manual team adjustment by the Organizer
-- **OUT**: balancing by preferred position (push to v2)
-- **OUT**: history of who played with whom
+Rede (social feed, in scope since 2026-10-09, DECISIONS #40 to #49): each next step waits for
+the owner's approval. Not built yet: followers / following lists, friendship with request,
+a "moved up in the ranking" card, a match's posts, several photos,
+video, posts on a profile, reporting a comment, notifications for likes, comments and follows.
 
-### F1.4 — In-Game: Scoreboard
-- **Module**: `InGame`
-- **IN**: set-by-set scoreboard (best of 3 or 5)
-- **IN**: real-time point/set recording (via SignalR through `Realtime` module)
-- **IN**: match state (`NotStarted | InProgress | Ended`)
-- **OUT**: individual stats per play (serve, defense, attack) — these come in v2 (US 1.1 of PDF)
-- **OUT**: point replay / rewind
+Never part of the MVP (Layer 3):
 
-### F1.5 — Post-Match: MVP
-- **Module**: `InGame` (voting) + `Gamification` (point allocation)
-- **IN**: each player votes for ONE name (cannot self-vote)
-- **IN**: automatic MVP selection from votes
-- **IN**: voting deadline (set by Organizer; default 24h)
-- **OUT**: multiple award categories (best serve, best defense, etc.)
-
-### F1.6 — Match Summary
-- **Module**: `Matches` (orchestrator) + `InGame` + `Gamification`
-- **IN**: endpoint returning final score, duration, MVP, team composition
-- **IN**: immutable record (cannot be edited afterwards)
-- **OUT**: shareable image generation (frontend)
-
-### F1.7 — Matches Map
-- **Module**: `Geo`
-- **IN**: `GET /matches/nearby?lat&lon&radiusKm` endpoint — returns matches with open slots
-- **IN**: filter by matches open to DropIns
-- **IN**: PostGIS query (ST_DWithin on `geography` with SRID 4326)
-- **OUT**: court/arena pins (Layer 3)
-- **OUT**: routes / directions
-
----
-
-## Layer 2 — Retention (MVP)
-
-### F2.1 — Player Profile
-- **Module**: `Profile`
-- **IN**: photo (S3 object reference), name, primary position, secondary position — position catalog: `Setter | OutsideHitter | Opposite | MiddleBlocker | Libero`
-- **IN**: automatically calculated level — MVP computes **`Beginner | Intermediate`** only (see `PRODUCT.md` level table). `Advanced` and `Elite` are **deferred**: Advanced's "vote average" is undefined and Elite depends on the Layer-3 global ranking
-- **IN**: aggregated stats: matches played, wins, losses, draws, MVPs received (draws included because F1.6 permits a null-winner match)
-- **IN**: match history with pagination (own table `player_match_history`)
-- **OUT**: manual stat editing (everything derived from events)
-- **OUT (deferred, not cut)**: `frequency` stat — no formula is defined in PRODUCT/SCOPE; excluded from the MVP until specified, re-added when defined
-- **OUT (deferred, not cut)**: `Advanced` / `Elite` level tiers — see above
-
-### F2.2 — Player Card (data)
-- **Module**: `Profile` (data) + `Gamification` (premium check)
-- **IN**: endpoint returning **card data** (not image) — JSON with stats, level, position, free/premium flag
-- **IN**: generated after 3 recorded matches
-- **OUT**: visual rendering (frontend)
-- **OUT**: premium art variants (catalog comes later)
-- **OUT (human ruling, 2026-07-03)**: no persistent premium data structure in the MVP. The free/premium flag is resolved via a stub (`IPremiumStatusReader` → always `false`) behind a stable interface. No `plan`/`is_premium` column or table is created until billing is specified. This narrows PRODUCT's "prepared data structure" to interface-only for now.
-
-### F2.3 — Group Ranking
-- **Module**: `Gamification`
-- **IN**: endpoint returning accumulated point ranking per recurring match
-- **IN**: scoring per product doc rules (attendance +10, win +15, MVP +25)
-- **OUT**: city-wide ranking (Layer 3)
-- **RULING (human, 2026-07-03) — grouping model**: for the MVP a "group" is the single recurring `matches` row; `GroupId = matchId`. Multi-occurrence accumulation is deferred together with F1.1's deferred "recurring match instance generation". The `group_id` key is kept distinct from `match_id` in the schema so a future occurrence model can repoint it with no migration.
-- **OUT (human ruling, 2026-07-03) — 3-streak +20**: deferred. The "3 consecutive matches" rule is unreachable while a group is summarized at most once (F1.1 defers occurrence generation; F1.6 enforces `UNIQUE (match_id)`). It re-enters scope only when the recurring-occurrence model exists. F2.3 MUST NOT ship a dormant `StreakCalculator`, `Streak` point reason, `current_streak` column, or streak recompute — no dead code.
-- **OUT (human ruling, 2026-07-03) — `player_xp` lifetime accumulator**: cut from the MVP. Its only consumer is the Layer-3 city-wide leaderboard (OUT). Reintroduce it alongside that feature. F2.3 maintains only `point_transactions` (ledger) and `group_rankings` (per-group standing).
-- **OUT (human ruling, 2026-07-03) — OneOff match points**: a OneOff match has no group to accumulate into; the ranking endpoint returns `409` for a OneOff `matchId` and the worker awards it no points. Reconciles with PRODUCT's non-group-qualified point list.
-- **Note (docs reconciliation)**: PRODUCT lists a 5th rule ("+5 first match as DropIn in a new group") that SCOPE F2.3 does not enumerate. SCOPE is source of truth; the +5 DropIn bonus is NOT in the MVP. Reconcile PRODUCT when convenient.
-
----
-
-## Layer 3 — Growth (OUT OF MVP)
-
-**Everything here is REJECTED automatically by the guardian.** Listed only for reference:
-
-- Courts/Arenas Map (registered venues, photos, reviews)
-- Social feed / Network (posts, stories)
-- Player search by level/position/region
-- Instagram/WhatsApp integration
-- City-wide ranking
-- Friendship system (US 5.1, 5.2 of PDF)
-- Player rating (US 3.3 of PDF)
-- GPS-based personalized recommendations (US 4.1)
-- Contacts sync (US 5.2)
-- Advanced stats like serve/block/attack/defense (numbers from the profile mockup)
-- Unlockable achievements / badges (US 1.2)
-- Cosmetic microtransactions
-- Premium plan for organizers (multi-group analytics)
-
----
-
-## Auth — Cross-cutting (MVP)
-
-### FA.1 — JWT Validation Middleware
-- **Module**: `Auth`
-- **IN**: ASP.NET middleware that validates JWTs issued by AWS Cognito
-- **IN**: extracts claims (sub, email, custom:role) into HttpContext.User
-- **IN**: rejects expired or malformed tokens with 401
-- **IN**: configuration via appsettings (Cognito User Pool ID, region, audience)
-- **OUT**: token issuance (Cognito does that)
-- **OUT**: refresh token logic (FA.3)
-- **OUT**: any UI for login (frontend)
-
-### FA.2 — User Signup
-- **Module**: `Auth`
-- **IN**: endpoint POST /api/v1/auth/signup that triggers Cognito SignUp
-- **IN**: persists local user record (id, cognito_sub, email, created_at) in `users` table
-- **IN**: returns user id and confirmation status
-- **OUT**: email/SMS confirmation flow (handled by Cognito)
-- **OUT**: profile data (that's the Profile module's F2.1)
-
-### FA.3 — Login flows
-- **Module**: `Auth`
-- **IN**: endpoint POST /api/v1/auth/login/sms-otp (initiate + verify)
-- **IN**: endpoint POST /api/v1/auth/login/google (exchange Google token for Cognito session)
-- **IN**: endpoint POST /api/v1/auth/login/apple (idem)
-- **IN**: endpoint POST /api/v1/auth/refresh
-- **IN**: returns JWT + refresh token
-- **OUT**: account linking (multiple providers same user) — push to v2
-- **OUT**: password reset (Cognito-hosted flow only, not custom)
-
-## Auth and supporting infra (cross-cutting, MVP)
-
-These are not "user stories" but must exist for the MVP to work:
-
-- **Auth**: SMS OTP signup, Google login (Cognito), Apple login (Cognito), JWT issuance and validation
-- **In-app notifications**: `notifications` table, endpoints `GET /notifications`, `POST /notifications/{id}/mark-read`, unread counter
-- **Notification Worker**: SQS consumer delivering push to devices (FCM/APNS via OneSignal or similar — provider choice outside this spec)
-- **Background Worker**: SQS consumer to distribute XP, update rankings, generate card data
-- **Real-time Hub**: SignalR for live scoreboard and presence updates
-
----
-
-## Guardian evaluation rules
-
-The `scope-guardian` rejects a spec if:
-
-1. **Feature not in this list** → REJECT
-2. **Feature from Layer 3** → REJECT
-3. **Wrong module** (e.g. gamification logic inside Matches module) → REJECT
-4. **Direct access to another module's tables** → REJECT
-5. **New NuGet dependency without justification** → REJECT
-6. **UI / screen details** → REJECT (backend only in this phase)
-7. **Stack change** (ORM, framework, database) → REJECT and ask for human confirmation
-
-If it passes all → APPROVE.
+- Courts and arenas (venues, photos, reviews), contacts sync
+- Player search by name (search by @handle is in, DECISIONS #75), player rating, city ranking
+- Achievements and badges, per-play stats input (serve, block, attack, defense)
+- Payments, cost splitting, microtransactions, organizer premium plan
+- Calendar, Instagram or WhatsApp integration; routes and directions
+- More than 4 teams, balancing by position, partial confirmation, player-to-player substitution

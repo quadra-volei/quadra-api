@@ -1,0 +1,106 @@
+# Render Blueprint for the Quadra API — the free, always-reachable test environment.
+#
+# First deploy: Render dashboard → New → Blueprint → pick this repository. Render reads
+# this file, asks for the values marked `sync: false`, builds the Dockerfile and deploys.
+# After that, every push to the branch below redeploys automatically.
+#
+# Nothing else is needed: events are handled inside the API (no queue, no worker) and
+# profile photos are simply disabled until an S3-compatible bucket is configured (Aws__S3__*).
+#
+# The database is NOT created here: Render's free Postgres expires after a few weeks.
+# Use any Postgres that allows the PostGIS extension (e.g. a free Neon project in a
+# US East region, close to this service) and paste its connection string when asked.
+# Both `postgresql://…` URLs and Npgsql `Host=…;` strings are accepted.
+
+services:
+  - type: web
+    name: quadra-api
+    runtime: docker
+    plan: free
+    region: virginia
+    branch: main
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # The port the container listens on (the .NET image default).
+      - key: PORT
+        value: "8080"
+
+      # Staging, not Production: the fake SMS provider below is refused in Production.
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Staging
+
+      # Take the client IP from the X-Forwarded-For entry Render's proxy appends (last hop only),
+      # so the per-IP login rate limit sees each client instead of the proxy.
+      - key: ASPNETCORE_FORWARDEDHEADERS_ENABLED
+        value: "true"
+
+      # Apply pending EF migrations when the service boots.
+      - key: Database__MigrateOnStartup
+        value: "true"
+
+      # Secrets — typed into the Render dashboard, never committed.
+      - key: ConnectionStrings__Default
+        sync: false
+      - key: Auth__Google__ClientId
+        sync: false
+      # Random 256-bit key created by Render on the first deploy.
+      - key: Auth__Jwt__SigningKey
+        generateValue: true
+
+      # Phone login. Fake = no SMS, code always 123456: anyone can log in as any phone, so it
+      # is for testing only. Firebase = the app verifies the phone with Firebase Phone Auth and
+      # the fixed-code route is off (DECISIONS #78): switch to it once the APK with Firebase login
+      # is out and the Firebase project has Blaze + the Phone provider on. Set in the dashboard.
+      - key: Auth__PhoneVerification__Provider
+        sync: false
+      - key: Auth__PhoneVerification__Firebase__ProjectId
+        value: quadra-volei-app
+
+      # Rede moderation: the account id (users.id, GET /api/v1/auth/me) allowed to review
+      # reported posts and delete them. Add __1, __2 … for more admins.
+      - key: Moderation__AdminUserIds__0
+        sync: false
+
+      # Update gate (GET /api/v1/app/version): below the minimum the app blocks with "atualize o
+      # app"; below the recommended it only suggests. Empty = no requirement. Raise the minimum
+      # only after the new version is live in the store.
+      - key: App__MinimumVersion
+        sync: false
+      - key: App__RecommendedVersion
+        sync: false
+
+      # Adult-content check of uploaded photos: GoogleVision (needs the key below) or None.
+      - key: Moderation__Images__Provider
+        sync: false
+      - key: Moderation__Images__GoogleVisionApiKey
+        sync: false
+
+      # Address search in "create match". Empty key = the free OpenStreetMap search (Photon).
+      # Paste a Google Places API (New) key in the dashboard to switch to Google.
+      - key: Places__GoogleApiKey
+        sync: false
+
+      # Still required at startup by the modules, but unused: events are handled in-process.
+      - key: Aws__Sqs__MatchCreatedQueueUrl
+        value: http://unused/match-created
+      - key: Aws__Sqs__MatchStatusChangedQueueUrl
+        value: http://unused/match-status-changed
+      - key: Aws__Sqs__PresenceConfirmedQueueUrl
+        value: http://unused/presence-confirmed
+      - key: Aws__Sqs__MatchWindowOpenedQueueUrl
+        value: http://unused/match-window-opened
+      - key: Aws__Sqs__MatchWindowClosedQueueUrl
+        value: http://unused/match-window-closed
+      - key: Aws__Sqs__MatchSummaryGeneratedQueueUrl
+        value: http://unused/match-summary-generated
+      - key: Aws__Sqs__TeamsFormedQueueUrl
+        value: http://unused/teams-formed
+      - key: Aws__Sqs__MatchStartedQueueUrl
+        value: http://unused/match-started
+      - key: Aws__Sqs__MatchEndedQueueUrl
+        value: http://unused/match-ended
+      - key: Aws__Sqs__MvpAwardedQueueUrl
+        value: http://unused/mvp-awarded

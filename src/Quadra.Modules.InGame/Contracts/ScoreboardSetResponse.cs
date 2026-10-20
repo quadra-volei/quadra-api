@@ -12,4 +12,7 @@ public sealed record ScoreboardSetResponse(
     bool IsDecidingSet,
     Guid? WinnerTeamId,
     DateTimeOffset StartedAt,
-    DateTimeOffset? FinishedAt);
+    DateTimeOffset? FinishedAt,
+    Guid? TeamAId = null,        // the pair that played this set
+    Guid? TeamBId = null,
+    bool CanUndo = false);       // the last point of this set can still be taken back

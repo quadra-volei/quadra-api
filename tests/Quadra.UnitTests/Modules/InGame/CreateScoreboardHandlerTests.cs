@@ -36,9 +36,9 @@ public sealed class CreateScoreboardHandlerTests
         new(_matchReader, _teamRepository, _scoreboardRepository, _timeProvider,
             NullLogger<CreateScoreboardHandler>.Instance);
 
-    private void SetupMatch(Guid matchId, Guid organizerId, string status = "Closed") =>
+    private void SetupMatch(Guid matchId, Guid organizerId, string status = "Closed", DateTimeOffset? startsAt = null) =>
         _matchReader.FindMatchSummaryAsync(matchId, Arg.Any<CancellationToken>())
-            .Returns(new MatchSummary(matchId, organizerId, status));
+            .Returns(new MatchSummary(matchId, organizerId, status, startsAt ?? FixedNow.AddHours(-1)));
 
     private void SetupTeams(Guid matchId, params Team[] teams) =>
         _teamRepository.ListByMatchAsync(matchId, Arg.Any<CancellationToken>())
@@ -76,10 +76,9 @@ public sealed class CreateScoreboardHandlerTests
 
     // ─── 409: match not Closed ───────────────────────────────────────────────
 
-    /// <summary>Covers: F1.4 — 409 when the match status is not Closed.</summary>
+    /// <summary>Covers: F1.4 — 409 before confirmations open or once the game is under way.</summary>
     [Theory]
     [InlineData("Draft")]
-    [InlineData("Open")]
     [InlineData("InProgress")]
     public async Task HandleAsync_throws_InvalidState_when_match_is_not_Closed(string status)
     {
@@ -96,6 +95,19 @@ public sealed class CreateScoreboardHandlerTests
     // ─── 404: teams not formed ───────────────────────────────────────────────
 
     /// <summary>Covers: F1.4 — 404 when fewer than two teams have been formed.</summary>
+    /// <summary>SEC-06: no scoreboard more than 15 minutes before the match time.</summary>
+    [Fact]
+    public async Task HandleAsync_throws_MatchNotStartedYet_before_kickoff_tolerance()
+    {
+        var matchId = Guid.NewGuid();
+        SetupMatch(matchId, Organizer, startsAt: FixedNow.AddDays(6));
+
+        var act = async () => await CreateSut().HandleAsync(
+            matchId, Organizer, ScoreboardFormat.BestOf3, CancellationToken.None);
+
+        await act.Should().ThrowAsync<MatchNotStartedYetException>();
+    }
+
     [Fact]
     public async Task HandleAsync_throws_TeamsNotFormed_when_fewer_than_two_teams()
     {

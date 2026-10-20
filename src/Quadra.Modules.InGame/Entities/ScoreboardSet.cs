@@ -34,6 +34,14 @@ public sealed class ScoreboardSet
     /// <summary>Winner of the set; <c>null</c> while in progress or when the set is abandoned.</summary>
     public Guid? WinnerTeamId { get; private set; }
 
+    /// <summary>The two teams that play this set. Null on sets recorded before teams could rotate.</summary>
+    public Guid? TeamAId { get; private set; }
+
+    public Guid? TeamBId { get; private set; }
+
+    /// <summary>Who scored the last point, while it can still be undone.</summary>
+    public Guid? LastPointTeamId { get; private set; }
+
     public DateTimeOffset StartedAt { get; private set; }
     public DateTimeOffset? FinishedAt { get; private set; }
 
@@ -48,7 +56,9 @@ public sealed class ScoreboardSet
         Guid matchId,
         int setNumber,
         bool isDecidingSet,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        Guid? teamAId = null,
+        Guid? teamBId = null)
     {
         return new ScoreboardSet
         {
@@ -61,6 +71,8 @@ public sealed class ScoreboardSet
             Status = SetStatus.InProgress,
             IsDecidingSet = isDecidingSet,
             WinnerTeamId = null,
+            TeamAId = teamAId,
+            TeamBId = teamBId,
             StartedAt = now,
             FinishedAt = null,
             CreatedAt = now,
@@ -82,6 +94,32 @@ public sealed class ScoreboardSet
         {
             TeamBPoints++;
         }
+        else
+        {
+            return;
+        }
+
+        LastPointTeamId = scoringTeamId;
+    }
+
+    /// <summary>Takes back the last point. False when there is none to take back.</summary>
+    public bool UndoLastPoint(Guid teamAId, Guid teamBId)
+    {
+        if (LastPointTeamId == teamAId && TeamAPoints > 0)
+        {
+            TeamAPoints--;
+        }
+        else if (LastPointTeamId == teamBId && TeamBPoints > 0)
+        {
+            TeamBPoints--;
+        }
+        else
+        {
+            return false;
+        }
+
+        LastPointTeamId = null;
+        return true;
     }
 
     /// <summary>
@@ -91,6 +129,7 @@ public sealed class ScoreboardSet
     public void Finish(Guid? winnerTeamId, DateTimeOffset now)
     {
         Status = SetStatus.Finished;
+        LastPointTeamId = null;
         WinnerTeamId = winnerTeamId;
         FinishedAt = now;
         UpdatedAt = now;

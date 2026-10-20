@@ -1,6 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Quadra.Shared\Quadra.Shared.csproj" />
     <ProjectReference Include="..\Quadra.Infrastructure\Quadra.Infrastructure.csproj" />
   </ItemGroup>

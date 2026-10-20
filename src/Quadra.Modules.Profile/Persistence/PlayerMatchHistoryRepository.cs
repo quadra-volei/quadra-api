@@ -52,6 +52,7 @@ public sealed class PlayerMatchHistoryRepository : IPlayerMatchHistoryRepository
                 entry.WasMvp,
                 entry.DurationSeconds,
                 entry.RecordedAt);
+            existing.SetScore(entry.Format, entry.SetsWon, entry.SetsLost);
         }
 
         await _context.SaveChangesAsync(cancellationToken);

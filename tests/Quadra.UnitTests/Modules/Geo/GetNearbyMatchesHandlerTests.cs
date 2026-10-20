@@ -26,9 +26,17 @@ public sealed class GetNearbyMatchesHandlerTests
     private readonly INearbyMatchRepository _repository = Substitute.For<INearbyMatchRepository>();
     private readonly IMatchAvailabilityReader _availabilityReader = Substitute.For<IMatchAvailabilityReader>();
     private readonly TimeProvider _timeProvider = new FixedTimeProvider(FixedNow);
+    private readonly IMatchCoverReader _coverReader = Substitute.For<IMatchCoverReader>();
+
+    public GetNearbyMatchesHandlerTests()
+    {
+        _coverReader
+            .GetCoverUrlsAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<Guid, string>());
+    }
 
     private GetNearbyMatchesHandler CreateSut() =>
-        new(_repository, _availabilityReader, _timeProvider, NullLogger<GetNearbyMatchesHandler>.Instance);
+        new(_repository, _availabilityReader, _timeProvider, NullLogger<GetNearbyMatchesHandler>.Instance, _coverReader);
 
     // ─── AC-1: matches with no open slots are excluded ───────────────────────
 
@@ -52,6 +60,26 @@ public sealed class GetNearbyMatchesHandlerTests
         result.Items.Should().ContainSingle();
         result.Items[0].Id.Should().Be(withSlots.Id);
         result.Count.Should().Be(1);
+    }
+
+    /// <summary>Covers: a match with a cover carries its read URL; one without has none.</summary>
+    [Fact]
+    public async Task HandleAsync_attaches_the_cover_url_of_matches_that_have_one()
+    {
+        var withCover = BuildCandidate("Com capa", distanceMeters: 500);
+        var plain = BuildCandidate("Sem capa", distanceMeters: 900);
+        SetupCandidates(withCover, plain);
+        SetupAvailability(
+            Availability(withCover.Id, 10, 2, 8, true),
+            Availability(plain.Id, 10, 2, 8, true));
+        _coverReader
+            .GetCoverUrlsAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<Guid, string> { [withCover.Id] = "https://cdn.test/cover.jpg" });
+
+        var result = await CreateSut().HandleAsync(Query(), CancellationToken.None);
+
+        result.Items[0].CoverUrl.Should().Be("https://cdn.test/cover.jpg");
+        result.Items[1].CoverUrl.Should().BeNull();
     }
 
     /// <summary>
@@ -210,6 +238,8 @@ public sealed class GetNearbyMatchesHandlerTests
             DateTime: FixedNow.AddDays(3),
             MaxPlayers: 12,
             Price: null,
+            Format: "4X4",
+            Level: "Intermediate",
             Type: "OneOff",
             Status: "Open",
             DistanceMeters: distanceMeters);

@@ -11,4 +11,10 @@ public interface IConfirmedPlayersReader
     /// Returns an empty list if the match has no confirmed players.
     /// </summary>
     Task<IReadOnlyList<Guid>> GetConfirmedPlayerIdsAsync(Guid matchId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Ids of the guests (players without an account) the organizer added to the match. They
+    /// take part in the team draw like confirmed players.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> GetGuestIdsAsync(Guid matchId, CancellationToken cancellationToken);
 }
