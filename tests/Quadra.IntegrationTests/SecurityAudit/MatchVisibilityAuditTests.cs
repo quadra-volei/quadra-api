@@ -315,6 +315,7 @@ public sealed class MatchVisibilityAuditTests : IClassFixture<AuditWebApplicatio
         string[] allowedAnonymous =
         [
             "AuthController.LoginSmsOtp", "AuthController.LoginGoogle", "AuthController.LoginApple",
+            "AuthController.LoginFirebasePhone",
             "AuthController.Refresh", "AuthController.Logout",
             "AppVersionController.Get", // public version gate, read before login (DECISIONS #74)
         ];

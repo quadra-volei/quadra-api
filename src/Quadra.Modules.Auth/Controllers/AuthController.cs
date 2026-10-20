@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
 using Quadra.Modules.Auth.Application;
 using Quadra.Modules.Auth.Contracts;
 using Quadra.Modules.Auth.Entities;
@@ -72,6 +73,7 @@ public sealed class AuthController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status502BadGateway)]
     public async Task<IActionResult> LoginSmsOtp(
         [FromBody] SmsOtpLoginRequest request,
+        [FromServices] IOptions<Quadra.Modules.Auth.Configuration.PhoneVerificationOptions> phoneOptions,
         CancellationToken cancellationToken)
     {
         if (request is null)
@@ -83,6 +85,12 @@ public sealed class AuthController : ControllerBase
         if (!validation.IsValid)
         {
             return ToValidationProblem(validation);
+        }
+
+        // With Firebase Phone Auth the SMS is Firebase's; this route (and its fixed test code) is off.
+        if (phoneOptions.Value.UsesFirebase)
+        {
+            return Problem(statusCode: StatusCodes.Status410Gone, title: "Phone login moved to login/firebase-phone.");
         }
 
         var step = request.Step.Trim().ToLowerInvariant();
@@ -99,6 +107,42 @@ public sealed class AuthController : ControllerBase
             var tokens = await _smsOtpLoginHandler
                 .VerifyAsync(request.PhoneNumber, request.Code!, request.DeviceId, cancellationToken);
             return Ok(tokens);
+        }
+        catch (Exception ex) when (TryMapLoginException(ex, out var result))
+        {
+            return result;
+        }
+    }
+
+    /// <summary>
+    /// POST /api/v1/auth/login/firebase-phone — exchanges a Firebase ID token (the app verified the
+    /// phone with Firebase Phone Auth) for a Quadra session, creating the account on first use.
+    /// </summary>
+    [HttpPost("login/firebase-phone")]
+    [AllowAnonymous]
+    [EnableRateLimiting(PhoneOtpThrottle.PolicyName)]
+    [ProducesResponseType(typeof(AuthTokensResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> LoginFirebasePhone(
+        [FromBody] OidcLoginRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request is null)
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Request body is required.");
+        }
+
+        var validation = await _oidcLoginValidator.ValidateAsync(request, cancellationToken);
+        if (!validation.IsValid)
+        {
+            return ToValidationProblem(validation);
+        }
+
+        try
+        {
+            return Ok(await _smsOtpLoginHandler.VerifyFirebaseAsync(request.IdToken, request.DeviceId, cancellationToken));
         }
         catch (Exception ex) when (TryMapLoginException(ex, out var result))
         {
