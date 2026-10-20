@@ -50,11 +50,14 @@ services:
       - key: Auth__Jwt__SigningKey
         generateValue: true
 
-      # TEMPORARY until the Twilio account exists: no SMS is sent and the code is
-      # always 123456, so anyone who knows it can log in as any phone number.
-      # Switch to Twilio (plus its three credentials) before sharing the app.
+      # Phone login. Fake = no SMS, code always 123456: anyone can log in as any phone, so it
+      # is for testing only. Firebase = the app verifies the phone with Firebase Phone Auth and
+      # the fixed-code route is off (DECISIONS #78): switch to it once the APK with Firebase login
+      # is out and the Firebase project has Blaze + the Phone provider on. Set in the dashboard.
       - key: Auth__PhoneVerification__Provider
-        value: Fake
+        sync: false
+      - key: Auth__PhoneVerification__Firebase__ProjectId
+        value: quadra-volei-app
 
       # Rede moderation: the account id (users.id, GET /api/v1/auth/me) allowed to review
       # reported posts and delete them. Add __1, __2 … for more admins.

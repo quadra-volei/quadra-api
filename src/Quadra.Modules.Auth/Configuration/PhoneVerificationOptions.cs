@@ -11,9 +11,12 @@ public sealed class PhoneVerificationOptions
 
     public const string ProviderTwilio = "Twilio";
     public const string ProviderFake = "Fake";
+    public const string ProviderFirebase = "Firebase";
 
     /// <summary>
-    /// <c>Twilio</c> (real SMS through Twilio Verify) or <c>Fake</c> (fixed code, no SMS;
+    /// <c>Twilio</c> (real SMS through Twilio Verify), <c>Firebase</c> (the app verifies the phone with
+    /// Firebase Phone Auth and sends its ID token to <c>login/firebase-phone</c>; <c>login/sms-otp</c> is
+    /// then off) or <c>Fake</c> (fixed code, no SMS;
     /// refused in Production).
     /// </summary>
     public string Provider { get; set; } = ProviderTwilio;
@@ -22,8 +25,13 @@ public sealed class PhoneVerificationOptions
 
     public FakePhoneVerificationOptions Fake { get; set; } = new();
 
+    public FirebasePhoneOptions Firebase { get; set; } = new();
+
     public bool UsesFake =>
         string.Equals(Provider, ProviderFake, StringComparison.OrdinalIgnoreCase);
+
+    public bool UsesFirebase =>
+        string.Equals(Provider, ProviderFirebase, StringComparison.OrdinalIgnoreCase);
 
     public bool UsesTwilio =>
         string.Equals(Provider, ProviderTwilio, StringComparison.OrdinalIgnoreCase);
@@ -60,4 +68,14 @@ public sealed class FakePhoneVerificationOptions
     /// accepted with <see cref="Code"/>.
     /// </summary>
     public string? PhoneNumber { get; set; }
+}
+
+/// <summary>
+/// Firebase Phone Auth (DECISIONS #78). With <see cref="ProjectId"/> set, <c>login/firebase-phone</c>
+/// accepts Firebase ID tokens of that project whose sign-in was by phone.
+/// </summary>
+public sealed class FirebasePhoneOptions
+{
+    /// <summary>The Firebase project id (e.g. <c>quadra-volei-app</c>); empty = route off.</summary>
+    public string ProjectId { get; set; } = string.Empty;
 }

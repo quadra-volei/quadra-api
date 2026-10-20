@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Quadra.Infrastructure.Messaging;
 using Quadra.Modules.Auth.Contracts;
 using Quadra.Modules.Auth.Entities;
+using Quadra.Modules.Auth.Oidc;
 using Quadra.Modules.Auth.Persistence;
 using Quadra.Modules.Auth.PhoneVerification;
 using Quadra.Modules.Auth.Tokens;
@@ -30,6 +31,7 @@ public sealed class SmsOtpLoginHandler
     private readonly IEventPublisher _eventPublisher;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<SmsOtpLoginHandler> _logger;
+    private readonly IFirebasePhoneTokenValidator? _firebase;
 
     public SmsOtpLoginHandler(
         IPhoneVerificationService phoneVerification,
@@ -39,7 +41,8 @@ public sealed class SmsOtpLoginHandler
         IRefreshTokenRepository refreshTokenRepository,
         IEventPublisher eventPublisher,
         TimeProvider timeProvider,
-        ILogger<SmsOtpLoginHandler> logger)
+        ILogger<SmsOtpLoginHandler> logger,
+        IFirebasePhoneTokenValidator? firebase = null)
     {
         _phoneVerification = phoneVerification;
         _throttle = throttle;
@@ -49,6 +52,7 @@ public sealed class SmsOtpLoginHandler
         _eventPublisher = eventPublisher;
         _timeProvider = timeProvider;
         _logger = logger;
+        _firebase = firebase;
     }
 
     public async Task<SmsOtpInitiateResponse> InitiateAsync(
@@ -113,6 +117,33 @@ public sealed class SmsOtpLoginHandler
                 throw new InvalidOperationException($"Unknown phone verification result {result}.");
         }
 
+        return await LogInVerifiedPhoneAsync(phoneNumber, deviceId, StepVerify, cancellationToken);
+    }
+
+    /// <summary>
+    /// Firebase Phone Auth (DECISIONS #78): Firebase already sent and checked the SMS code; its ID
+    /// token proves the phone. The account and session are the same as with the SMS OTP flow.
+    /// </summary>
+    public async Task<AuthTokensResponse> VerifyFirebaseAsync(
+        string idToken,
+        string? deviceId,
+        CancellationToken cancellationToken)
+    {
+        if (_firebase is null)
+        {
+            throw new OidcTokenInvalidException("Firebase phone login is not configured.");
+        }
+
+        var phoneNumber = await _firebase.ValidateAsync(idToken, cancellationToken);
+        return await LogInVerifiedPhoneAsync(phoneNumber, deviceId, "firebase", cancellationToken);
+    }
+
+    private async Task<AuthTokensResponse> LogInVerifiedPhoneAsync(
+        string phoneNumber,
+        string? deviceId,
+        string step,
+        CancellationToken cancellationToken)
+    {
         var now = _timeProvider.GetUtcNow();
 
         var provisioned = await _userProvisioner
@@ -127,7 +158,7 @@ public sealed class SmsOtpLoginHandler
         _logger.LogInformation(
             "Login succeeded. {Provider} {Step} {OutcomeCategory} {UserId} {IsNewUser}",
             Provider,
-            StepVerify,
+            step,
             "success",
             user.Id,
             provisioned.IsNew);

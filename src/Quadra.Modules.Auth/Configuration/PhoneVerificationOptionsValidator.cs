@@ -33,6 +33,13 @@ public sealed class PhoneVerificationOptionsValidator : IValidateOptions<PhoneVe
                 : ValidateOptionsResult.Success;
         }
 
+        if (options.UsesFirebase)
+        {
+            return string.IsNullOrWhiteSpace(options.Firebase.ProjectId)
+                ? ValidateOptionsResult.Fail("Auth:PhoneVerification:Firebase:ProjectId is required when the provider is Firebase.")
+                : ValidateOptionsResult.Success;
+        }
+
         if (options.UsesTwilio)
         {
             var twilio = options.Twilio;
@@ -45,7 +52,7 @@ public sealed class PhoneVerificationOptionsValidator : IValidateOptions<PhoneVe
         }
 
         return ValidateOptionsResult.Fail(
-            $"Auth:PhoneVerification:Provider must be '{PhoneVerificationOptions.ProviderTwilio}' "
+            $"Auth:PhoneVerification:Provider must be '{PhoneVerificationOptions.ProviderTwilio}', '{PhoneVerificationOptions.ProviderFirebase}' "
             + $"or '{PhoneVerificationOptions.ProviderFake}'.");
     }
 }

@@ -168,6 +168,8 @@ public static class AuthModuleExtensions
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 
         services.AddSingleton<IOidcTokenValidator, GoogleAppleTokenValidator>();
+        services.AddSingleton<IFirebasePhoneTokenValidator>(sp => new FirebasePhoneTokenValidator(
+            sp.GetRequiredService<IOptionsMonitor<PhoneVerificationOptions>>(), sp.GetRequiredService<TimeProvider>()));
         services.AddSingleton<IAccessTokenIssuer, JwtAccessTokenIssuer>();
         services.AddSingleton<SessionFactory>();
         services.AddSingleton(TimeProvider.System);
