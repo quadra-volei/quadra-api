@@ -164,6 +164,48 @@ public sealed class PresenceEndpointsTests : IClassFixture<MatchesWebApplication
     }
 
     /// <summary>
+    /// Covers: DELETE /waiting-list/me removes only the caller's own entry; someone not on the
+    /// list gets 404 and the other waiters stay.
+    /// </summary>
+    [Fact]
+    public async Task DELETE_waiting_list_me_removes_only_the_callers_entry()
+    {
+        await ResetAsync();
+
+        var matchId = await CreateMatchAsync(OrganizerUserId, maxPlayers: 4, regularSlots: 2);
+        var otherWaiterId = Guid.NewGuid();
+        using (var scope = _fx.Factory.Services.CreateScope())
+        {
+            var ctx = scope.ServiceProvider.GetRequiredService<MatchesDbContext>();
+            ctx.WaitingList.Add(WaitingListEntry.Create(matchId, OtherUserId, PlayerType.Regular, 1, DateTimeOffset.UtcNow));
+            ctx.WaitingList.Add(WaitingListEntry.Create(matchId, otherWaiterId, PlayerType.Regular, 2, DateTimeOffset.UtcNow));
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        // The organizer is not on the list: nothing is removed.
+        var stranger = await _fx.CreateAuthenticatedClient(OrganizerUserId).DeleteAsync(
+            $"/api/v1/matches/{matchId}/waiting-list/me", TestContext.Current.CancellationToken);
+        stranger.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var response = await _fx.CreateAuthenticatedClient(OtherUserId).DeleteAsync(
+            $"/api/v1/matches/{matchId}/waiting-list/me", TestContext.Current.CancellationToken);
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        using var verifyScope = _fx.Factory.Services.CreateScope();
+        var verifyCtx = verifyScope.ServiceProvider.GetRequiredService<MatchesDbContext>();
+        var left = await verifyCtx.WaitingList
+            .Where(w => w.MatchId == matchId)
+            .Select(w => w.PlayerId)
+            .ToListAsync(TestContext.Current.CancellationToken);
+        left.Should().Equal(otherWaiterId);
+
+        // The one left behind is now first in line, though their stored position is still 2.
+        var detail = await _fx.CreateAuthenticatedClient(otherWaiterId).GetFromJsonAsync<JsonElement>(
+            $"/api/v1/matches/{matchId}/detail", TestContext.Current.CancellationToken);
+        detail.GetProperty("myWaitingListPosition").GetInt32().Should().Be(1);
+    }
+
+    /// <summary>
     /// Covers: GET /presences returns 404 when match does not exist.
     /// </summary>
     [Fact]
