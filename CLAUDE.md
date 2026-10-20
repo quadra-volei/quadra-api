@@ -33,7 +33,7 @@ treat it as current and do not read it by default.
 - Tests: xUnit + FluentAssertions + NSubstitute; integration with WebApplicationFactory +
   Testcontainers (real Postgres)
 - Hosting: one Docker container on Render (`Dockerfile` + `render.yaml`), environment
-  `Staging`, redeployed on every push to `dev`; migrations run on startup
+  `Staging`, redeployed on every push to `main`; migrations run on startup
 
 ## Layout
 
@@ -66,7 +66,8 @@ dotnet ef database update --startup-project ../Quadra.Api
 
 - Start every change from `dev` and merge it back into `dev`. Never commit straight to `dev`
   or `main`.
-- A push to `dev` redeploys the hosted API. Build and tests must pass before merging.
+- `dev` collects the merged changes; a PR from `dev` into `main` releases them. A push to
+  `main` redeploys the hosted API. Build and tests must pass before merging.
 - Commit messages in Portuguese, `tipo(modulo): resumo` (as in `git log`).
 
 ## Conventions
