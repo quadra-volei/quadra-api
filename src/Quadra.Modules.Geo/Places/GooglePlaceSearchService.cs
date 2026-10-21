@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Quadra.Modules.Geo.Venues;
 
 namespace Quadra.Modules.Geo.Places;
 
@@ -11,7 +12,7 @@ namespace Quadra.Modules.Geo.Places;
 /// <see cref="HttpClient"/> (no SDK). Suggestions come without coordinates; the details call
 /// that closes the session supplies them.
 /// </summary>
-public sealed class GooglePlaceSearchService : IPlaceSearchService
+public sealed class GooglePlaceSearchService : IPlaceSearchService, IVenueSource
 {
     public const string HttpClientName = "google-places";
 
@@ -108,6 +109,67 @@ public sealed class GooglePlaceSearchService : IPlaceSearchService
             address,
             location.GetProperty("latitude").GetDouble(),
             location.GetProperty("longitude").GetDouble());
+    }
+
+    /// <summary>
+    /// Arena discovery (DECISIONS #82): the ids of the places matching <paramref name="text"/>
+    /// inside the rectangle. Asking for the id only keeps the call in Google's free tier.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> SearchPlaceIdsAsync(
+        string text,
+        double south,
+        double west,
+        double north,
+        double east,
+        CancellationToken cancellationToken)
+    {
+        var body = new
+        {
+            textQuery = text,
+            languageCode = "pt-BR",
+            regionCode = "br",
+            pageSize = 20,
+            locationRestriction = new
+            {
+                rectangle = new
+                {
+                    low = new { latitude = south, longitude = west },
+                    high = new { latitude = north, longitude = east },
+                },
+            },
+        };
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, BaseUrl + "places:searchText")
+        {
+            Content = JsonContent.Create(body),
+        };
+        request.Headers.Add("X-Goog-FieldMask", "places.id");
+        using var document = await SendAsync(request, cancellationToken);
+        if (document is null || !document.RootElement.TryGetProperty("places", out var places))
+        {
+            return [];
+        }
+
+        return places.EnumerateArray()
+            .Select(p => Text(p, "id"))
+            .OfType<string>()
+            .ToList();
+    }
+
+    /// <summary>Only the coordinates of a place (the cheapest details call); null when unknown.</summary>
+    public async Task<(double Latitude, double Longitude)?> GetLocationAsync(
+        string placeId,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}places/{Uri.EscapeDataString(placeId)}");
+        request.Headers.Add("X-Goog-FieldMask", "location");
+        using var document = await SendAsync(request, cancellationToken);
+        if (document is null || !document.RootElement.TryGetProperty("location", out var location))
+        {
+            return null;
+        }
+
+        return (location.GetProperty("latitude").GetDouble(), location.GetProperty("longitude").GetDouble());
     }
 
     /// <summary>Sends the request with the API key; null for 404 / 400 (unknown place id).</summary>

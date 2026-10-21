@@ -7,6 +7,7 @@ using Quadra.Modules.Auth.Persistence;
 using Quadra.Modules.Gamification.DependencyInjection;
 using Quadra.Modules.Gamification.Persistence;
 using Quadra.Modules.Geo.DependencyInjection;
+using Quadra.Modules.Geo.Persistence;
 using Quadra.Modules.InGame.DependencyInjection;
 using Quadra.Modules.InGame.Persistence;
 using Quadra.Modules.Matches.DependencyInjection;
@@ -44,6 +45,7 @@ builder.Services.AddRealtimeModule();
 builder.Services.AddHostedService<MatchWindowSweeper>();
 builder.Services.AddSingleton<MatchReminderSweeper>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<MatchReminderSweeper>());
+builder.Services.AddHostedService<VenueCacheSweeper>();
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
@@ -61,6 +63,7 @@ if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
     await services.GetRequiredService<ProfileDbContext>().Database.MigrateAsync();
     await services.GetRequiredService<GamificationDbContext>().Database.MigrateAsync();
     await services.GetRequiredService<NotificationsDbContext>().Database.MigrateAsync();
+    await services.GetRequiredService<GeoDbContext>().Database.MigrateAsync();
 }
 
 if (app.Environment.IsDevelopment())

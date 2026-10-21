@@ -17,9 +17,9 @@ public sealed class NearbyMatchRepository : INearbyMatchRepository
     /// </summary>
     private const int MaxResults = 200;
 
-    private readonly GeoReadDbContext _context;
+    private readonly GeoDbContext _context;
 
-    public NearbyMatchRepository(GeoReadDbContext context)
+    public NearbyMatchRepository(GeoDbContext context)
     {
         _context = context;
     }
