@@ -14,6 +14,7 @@ using Quadra.Modules.Geo.Contracts;
 using Quadra.Modules.Geo.Persistence;
 using Quadra.Modules.Geo.Places;
 using Quadra.Modules.Geo.Validation;
+using Quadra.Modules.Geo.Venues;
 
 namespace Quadra.Modules.Geo.DependencyInjection;
 
@@ -34,7 +35,7 @@ public static class GeoModuleExtensions
         ArgumentNullException.ThrowIfNull(configuration);
 
         // Read-only EF DbContext — reads from ConnectionStrings:Geo, falling back to ConnectionStrings:Default.
-        services.AddDbContext<GeoReadDbContext>((sp, builder) =>
+        services.AddDbContext<GeoDbContext>((sp, builder) =>
         {
             var cfg = sp.GetRequiredService<IConfiguration>();
             var connectionString =
@@ -91,6 +92,15 @@ public static class GeoModuleExtensions
                 PlacesOptions.OpenStreetMap => sp.GetRequiredService<PhotonPlaceSearchService>(),
                 _ => sp.GetRequiredService<NoPlaceSearchService>(),
             });
+
+        // Arenas on the map (DECISIONS #82): only Google knows them; without it the map shows none.
+        services.AddSingleton<NoVenueSource>();
+        services.AddSingleton<IVenueSource>(static sp =>
+            sp.GetRequiredService<IOptions<PlacesOptions>>().Value.ResolvedProvider == PlacesOptions.Google
+                ? sp.GetRequiredService<GooglePlaceSearchService>()
+                : sp.GetRequiredService<NoVenueSource>());
+        services.AddScoped<VenueDiscovery>();
+        services.AddScoped<GetNearbyVenuesHandler>();
 
         // TimeProvider.System — register only if not already registered by another module.
         services.TryAddSingleton(TimeProvider.System);

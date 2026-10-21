@@ -87,6 +87,8 @@ public sealed class MatchesWebApplicationFactory : IAsyncLifetime
         // Match rosters read player identities from Profile.
         var profileCtx = scope.ServiceProvider.GetRequiredService<ProfileDbContext>();
         await profileCtx.Database.MigrateAsync();
+        // The arena cache behind the map (DECISIONS #82).
+        await scope.ServiceProvider.GetRequiredService<Quadra.Modules.Geo.Persistence.GeoDbContext>().Database.MigrateAsync();
     }
 
     public async ValueTask DisposeAsync()

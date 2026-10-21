@@ -21,6 +21,7 @@ Carta do Jogador = PlayerCard · Janela de Confirmação = ConfirmationWindow.
 | MVP vote (F1.5) | One vote each (who played, plus the organizer even without playing), no self-vote, opens when the game ends, 24 h deadline | `matches/{id}/mvp-voting/…` |
 | Summary (F1.6) | Immutable summary; generating it is what records stats, history and ranking points | `matches/{id}/summary` |
 | Map (F1.7) | Nearby matches by radius (PostGIS), including drafts; private matches never listed | `matches/nearby` |
+| Arenas on the map | Arenas found on Google Places around the map (only the place id and coordinates kept, for up to 29 days), each with today's public games and the one being played now; name and address on tap via `places/{id}`. Partner showcase not done | `venues/nearby` |
 | Address search | Proxy to Google Places or Photon, restricted to Brazil | `places/autocomplete`, `places/{id}` |
 | Profile (F2.1) | Name, surname, unique `@handle`, birth date, single position, modality, declared level, derived skills (ACE/BLK/ATA/DEF/GERAL), stats, match history, photo by signed URL; level number from accumulated points (attendance +10, win +15, MVP +25; 10 × n × (n − 1) points for level n) | `profiles/me`, `profiles/handle-availability`, `profiles/me/match-history`, `profiles/me/photo/upload-url` |
 | Player card (F2.2) | Card data after 3 matches; premium flag is a stub that always answers `false` | `profiles/me/card` |
