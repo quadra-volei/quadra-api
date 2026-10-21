@@ -82,6 +82,7 @@ public sealed class MobileGameFlowTests : IClassFixture<InGameWebApplicationFact
         await PostAsync(api, $"{base_}/scoreboard/start", null, HttpStatusCode.OK);
         (await DetailAsync(api, matchId)).GetProperty("game").GetProperty("scoreboardState").GetString()
             .Should().Be("InProgress");
+        (await MineAsync(players[0])).Should().Contain(matchId, "a match being played is still the player's");
 
         // A mis-tap for C is undone; players cannot undo.
         await PointsAsync(api, base_, 1, teamA, 3);
@@ -107,6 +108,7 @@ public sealed class MobileGameFlowTests : IClassFixture<InGameWebApplicationFact
         second.GetProperty("sets")[1].GetProperty("teamBId").GetGuid().Should().Be(teamB);
         var ended = await PointsAsync(api, base_, 2, teamA, 25);
         ended.GetProperty("state").GetString().Should().Be("Ended");
+        (await MineAsync(players[0])).Should().NotContain(matchId, "an ended game is no longer upcoming, even before the summary");
         ended.GetProperty("winnerTeamId").GetGuid().Should().Be(teamA);
         await _fx.Notifier.Received().NotifyScoreboardUpdatedAsync(
             Arg.Is<ScoreboardUpdatedMessage>(m => m.MatchId == matchId && m.State == "Ended"),
@@ -190,6 +192,14 @@ public sealed class MobileGameFlowTests : IClassFixture<InGameWebApplicationFact
         var response = await client.GetAsync($"/api/v1/matches/{matchId}/detail", Ct);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         return await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
+    }
+
+    private async Task<List<Guid>> MineAsync(Guid playerId)
+    {
+        var mine = await _fx.CreateAuthenticatedClient(playerId).GetFromJsonAsync<JsonElement>("/api/v1/matches/mine", Ct);
+        return mine.GetProperty("items").EnumerateArray()
+            .Select(i => i.GetProperty("match").GetProperty("id").GetGuid())
+            .ToList();
     }
 
     private async Task ResetAsync()

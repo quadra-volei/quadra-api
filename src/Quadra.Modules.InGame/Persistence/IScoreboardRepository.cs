@@ -19,6 +19,9 @@ public interface IScoreboardRepository
     /// </summary>
     Task<Scoreboard?> FindByMatchAsync(Guid matchId, CancellationToken cancellationToken);
 
+    /// <summary>Of <paramref name="matchIds"/>, the ones whose scoreboard is <see cref="ScoreboardState.Ended"/>.</summary>
+    Task<IReadOnlySet<Guid>> ListEndedMatchIdsAsync(IReadOnlyCollection<Guid> matchIds, CancellationToken cancellationToken);
+
     /// <summary>
     /// Persists all pending changes to <paramref name="scoreboard"/> and its sets (including
     /// newly opened sets) inside a single database transaction.

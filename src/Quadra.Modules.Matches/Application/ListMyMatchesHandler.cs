@@ -8,7 +8,8 @@ namespace Quadra.Modules.Matches.Application;
 /// <summary>
 /// Lists the caller's upcoming matches (GET /api/v1/matches/mine): the ones they organize, are
 /// on the presence list of (unless they declined), or wait for — not cancelled, not ended,
-/// soonest first.
+/// soonest first. A match whose game already ended leaves the list at once, without waiting for
+/// the summary (MVP voting can stay open for 24 hours).
 /// </summary>
 public sealed class ListMyMatchesHandler
 {
@@ -23,6 +24,7 @@ public sealed class ListMyMatchesHandler
     private readonly IPlayerSummaryReader _playerSummaryReader;
     private readonly TimeProvider _timeProvider;
     private readonly IMatchCoverReader _coverReader;
+    private readonly IMatchResultReader _resultReader;
 
     public ListMyMatchesHandler(
         IMatchRepository matchRepository,
@@ -30,9 +32,11 @@ public sealed class ListMyMatchesHandler
         IMatchGuestRepository guestRepository,
         IPlayerSummaryReader playerSummaryReader,
         TimeProvider timeProvider,
-        IMatchCoverReader coverReader)
+        IMatchCoverReader coverReader,
+        IMatchResultReader resultReader)
     {
         _coverReader = coverReader;
+        _resultReader = resultReader;
         _matchRepository = matchRepository;
         _presenceRepository = presenceRepository;
         _guestRepository = guestRepository;
@@ -43,7 +47,11 @@ public sealed class ListMyMatchesHandler
     public async Task<MyMatchesResponse> HandleAsync(Guid callerId, CancellationToken cancellationToken)
     {
         var since = _timeProvider.GetUtcNow() - StartGracePeriod;
-        var matches = await _matchRepository.ListUpcomingForPlayerAsync(callerId, since, cancellationToken);
+        var listed = await _matchRepository.ListUpcomingForPlayerAsync(callerId, since, cancellationToken);
+        var ended = listed.Count == 0
+            ? new HashSet<Guid>()
+            : await _resultReader.ListEndedAsync(listed.Select(m => m.Id).ToArray(), cancellationToken);
+        var matches = listed.Where(m => !ended.Contains(m.Id)).ToList();
         if (matches.Count == 0)
         {
             return new MyMatchesResponse([]);
