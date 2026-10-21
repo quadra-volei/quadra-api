@@ -67,7 +67,8 @@ dotnet ef database update --startup-project ../Quadra.Api
 - Start every change from `dev` and merge it back into `dev`. Never commit straight to `dev`
   or `main`.
 - `dev` collects the merged changes; a PR from `dev` into `main` releases them. A push to
-  `main` redeploys the hosted API. Build and tests must pass before merging.
+  `main` redeploys the hosted API. Build and tests must pass before merging; GitHub Actions
+  (`.github/workflows/ci.yml`) runs them, integration tests included, on every PR into `dev` or `main`.
 - Commit messages in Portuguese, `tipo(modulo): resumo` (as in `git log`).
 
 ## Conventions
