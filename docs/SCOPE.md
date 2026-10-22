@@ -14,7 +14,7 @@ Carta do Jogador = PlayerCard · Janela de Confirmação = ConfirmationWindow.
 | Auth (FA.1, FA.3) | SMS OTP (6 digits) and Google login; the first valid login creates the user; own JWT + rotating refresh token; logout ends the session; export and delete the account (LGPD, DECISIONS #69) | `auth/login/sms-otp`, `auth/login/google`, `auth/refresh`, `auth/logout`, `auth/me`, `auth/me/export`, `DELETE auth/me` |
 | Match creation (F1.1) | Recurring or one-off match with format, level, duration, prices, visibility (open / private by code / private by guests), confirmations open from creation (an explicit window or "opens N hours before" still accepted); optional cover photo (key from the profile-photo upload, read URL in the detail) | `POST matches`, `GET matches/mine`, `GET matches/{id}/detail` |
 | Edit and cancel | The organizer edits the details (not type nor visibility) and cancels until the game starts; slots never below the confirmed players | `PUT matches/{id}`, `DELETE matches/{id}` |
-| Next game of a recurring group | Generating a recurring game's summary creates the group's next game (next week day by frequency, same settings and invite code, same window distance), with everyone who had confirmed as Pending (DECISIONS #64) | `POST matches/{id}/summary` |
+| Next game of a recurring group | Generating a recurring game's summary creates the group's next game (next week day by frequency, same settings and invite code, same window distance), with everyone who had confirmed as Pending (DECISIONS #64); cancelling one creates it empty, and `endGroup=true` ends the group (DECISIONS #89) | `POST matches/{id}/summary`, `DELETE matches/{id}` |
 | Presence (F1.2) | Confirm / decline, self-enrollment by confirming, Regular vs DropIn slots, waiting list, guests without an account, window opened and closed by the clock | `PUT matches/{id}/presences/me`, `matches/{id}/guests` |
 | Teams (F1.3) | 2 to 4 teams, balanced or random draw, guests drawn in, manual adjustment | `matches/{id}/teams/draft`, `PUT matches/{id}/teams/{teamId}/members/{playerId}` |
 | Scoreboard (F1.4) | Sets best of 3 or 5, pair of teams per set (rotation), end set early, undo last point, live updates over SignalR; a match without fixed teams (`freeTeams`, format `Free`) only starts and ends, with one roster of everyone confirmed (DECISIONS #86) | `matches/{id}/scoreboard/…`, hub `/hubs/match` |
@@ -52,8 +52,8 @@ Needs code:
 - **Push on the phone** needs the app side (`expo-notifications`, waiting for Johny's OK on the package) and FCM credentials in EAS; the API already stores tokens and sends through Expo Push (DECISIONS #77).
 - **Summary of a game with rotating teams** does not record which pair played each set
   (DECISIONS #30).
-- **A recurring group stops** when a game is cancelled or never summarized: only a summary creates
-  the next game (DECISIONS #64).
+- **A recurring group stops** when a game is never summarized: only a summary or a cancellation
+  creates the next game (DECISIONS #64, #89).
 - **Event retry**: a failed in-process handler is logged and not retried (no outbox).
 - **Cleanup**: the `Aws:Sqs:*` settings are still required at startup although nothing is
   sent; the `StackExchange.Redis` package and the `Quadra.Workers.*` projects are unused.

@@ -275,11 +275,13 @@ public sealed class MatchesController : ControllerBase
 
     /// <summary>
     /// DELETE /api/v1/matches/{id} — the organizer cancels the match (kept as Cancelled) until
-    /// its game starts.
+    /// its game starts. A recurring game schedules the group's next one unless
+    /// <c>?endGroup=true</c>, which ends the group.
     /// </summary>
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Cancel(
         Guid id,
+        [FromQuery] bool endGroup,
         CancellationToken cancellationToken)
     {
         if (!TryGetCallerId(out var callerId))
@@ -294,7 +296,7 @@ public sealed class MatchesController : ControllerBase
 
         try
         {
-            await _cancelHandler.HandleAsync(id, callerId, cancellationToken);
+            await _cancelHandler.HandleAsync(id, callerId, endGroup, cancellationToken);
             return NoContent();
         }
         catch (MatchNotFoundException)

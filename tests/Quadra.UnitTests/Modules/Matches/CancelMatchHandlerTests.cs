@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ReturnsExtensions;
 using Quadra.Infrastructure.Messaging;
@@ -27,7 +28,18 @@ public sealed class CancelMatchHandlerTests
     private readonly IMatchResultReader _resultReader = Substitute.For<IMatchResultReader>();
 
     private CancelMatchHandler CreateSut() =>
-        new(_repository, _eventPublisher, _timeProvider, _resultReader);
+        new(
+            _repository,
+            _eventPublisher,
+            _timeProvider,
+            _resultReader,
+            new ScheduleNextGameHandler(
+                _repository,
+                Substitute.For<IPresenceRepository>(),
+                _eventPublisher,
+                MatchTestSupport.Synchronizer(_repository, _timeProvider),
+                _timeProvider,
+                Substitute.For<ILogger<ScheduleNextGameHandler>>()));
 
     /// <summary>
     /// Creates a Match in the given status via the public Create factory, then forces a status
@@ -73,7 +85,7 @@ public sealed class CancelMatchHandlerTests
         _repository.FindByIdAsync(match.Id, Arg.Any<CancellationToken>()).Returns(match);
 
         var sut = CreateSut();
-        await sut.HandleAsync(match.Id, OrganizerId, CancellationToken.None);
+        await sut.HandleAsync(match.Id, OrganizerId, endGroup: false, CancellationToken.None);
 
         match.Status.Should().Be(MatchStatus.Cancelled);
         await _repository.Received(1).UpdateAsync(match, Arg.Any<CancellationToken>());
@@ -92,7 +104,7 @@ public sealed class CancelMatchHandlerTests
 
         var sut = CreateSut();
 
-        var act = async () => await sut.HandleAsync(match.Id, OtherUserId, CancellationToken.None);
+        var act = async () => await sut.HandleAsync(match.Id, OtherUserId, endGroup: false, CancellationToken.None);
 
         await act.Should().ThrowAsync<MatchAccessDeniedException>();
         await _repository.DidNotReceive().UpdateAsync(Arg.Any<Match>(), Arg.Any<CancellationToken>());
@@ -112,7 +124,7 @@ public sealed class CancelMatchHandlerTests
 
         var sut = CreateSut();
 
-        var act = async () => await sut.HandleAsync(match.Id, OrganizerId, CancellationToken.None);
+        var act = async () => await sut.HandleAsync(match.Id, OrganizerId, endGroup: false, CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidMatchStatusTransitionException>();
         await _repository.DidNotReceive().UpdateAsync(Arg.Any<Match>(), Arg.Any<CancellationToken>());
@@ -130,7 +142,7 @@ public sealed class CancelMatchHandlerTests
 
         var sut = CreateSut();
 
-        var act = async () => await sut.HandleAsync(match.Id, OrganizerId, CancellationToken.None);
+        var act = async () => await sut.HandleAsync(match.Id, OrganizerId, endGroup: false, CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidMatchStatusTransitionException>();
     }
@@ -169,7 +181,7 @@ public sealed class CancelMatchHandlerTests
                 return Task.CompletedTask;
             });
 
-        await sut.HandleAsync(match.Id, OrganizerId, CancellationToken.None);
+        await sut.HandleAsync(match.Id, OrganizerId, endGroup: false, CancellationToken.None);
 
         publishCalledBeforeUpdate.Should().BeFalse("MatchStatusChanged must only be published AFTER UpdateAsync succeeds");
 
@@ -196,7 +208,7 @@ public sealed class CancelMatchHandlerTests
 
         var sut = CreateSut();
 
-        var act = async () => await sut.HandleAsync(matchId, OrganizerId, CancellationToken.None);
+        var act = async () => await sut.HandleAsync(matchId, OrganizerId, endGroup: false, CancellationToken.None);
 
         await act.Should().ThrowAsync<MatchNotFoundException>();
     }
