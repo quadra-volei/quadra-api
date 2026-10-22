@@ -28,7 +28,8 @@ public sealed record RankingEntryResponse(
     int Points,
     int Matches,
     int Wins,
-    int Mvps);
+    int Mvps,
+    int? Overall = null);       // GERAL, the same number as the profile (DECISIONS #85)
 
 /// <summary>A season ranking of one scope, optionally of one court position.</summary>
 public sealed record RankingResponse(
