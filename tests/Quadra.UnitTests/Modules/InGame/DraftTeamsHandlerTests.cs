@@ -225,8 +225,8 @@ public sealed class DraftTeamsHandlerTests
         result.Should().NotBeNull();
         result.Teams.Should().HaveCount(2);
 
-        var teamA = result.Teams.First(t => t.Name == "Team A");
-        var teamB = result.Teams.First(t => t.Name == "Team B");
+        var teamA = result.Teams.First(t => t.Name == "Time Azul");
+        var teamB = result.Teams.First(t => t.Name == "Time Limão");
 
         teamA.Members.Should().HaveCount(1);
         teamB.Members.Should().HaveCount(1);
@@ -272,8 +272,8 @@ public sealed class DraftTeamsHandlerTests
         var result = await sut.HandleAsync(matchId, OrganizerUserId, CancellationToken.None);
 
         result.Teams.Should().HaveCount(2);
-        var teamA = result.Teams.First(t => t.Name == "Team A");
-        var teamB = result.Teams.First(t => t.Name == "Team B");
+        var teamA = result.Teams.First(t => t.Name == "Time Azul");
+        var teamB = result.Teams.First(t => t.Name == "Time Limão");
 
         teamA.Members.Should().HaveCount(2);
         teamB.Members.Should().HaveCount(2);
@@ -302,8 +302,8 @@ public sealed class DraftTeamsHandlerTests
         var sut = CreateSut();
         var result = await sut.HandleAsync(matchId, OrganizerUserId, CancellationToken.None);
 
-        var teamA = result.Teams.First(t => t.Name == "Team A");
-        var teamB = result.Teams.First(t => t.Name == "Team B");
+        var teamA = result.Teams.First(t => t.Name == "Time Azul");
+        var teamB = result.Teams.First(t => t.Name == "Time Limão");
 
         teamA.Members.Should().HaveCount(2);
         teamB.Members.Should().HaveCount(2);
@@ -353,8 +353,8 @@ public sealed class DraftTeamsHandlerTests
         var sut = CreateSut();
         var result = await sut.HandleAsync(matchId, OrganizerUserId, CancellationToken.None);
 
-        var teamA = result.Teams.First(t => t.Name == "Team A");
-        var teamB = result.Teams.First(t => t.Name == "Team B");
+        var teamA = result.Teams.First(t => t.Name == "Time Azul");
+        var teamB = result.Teams.First(t => t.Name == "Time Limão");
 
         teamA.Members.Should().HaveCount(3);
         teamB.Members.Should().HaveCount(3);
@@ -386,8 +386,8 @@ public sealed class DraftTeamsHandlerTests
         var sut = CreateSut();
         var result = await sut.HandleAsync(matchId, OrganizerUserId, CancellationToken.None);
 
-        var teamA = result.Teams.First(t => t.Name == "Team A");
-        var teamB = result.Teams.First(t => t.Name == "Team B");
+        var teamA = result.Teams.First(t => t.Name == "Time Azul");
+        var teamB = result.Teams.First(t => t.Name == "Time Limão");
 
         (teamA.Members.Count + teamB.Members.Count).Should().Be(5, "all 5 players must be assigned");
         teamA.Members.Count.Should().Be(3);
@@ -429,8 +429,8 @@ public sealed class DraftTeamsHandlerTests
         var sut = CreateSut();
         var result = await sut.HandleAsync(matchId, OrganizerUserId, CancellationToken.None);
 
-        var teamA = result.Teams.First(t => t.Name == "Team A");
-        var teamB = result.Teams.First(t => t.Name == "Team B");
+        var teamA = result.Teams.First(t => t.Name == "Time Azul");
+        var teamB = result.Teams.First(t => t.Name == "Time Limão");
 
         teamA.Members.Should().HaveCount(4);
         teamB.Members.Should().HaveCount(4);
@@ -459,8 +459,8 @@ public sealed class DraftTeamsHandlerTests
         var sut = CreateSut();
         var result = await sut.HandleAsync(matchId, OrganizerUserId, CancellationToken.None);
 
-        var teamA = result.Teams.First(t => t.Name == "Team A");
-        var teamB = result.Teams.First(t => t.Name == "Team B");
+        var teamA = result.Teams.First(t => t.Name == "Time Azul");
+        var teamB = result.Teams.First(t => t.Name == "Time Limão");
 
         var scoreA = teamA.Members.Sum(m => LevelScore(m.PlayerLevel));
         var scoreB = teamB.Members.Sum(m => LevelScore(m.PlayerLevel));

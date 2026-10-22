@@ -339,7 +339,7 @@ public sealed class InProcessEventsEndToEndTests : IClassFixture<InProcessEvents
     {
         var body = await GetJsonAsync(organizer, $"/api/v1/matches/{matchId}/teams");
         var teamA = body.GetProperty("teams").EnumerateArray()
-            .First(t => t.GetProperty("name").GetString() == "Team A");
+            .First(t => t.GetProperty("name").GetString() == "Time Azul");
 
         var playerIds = teamA.GetProperty("members").EnumerateArray()
             .Select(m => m.GetProperty("playerId").GetGuid())

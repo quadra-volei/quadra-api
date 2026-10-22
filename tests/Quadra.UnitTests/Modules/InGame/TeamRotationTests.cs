@@ -76,7 +76,7 @@ public sealed class TeamRotationTests
 
         var response = await Draft().HandleAsync(MatchId, Organizer, new DraftTeamsRequest(TeamCount: 3), Ct);
 
-        response.Teams.Select(t => t.Name).Should().Equal("Team A", "Team B", "Team C");
+        response.Teams.Select(t => t.Name).Should().Equal("Time Azul", "Time Limão", "Time Laranja");
         response.Teams[0].Members.Select(m => m.PlayerId).Should().Equal(players[0], players[5], players[6]);
         response.Teams[1].Members.Select(m => m.PlayerId).Should().Equal(players[1], players[4]);
         response.Teams[2].Members.Select(m => m.PlayerId).Should().Equal(players[2], players[3]);

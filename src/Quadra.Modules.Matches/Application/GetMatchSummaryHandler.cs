@@ -59,7 +59,8 @@ public sealed class GetMatchSummaryHandler
 
         var teams = summary.Players
             .GroupBy(p => new { p.TeamId, p.TeamName })
-            .OrderBy(g => g.Key.TeamName, StringComparer.Ordinal)
+            .OrderBy(g => TeamPalette.Order(g.Key.TeamName))
+            .ThenBy(g => g.Key.TeamName, StringComparer.Ordinal)
             .Select(g => new MatchSummaryTeamResponse(
                 TeamId: g.Key.TeamId,
                 Name: g.Key.TeamName,

@@ -52,7 +52,8 @@ public sealed class MatchResultReader : IMatchResultReader
             .ToList();
 
         var resultTeams = teams
-            .OrderBy(t => t.Name, StringComparer.Ordinal)
+            .OrderBy(t => TeamPalette.Order(t.Name))
+            .ThenBy(t => t.Name, StringComparer.Ordinal)
             .Select(t => new MatchResultTeam(
                 TeamId: t.Id,
                 Name: t.Name,

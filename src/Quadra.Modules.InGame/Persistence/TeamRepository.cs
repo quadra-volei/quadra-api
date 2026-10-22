@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Quadra.Modules.InGame.Entities;
+using Quadra.Shared.Contracts;
 
 namespace Quadra.Modules.InGame.Persistence;
 
@@ -57,11 +58,14 @@ public sealed class TeamRepository : ITeamRepository
         Guid matchId,
         CancellationToken cancellationToken)
     {
-        var teams = await _context.Teams
+        // Palette order (Azul, Limão, Laranja, Roxo: DECISIONS #88), then name for older teams.
+        var teams = (await _context.Teams
             .AsNoTracking()
             .Where(t => t.MatchId == matchId)
-            .OrderBy(t => t.Name)
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken))
+            .OrderBy(t => TeamPalette.Order(t.Name))
+            .ThenBy(t => t.Name, StringComparer.Ordinal)
+            .ToList();
 
         if (teams.Count == 0)
         {
