@@ -17,4 +17,10 @@ public sealed record FinishedMatchParticipation(
     DateTimeOffset FinishedAt,
     string? Format = null,      // match format (2X2 | 4X4 | 6X6)
     int? SetsWon = null,        // sets won by the player's team
-    int? SetsLost = null);      // sets won by the best opposing team
+    int? SetsLost = null,       // sets won by the best opposing team
+    PlayerMatchActions? Actions = null,  // the player's sheet; null = none recorded
+    int? RalliesPlayed = null,  // points played while the player's team was on court
+    int? PlannedMinutes = null); // the match's planned duration (exposure without sets)
+
+/// <summary>The actions recorded for the player in the match; a null action was not recorded.</summary>
+public sealed record PlayerMatchActions(int? Kills, int? Blocks, int? Aces, int? Digs, int? Assists);

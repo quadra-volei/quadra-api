@@ -11,11 +11,16 @@ public sealed class GetProfileHandler
 {
     private readonly IPlayerProfileRepository _profiles;
     private readonly IProfilePhotoStorage _photoStorage;
+    private readonly IPlayerMatchHistoryRepository _history;
 
-    public GetProfileHandler(IPlayerProfileRepository profiles, IProfilePhotoStorage photoStorage)
+    public GetProfileHandler(
+        IPlayerProfileRepository profiles,
+        IProfilePhotoStorage photoStorage,
+        IPlayerMatchHistoryRepository history)
     {
         _profiles = profiles;
         _photoStorage = photoStorage;
+        _history = history;
     }
 
     /// <summary>
@@ -33,7 +38,8 @@ public sealed class GetProfileHandler
         var includePrivate = callerId == userId;
         var photoUrl = await ResolvePhotoUrlAsync(found.Profile.PhotoObjectKey, _photoStorage, cancellationToken);
         var cardStyle = await CardStyleHandler.MapAsync(found.Profile, includePrivate, _photoStorage, cancellationToken);
-        return MapToResponse(found.Profile, found.Stats, photoUrl, includePrivate, cardStyle);
+        var actions = (await _history.GetActionTotalsAsync([userId], cancellationToken))[userId];
+        return MapToResponse(found.Profile, found.Stats, actions, photoUrl, includePrivate, cardStyle);
     }
 
     /// <summary>
@@ -63,11 +69,12 @@ public sealed class GetProfileHandler
     public static PlayerProfileResponse MapToResponse(
         PlayerProfile profile,
         PlayerStats stats,
+        PlayerActionTotals actions,
         string? photoUrl,
         bool includePrivate,
         PlayerCardStyleResponse cardStyle)
     {
-        var skills = PlayerSkillCalculator.Calculate(profile.DeclaredLevel, profile.Position);
+        var skills = PlayerSkillCalculator.Calculate(profile.DeclaredLevel, profile.Position, actions);
 
         return new PlayerProfileResponse(
             profile.UserId,
@@ -93,7 +100,8 @@ public sealed class GetProfileHandler
             profile.CreatedAt,
             profile.UpdatedAt,
             includePrivate ? profile.ShareActivity : null,
-            cardStyle);
+            cardStyle,
+            PlayerActionsResponse.From(actions));
     }
 
     public static PlayerStatsResponse MapStats(PlayerStats stats) =>

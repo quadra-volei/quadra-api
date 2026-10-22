@@ -30,10 +30,11 @@ public sealed class CreateScoreboardHandlerTests
     private readonly IMatchReader _matchReader = Substitute.For<IMatchReader>();
     private readonly ITeamRepository _teamRepository = Substitute.For<ITeamRepository>();
     private readonly IScoreboardRepository _scoreboardRepository = Substitute.For<IScoreboardRepository>();
+    private readonly IConfirmedPlayersReader _confirmed = Substitute.For<IConfirmedPlayersReader>();
     private readonly TimeProvider _timeProvider = new FixedTimeProvider(FixedNow);
 
     private CreateScoreboardHandler CreateSut() =>
-        new(_matchReader, _teamRepository, _scoreboardRepository, _timeProvider,
+        new(_matchReader, _teamRepository, _scoreboardRepository, _confirmed, _timeProvider,
             NullLogger<CreateScoreboardHandler>.Instance);
 
     private void SetupMatch(Guid matchId, Guid organizerId, string status = "Closed", DateTimeOffset? startsAt = null) =>

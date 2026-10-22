@@ -8,7 +8,7 @@ namespace Quadra.Shared.Contracts;
 public sealed record MatchResult(
     Guid MatchId,
     string ScoreboardState,       // NotStarted | InProgress | Ended
-    string Format,                // BestOf3 | BestOf5
+    string Format,                // SingleGame | BestOf3 | BestOf5 | Free (no fixed teams)
     Guid TeamAId,
     Guid TeamBId,
     int TeamASetsWon,
@@ -21,10 +21,29 @@ public sealed record MatchResult(
     string MvpVotingState,        // None | Open | Closed
     Guid? MvpPlayerId,
     int? MvpVoteCount,
-    int MvpTotalVotes);
+    int MvpTotalVotes,
+    IReadOnlyList<MatchResultPlayerStats>? PlayerStats = null);
 
-/// <summary>Per-set result within a <see cref="MatchResult"/>.</summary>
-public sealed record MatchResultSet(int SetNumber, int TeamAPoints, int TeamBPoints, Guid? WinnerTeamId);
+/// <summary>Per-set result within a <see cref="MatchResult"/>, with the pair that played it (null on old sets).</summary>
+public sealed record MatchResultSet(
+    int SetNumber,
+    int TeamAPoints,
+    int TeamBPoints,
+    Guid? WinnerTeamId,
+    Guid? TeamAId = null,
+    Guid? TeamBId = null);
+
+/// <summary>
+/// The actions recorded for one player in the match. A null action was not recorded in this
+/// match (nobody in it has one), which is not the same as zero.
+/// </summary>
+public sealed record MatchResultPlayerStats(
+    Guid PlayerId,
+    int? Kills,
+    int? Blocks,
+    int? Aces,
+    int? Digs,
+    int? Assists);
 
 /// <summary>Team composition within a <see cref="MatchResult"/>.</summary>
 public sealed record MatchResultTeam(Guid TeamId, string Name, IReadOnlyList<Guid> PlayerIds);

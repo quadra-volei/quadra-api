@@ -57,7 +57,8 @@ public sealed class GetMatchHistoryHandler
                 h.DurationSeconds,
                 h.Format,
                 h.SetsWon,
-                h.SetsLost))
+                h.SetsLost,
+                h.ExposureGames is null ? null : new MatchActionsResponse(h.Kills, h.Blocks, h.Aces, h.Digs, h.Assists)))
             .ToList();
 
         var hasNextPage = (long)page * pageSize < totalCount;

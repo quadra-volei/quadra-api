@@ -17,4 +17,5 @@ public sealed record MatchEdit(
     int? GamePoints,
     decimal? PriceMonthly,
     IReadOnlyList<int>? RecurrenceDays,
-    string? CoverObjectKey);
+    string? CoverObjectKey,
+    bool? FreeTeams = null);

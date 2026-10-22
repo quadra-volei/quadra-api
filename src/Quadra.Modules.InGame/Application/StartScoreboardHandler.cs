@@ -66,10 +66,13 @@ public sealed class StartScoreboardHandler
             throw new InvalidScoreboardStateException("The game has already started or ended.");
         }
 
-        // 5. Transition to InProgress and open set 1.
+        // 5. Transition to InProgress and open set 1 (a free match has no sets: it only runs).
         var now = _timeProvider.GetUtcNow();
         scoreboard.Start(now);
-        scoreboard.OpenSet(setNumber: 1, isDecidingSet: false, now);
+        if (scoreboard.Format != ScoreboardFormat.Free)
+        {
+            scoreboard.OpenSet(setNumber: 1, isDecidingSet: false, now);
+        }
 
         // 6. Persist inside a single transaction.
         await _scoreboardRepository.UpdateAsync(scoreboard, cancellationToken);

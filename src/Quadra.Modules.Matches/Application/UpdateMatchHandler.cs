@@ -87,7 +87,8 @@ public sealed class UpdateMatchHandler
                 GamePoints: request.GamePoints,
                 PriceMonthly: request.PriceMonthly,
                 RecurrenceDays: request.RecurrenceDays,
-                CoverObjectKey: cover),
+                CoverObjectKey: cover,
+                FreeTeams: request.FreeTeams),
             _timeProvider.GetUtcNow());
 
         await _matchRepository.UpdateAsync(match, cancellationToken);

@@ -59,8 +59,8 @@ public sealed class RecordPointHandler
         var scoreboard = await _scoreboardRepository.FindByMatchAsync(matchId, cancellationToken)
             ?? throw new ScoreboardNotFoundException();
 
-        // 4. Must be in progress.
-        if (scoreboard.State != ScoreboardState.InProgress)
+        // 4. Must be in progress, with a score to keep.
+        if (scoreboard.State != ScoreboardState.InProgress || scoreboard.Format == ScoreboardFormat.Free)
         {
             throw new InvalidScoreboardStateException(
                 "Points can only be recorded while the game is in progress.");

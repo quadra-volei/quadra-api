@@ -16,6 +16,8 @@ public sealed class EndScoreboardHandler
 {
     private readonly IMatchReader _matchReader;
     private readonly IScoreboardRepository _scoreboardRepository;
+    private readonly ITeamRepository _teamRepository;
+    private readonly IConfirmedPlayersReader _confirmedPlayers;
     private readonly IEventPublisher _eventPublisher;
     private readonly IMatchRoomNotifier _matchRoomNotifier;
     private readonly TimeProvider _timeProvider;
@@ -24,6 +26,8 @@ public sealed class EndScoreboardHandler
     public EndScoreboardHandler(
         IMatchReader matchReader,
         IScoreboardRepository scoreboardRepository,
+        ITeamRepository teamRepository,
+        IConfirmedPlayersReader confirmedPlayers,
         IEventPublisher eventPublisher,
         IMatchRoomNotifier matchRoomNotifier,
         TimeProvider timeProvider,
@@ -31,6 +35,8 @@ public sealed class EndScoreboardHandler
     {
         _matchReader = matchReader;
         _scoreboardRepository = scoreboardRepository;
+        _teamRepository = teamRepository;
+        _confirmedPlayers = confirmedPlayers;
         _eventPublisher = eventPublisher;
         _matchRoomNotifier = matchRoomNotifier;
         _timeProvider = timeProvider;
@@ -77,6 +83,13 @@ public sealed class EndScoreboardHandler
         var currentSet = scoreboard.Sets
             .FirstOrDefault(s => s.SetNumber == scoreboard.CurrentSetNumber && s.Status == SetStatus.InProgress);
         currentSet?.Finish(winnerTeamId: null, now);
+
+        // 6b. No fixed teams: whoever confirmed during the session also played.
+        if (scoreboard.Format == ScoreboardFormat.Free)
+        {
+            var roster = await FreeRoster.ReplaceAsync(matchId, _confirmedPlayers, _teamRepository, now, cancellationToken);
+            scoreboard.SetPair(roster.Id, roster.Id);
+        }
 
         // 7. End the game.
         scoreboard.End(winnerTeamId, now);

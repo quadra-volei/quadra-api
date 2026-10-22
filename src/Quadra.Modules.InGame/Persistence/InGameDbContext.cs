@@ -22,6 +22,7 @@ public sealed class InGameDbContext : DbContext
     public DbSet<ScoreboardSet> ScoreboardSets => Set<ScoreboardSet>();
     public DbSet<MvpVoting> MvpVotings => Set<MvpVoting>();
     public DbSet<MvpVote> MvpVotes => Set<MvpVote>();
+    public DbSet<PlayerMatchStats> PlayerMatchStats => Set<PlayerMatchStats>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -34,5 +35,6 @@ public sealed class InGameDbContext : DbContext
         modelBuilder.ApplyConfiguration(new ScoreboardSetConfiguration());
         modelBuilder.ApplyConfiguration(new MvpVotingConfiguration());
         modelBuilder.ApplyConfiguration(new MvpVoteConfiguration());
+        modelBuilder.ApplyConfiguration(new PlayerMatchStatsConfiguration());
     }
 }

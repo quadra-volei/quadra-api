@@ -63,6 +63,13 @@ public sealed class PlayerMatchHistoryEntryConfiguration : IEntityTypeConfigurat
         builder.Property(h => h.SetsLost)
             .HasColumnName("sets_lost");
 
+        builder.Property(h => h.Kills).HasColumnName("kills");
+        builder.Property(h => h.Blocks).HasColumnName("blocks");
+        builder.Property(h => h.Aces).HasColumnName("aces");
+        builder.Property(h => h.Digs).HasColumnName("digs");
+        builder.Property(h => h.Assists).HasColumnName("assists");
+        builder.Property(h => h.ExposureGames).HasColumnName("exposure_games");
+
         builder.Property(h => h.RecordedAt)
             .HasColumnName("recorded_at")
             .IsRequired();
