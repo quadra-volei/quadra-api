@@ -26,7 +26,6 @@ public sealed class MatchesController : ControllerBase
     private readonly CancelMatchHandler _cancelHandler;
     private readonly UpdateMatchHandler _updateHandler;
     private readonly IValidator<UpdateMatchRequest> _updateValidator;
-    private readonly AddPresenceHandler _addPresenceHandler;
     private readonly UpdateMyPresenceHandler _updateMyPresenceHandler;
     private readonly GetPresenceListHandler _getPresenceListHandler;
     private readonly RemovePresenceHandler _removePresenceHandler;
@@ -38,7 +37,6 @@ public sealed class MatchesController : ControllerBase
     private readonly IValidator<AddGuestRequest> _addGuestValidator;
     private readonly IValidator<CreateMatchRequest> _createValidator;
     private readonly IValidator<ListMatchesQuery> _listValidator;
-    private readonly IValidator<AddPresenceRequest> _addPresenceValidator;
     private readonly IValidator<UpdateMyPresenceRequest> _updateMyPresenceValidator;
     private readonly IMatchAccessReader _access;
 
@@ -49,7 +47,6 @@ public sealed class MatchesController : ControllerBase
         CancelMatchHandler cancelHandler,
         UpdateMatchHandler updateHandler,
         IValidator<UpdateMatchRequest> updateValidator,
-        AddPresenceHandler addPresenceHandler,
         UpdateMyPresenceHandler updateMyPresenceHandler,
         GetPresenceListHandler getPresenceListHandler,
         RemovePresenceHandler removePresenceHandler,
@@ -61,7 +58,6 @@ public sealed class MatchesController : ControllerBase
         IValidator<AddGuestRequest> addGuestValidator,
         IValidator<CreateMatchRequest> createValidator,
         IValidator<ListMatchesQuery> listValidator,
-        IValidator<AddPresenceRequest> addPresenceValidator,
         IValidator<UpdateMyPresenceRequest> updateMyPresenceValidator,
         IMatchAccessReader access)
     {
@@ -71,7 +67,6 @@ public sealed class MatchesController : ControllerBase
         _cancelHandler = cancelHandler;
         _updateHandler = updateHandler;
         _updateValidator = updateValidator;
-        _addPresenceHandler = addPresenceHandler;
         _updateMyPresenceHandler = updateMyPresenceHandler;
         _getPresenceListHandler = getPresenceListHandler;
         _removePresenceHandler = removePresenceHandler;
@@ -83,7 +78,6 @@ public sealed class MatchesController : ControllerBase
         _addGuestValidator = addGuestValidator;
         _createValidator = createValidator;
         _listValidator = listValidator;
-        _addPresenceValidator = addPresenceValidator;
         _updateMyPresenceValidator = updateMyPresenceValidator;
         _access = access;
     }
@@ -310,57 +304,6 @@ public sealed class MatchesController : ControllerBase
         catch (InvalidMatchStatusTransitionException ex)
         {
             return Conflict(new ProblemDetails { Detail = ex.Message });
-        }
-    }
-
-    /// <summary>POST /api/v1/matches/{id}/presences</summary>
-    [HttpPost("{id:guid}/presences")]
-    public async Task<ActionResult<PresenceResponse>> AddPresence(
-        Guid id,
-        [FromBody] AddPresenceRequest request,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetCallerId(out var callerId))
-        {
-            return Unauthorized();
-        }
-
-        var validation = await _addPresenceValidator.ValidateAsync(request, cancellationToken);
-        if (!validation.IsValid)
-        {
-            foreach (var failure in validation.Errors)
-            {
-                ModelState.AddModelError(failure.PropertyName, failure.ErrorMessage);
-            }
-
-            return ValidationProblem(ModelState);
-        }
-
-        try
-        {
-            var presence = await _addPresenceHandler.HandleAsync(id, callerId, request, cancellationToken);
-            var response = ToPresenceResponse(presence);
-            return CreatedAtAction(nameof(GetPresences), new { id }, response);
-        }
-        catch (MatchNotFoundException)
-        {
-            return NotFound();
-        }
-        catch (MatchAccessDeniedException)
-        {
-            return Forbid();
-        }
-        catch (PresenceWindowNotOpenException ex)
-        {
-            return Conflict(new ProblemDetails { Detail = ex.Message });
-        }
-        catch (PresenceAlreadyExistsException ex)
-        {
-            return Conflict(new ProblemDetails { Detail = ex.Message });
-        }
-        catch (DbUpdateException)
-        {
-            return Conflict(new ProblemDetails { Detail = "Player is already on the presence list." });
         }
     }
 

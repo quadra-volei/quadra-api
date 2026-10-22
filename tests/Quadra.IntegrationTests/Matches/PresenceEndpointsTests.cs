@@ -410,13 +410,14 @@ public sealed class PresenceEndpointsTests : IClassFixture<MatchesWebApplication
         presence!.Status.Should().Be(PresenceStatus.Confirmed);
     }
 
-    // ─── POST /presences validation ──────────────────────────────────────────
+    // ─── POST /presences is gone (SEC-08) ────────────────────────────────────
 
     /// <summary>
-    /// Covers: POST /api/v1/matches/{id}/presences returns 400 when PlayerType is missing.
+    /// The organizer can no longer put an account on the list without its consent (SEC-08):
+    /// players join or confirm themselves, people without an account are guests.
     /// </summary>
     [Fact]
-    public async Task POST_presences_without_PlayerType_returns_400()
+    public async Task POST_presences_no_longer_exists()
     {
         await ResetAsync();
         var matchId = await CreateMatchAsync(OrganizerUserId);
@@ -424,79 +425,10 @@ public sealed class PresenceEndpointsTests : IClassFixture<MatchesWebApplication
 
         var response = await client.PostAsJsonAsync(
             $"/api/v1/matches/{matchId}/presences",
-            new { playerId = Guid.NewGuid(), playerType = "" },
+            new { playerId = OtherUserId, playerType = "Regular" },
             TestContext.Current.CancellationToken);
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    /// <summary>
-    /// Covers: POST /api/v1/matches/{id}/presences returns 400 when PlayerId is empty.
-    /// </summary>
-    [Fact]
-    public async Task POST_presences_with_empty_PlayerId_returns_400()
-    {
-        await ResetAsync();
-        var matchId = await CreateMatchAsync(OrganizerUserId);
-        var client = _fx.CreateAuthenticatedClient(OrganizerUserId);
-
-        var response = await client.PostAsJsonAsync(
-            $"/api/v1/matches/{matchId}/presences",
-            new { playerId = Guid.Empty, playerType = "Regular" },
-            TestContext.Current.CancellationToken);
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    /// <summary>
-    /// Covers: POST /api/v1/matches/{id}/presences returns 403 when caller is not the organizer.
-    /// </summary>
-    [Fact]
-    public async Task POST_presences_by_non_organizer_returns_403()
-    {
-        await ResetAsync();
-        var matchId = await CreateMatchAsync(OrganizerUserId);
-        var client = _fx.CreateAuthenticatedClient(OtherUserId);
-
-        var response = await client.PostAsJsonAsync(
-            $"/api/v1/matches/{matchId}/presences",
-            new { playerId = Guid.NewGuid(), playerType = "Regular" },
-            TestContext.Current.CancellationToken);
-
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-    }
-
-    /// <summary>
-    /// Covers: POST /api/v1/matches/{id}/presences returns 409 when player already has a presence.
-    /// </summary>
-    [Fact]
-    public async Task POST_presences_for_duplicate_player_returns_409()
-    {
-        await ResetAsync();
-        var matchId = await CreateMatchAsync(OrganizerUserId);
-
-        // Force match to Open (not past windowClosesAt) so the window check passes.
-        using (var scope = _fx.Factory.Services.CreateScope())
-        {
-            var ctx = scope.ServiceProvider.GetRequiredService<MatchesDbContext>();
-            await ctx.Database.ExecuteSqlAsync(
-                $"UPDATE matches SET window_closes_at = {DateTimeOffset.UtcNow.AddDays(30)} WHERE id = {matchId}",
-                TestContext.Current.CancellationToken);
-        }
-
-        var playerId = Guid.NewGuid();
-        var client = _fx.CreateAuthenticatedClient(OrganizerUserId);
-        var payload = new { playerId, playerType = "Regular" };
-
-        // First insertion — should succeed.
-        var first = await client.PostAsJsonAsync(
-            $"/api/v1/matches/{matchId}/presences", payload, TestContext.Current.CancellationToken);
-        first.StatusCode.Should().Be(HttpStatusCode.Created);
-
-        // Second insertion of the same player — should conflict.
-        var second = await client.PostAsJsonAsync(
-            $"/api/v1/matches/{matchId}/presences", payload, TestContext.Current.CancellationToken);
-        second.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        response.StatusCode.Should().Be(HttpStatusCode.MethodNotAllowed);
     }
 
     // ─── DELETE /presences/{playerId} ────────────────────────────────────────
