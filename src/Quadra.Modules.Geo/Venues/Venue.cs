@@ -22,6 +22,32 @@ public sealed class Venue
 
     /// <summary>When the coordinates came from Google; they are deleted 30 days later.</summary>
     public DateTimeOffset FetchedAt { get; private set; }
+
+    /// <summary>
+    /// What kind of place it is (<see cref="VenueKinds"/>), from which of our own searches found
+    /// it — never Google's place types, which may not be stored (DECISIONS #87).
+    /// </summary>
+    public string Kind { get; private set; } = VenueKinds.Court;
+}
+
+/// <summary>The kinds of arena the map filters by.</summary>
+public static class VenueKinds
+{
+    /// <summary>Quadra convencional (indoor or hard court).</summary>
+    public const string Court = "Court";
+
+    /// <summary>Quadra de areia.</summary>
+    public const string Sand = "Sand";
+
+    public const string Park = "Park";
+
+    /// <summary>A place found by several searches is the most specific kind: park, then sand.</summary>
+    public static int Rank(string kind) => kind switch
+    {
+        Park => 2,
+        Sand => 1,
+        _ => 0,
+    };
 }
 
 /// <summary>

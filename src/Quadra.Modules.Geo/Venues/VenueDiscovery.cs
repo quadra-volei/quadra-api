@@ -53,7 +53,15 @@ public sealed class VenueDiscovery
     /// </summary>
     public const int MaxCellsPerRequest = 4;
 
-    private static readonly string[] Queries = ["quadra de vôlei", "vôlei de praia", "arena de vôlei"];
+    // Each search says what kind of place it finds (DECISIONS #87).
+    private static readonly (string Text, string Kind)[] Queries =
+    [
+        ("quadra de vôlei", VenueKinds.Court),
+        ("arena de vôlei", VenueKinds.Court),
+        ("vôlei de praia", VenueKinds.Sand),
+        ("quadra de areia vôlei", VenueKinds.Sand),
+        ("parque com quadra de vôlei", VenueKinds.Park),
+    ];
 
     private readonly GeoDbContext _db;
     private readonly IVenueSource _source;
@@ -108,9 +116,14 @@ public sealed class VenueDiscovery
 
     private async Task DiscoverCellAsync(VenueCell cell, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        var searches = Queries.Select(q =>
-            _source.SearchPlaceIdsAsync(q, cell.South, cell.West, cell.North, cell.East, cancellationToken));
-        var ids = (await Task.WhenAll(searches)).SelectMany(found => found).Distinct().ToList();
+        var searches = Queries.Select(async q =>
+            (q.Kind, Ids: await _source.SearchPlaceIdsAsync(q.Text, cell.South, cell.West, cell.North, cell.East, cancellationToken)));
+        var found = await Task.WhenAll(searches);
+        var kinds = found
+            .SelectMany(f => f.Ids.Select(id => (Id: id, f.Kind)))
+            .GroupBy(f => f.Id)
+            .ToDictionary(g => g.Key, g => g.Select(f => f.Kind).MaxBy(VenueKinds.Rank)!);
+        var ids = kinds.Keys.ToList();
 
         var current = await _db.Venues
             .AsNoTracking()
@@ -118,6 +131,14 @@ public sealed class VenueDiscovery
             .Select(v => v.PlaceId)
             .ToListAsync(cancellationToken);
         var toFetch = ids.Except(current).ToList();
+
+        // Places already cached only get their kind from this search (no Google call).
+        foreach (var id in current)
+        {
+            await _db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE venues SET kind = {kinds[id]} WHERE place_id = {id}", cancellationToken);
+        }
+
         var locations = await Task.WhenAll(toFetch.Select(id => _source.GetLocationAsync(id, cancellationToken)));
 
         // ponytail: two people opening the same new area search it twice; the upserts keep one row.
@@ -130,9 +151,9 @@ public sealed class VenueDiscovery
 
             await _db.Database.ExecuteSqlInterpolatedAsync(
                 $"""
-                INSERT INTO venues (place_id, location, fetched_at)
-                VALUES ({toFetch[i]}, ST_SetSRID(ST_MakePoint({location.Longitude}, {location.Latitude}), 4326)::geography, {now})
-                ON CONFLICT (place_id) DO UPDATE SET location = EXCLUDED.location, fetched_at = EXCLUDED.fetched_at
+                INSERT INTO venues (place_id, location, fetched_at, kind)
+                VALUES ({toFetch[i]}, ST_SetSRID(ST_MakePoint({location.Longitude}, {location.Latitude}), 4326)::geography, {now}, {kinds[toFetch[i]]})
+                ON CONFLICT (place_id) DO UPDATE SET location = EXCLUDED.location, fetched_at = EXCLUDED.fetched_at, kind = EXCLUDED.kind
                 """,
                 cancellationToken);
         }
