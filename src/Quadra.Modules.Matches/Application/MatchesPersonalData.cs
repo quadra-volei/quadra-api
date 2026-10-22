@@ -48,7 +48,8 @@ public sealed class MatchesPersonalData : IPersonalDataStore
         {
             try
             {
-                await _cancel.HandleAsync(matchId, userId, cancellationToken);
+                // A deleted organizer's recurring groups end with them.
+                await _cancel.HandleAsync(matchId, userId, endGroup: true, cancellationToken);
             }
             catch (InvalidMatchStatusTransitionException)
             {

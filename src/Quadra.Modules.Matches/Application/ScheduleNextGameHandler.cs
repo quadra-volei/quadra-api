@@ -7,10 +7,11 @@ using Quadra.Shared.Events.Matches;
 namespace Quadra.Modules.Matches.Application;
 
 /// <summary>
-/// Creates the next game of a recurring group once a game's summary is generated (DECISIONS #64),
-/// so the group keeps playing and its ranking keeps adding up. Everyone who had confirmed the
-/// finished game is put on the new one as Pending (they confirm again each game, and a private
-/// game stays visible to them).
+/// Creates the next game of a recurring group once a game's summary is generated (DECISIONS #64)
+/// or the game is cancelled, so the group keeps playing and its ranking keeps adding up. After a
+/// summary, everyone who had confirmed the finished game is put on the new one as Pending (they
+/// confirm again each game, and a private game stays visible to them); after a cancellation
+/// nobody is carried over.
 /// </summary>
 public sealed class ScheduleNextGameHandler
 {
@@ -38,7 +39,7 @@ public sealed class ScheduleNextGameHandler
     }
 
     /// <summary>Schedules the game after <paramref name="finished"/>; does nothing for a one-off.</summary>
-    public async Task ScheduleAsync(Match finished, CancellationToken cancellationToken)
+    public async Task ScheduleAsync(Match finished, bool carryConfirmed, CancellationToken cancellationToken)
     {
         if (finished.Type != Entities.MatchType.Recurring)
         {
@@ -51,11 +52,14 @@ public sealed class ScheduleNextGameHandler
             now);
         await _matches.AddAsync(next, cancellationToken);
 
-        var confirmed = (await _presences.ListByMatchAsync(finished.Id, cancellationToken))
-            .Where(p => p.Status == PresenceStatus.Confirmed);
-        foreach (var presence in confirmed)
+        if (carryConfirmed)
         {
-            await _presences.AddAsync(MatchPresence.Create(next.Id, presence.PlayerId, presence.PlayerType, now), cancellationToken);
+            var confirmed = (await _presences.ListByMatchAsync(finished.Id, cancellationToken))
+                .Where(p => p.Status == PresenceStatus.Confirmed);
+            foreach (var presence in confirmed)
+            {
+                await _presences.AddAsync(MatchPresence.Create(next.Id, presence.PlayerId, presence.PlayerType, now), cancellationToken);
+            }
         }
 
         await _eventPublisher.PublishAsync(
