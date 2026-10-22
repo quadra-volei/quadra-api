@@ -74,4 +74,8 @@ public sealed class MatchResultReader : IMatchResultReader
             MvpVoteCount: voting?.MvpVoteCount,
             MvpTotalVotes: voting?.TotalVotes ?? 0);
     }
+
+    /// <inheritdoc/>
+    public Task<IReadOnlySet<Guid>> ListEndedAsync(IReadOnlyCollection<Guid> matchIds, CancellationToken cancellationToken) =>
+        _scoreboardRepository.ListEndedMatchIdsAsync(matchIds, cancellationToken);
 }

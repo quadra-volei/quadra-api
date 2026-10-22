@@ -13,4 +13,7 @@ public interface IMatchResultReader
     /// or <c>null</c> when no scoreboard has been created for the match.
     /// </summary>
     Task<MatchResult?> GetMatchResultAsync(Guid matchId, CancellationToken cancellationToken);
+
+    /// <summary>Of <paramref name="matchIds"/>, the ones whose game already ended (scoreboard <c>Ended</c>).</summary>
+    Task<IReadOnlySet<Guid>> ListEndedAsync(IReadOnlyCollection<Guid> matchIds, CancellationToken cancellationToken);
 }
