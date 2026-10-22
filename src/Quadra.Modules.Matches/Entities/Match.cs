@@ -66,6 +66,12 @@ public sealed class Match
     public short? GamePoints { get; private set; }
 
     public const int DefaultGamePoints = 25;
+
+    /// <summary>
+    /// No fixed teams (DECISIONS #86): players are one list, teams form and change on court, and
+    /// the game is started and ended with no score. False is the usual match with teams.
+    /// </summary>
+    public bool FreeTeams { get; private set; }
     public const int MinGamePoints = 5;
     public const int MaxGamePoints = 50;
 
@@ -228,6 +234,7 @@ public sealed class Match
             Level = settings.Level,
             DurationMinutes = settings.DurationMinutes.HasValue ? (short)settings.DurationMinutes.Value : null,
             GamePoints = (short)(settings.GamePoints ?? DefaultGamePoints),
+            FreeTeams = settings.FreeTeams,
             Visibility = settings.Visibility,
             InviteMode = settings.Visibility == MatchVisibility.Private ? settings.InviteMode : null,
             InviteCode = settings is { Visibility: MatchVisibility.Private, InviteMode: MatchInviteMode.Code }
@@ -329,6 +336,7 @@ public sealed class Match
         Level = edit.Level;
         DurationMinutes = edit.DurationMinutes.HasValue ? (short)edit.DurationMinutes.Value : null;
         GamePoints = edit.GamePoints.HasValue ? (short)edit.GamePoints.Value : GamePoints;
+        FreeTeams = edit.FreeTeams ?? FreeTeams;
         CoverObjectKey = edit.CoverObjectKey;
 
         if (Type == MatchType.Recurring)

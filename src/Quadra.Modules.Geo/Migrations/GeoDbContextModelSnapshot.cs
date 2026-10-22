@@ -101,6 +101,14 @@ namespace Quadra.Modules.Geo.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("fetched_at");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasDefaultValue("Court")
+                        .HasColumnName("kind");
+
                     b.Property<Point>("Location")
                         .IsRequired()
                         .HasColumnType("geography (point, 4326)")

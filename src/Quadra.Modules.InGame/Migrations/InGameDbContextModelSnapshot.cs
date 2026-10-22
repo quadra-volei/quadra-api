@@ -149,6 +149,78 @@ namespace Quadra.Modules.InGame.Migrations
                     b.ToTable("mvp_votings", (string)null);
                 });
 
+            modelBuilder.Entity("Quadra.Modules.InGame.Entities.PlayerMatchStats", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<int>("Aces")
+                        .HasColumnType("integer")
+                        .HasColumnName("aces");
+
+                    b.Property<int>("Assists")
+                        .HasColumnType("integer")
+                        .HasColumnName("assists");
+
+                    b.Property<int>("Blocks")
+                        .HasColumnType("integer")
+                        .HasColumnName("blocks");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<int>("Digs")
+                        .HasColumnType("integer")
+                        .HasColumnName("digs");
+
+                    b.Property<int>("Kills")
+                        .HasColumnType("integer")
+                        .HasColumnName("kills");
+
+                    b.Property<Guid>("MatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("match_id");
+
+                    b.Property<Guid>("PlayerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("player_id");
+
+                    b.Property<Guid>("RecordedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recorded_by");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchId", "PlayerId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_player_match_stats_match_player");
+
+                    b.ToTable("player_match_stats", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_player_match_stats_aces", "aces BETWEEN 0 AND 99");
+
+                            t.HasCheckConstraint("ck_player_match_stats_assists", "assists BETWEEN 0 AND 99");
+
+                            t.HasCheckConstraint("ck_player_match_stats_blocks", "blocks BETWEEN 0 AND 99");
+
+                            t.HasCheckConstraint("ck_player_match_stats_digs", "digs BETWEEN 0 AND 99");
+
+                            t.HasCheckConstraint("ck_player_match_stats_kills", "kills BETWEEN 0 AND 99");
+                        });
+                });
+
             modelBuilder.Entity("Quadra.Modules.InGame.Entities.Scoreboard", b =>
                 {
                     b.Property<Guid>("Id")

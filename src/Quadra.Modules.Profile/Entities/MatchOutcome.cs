@@ -9,4 +9,7 @@ public enum MatchOutcome
     Win,
     Loss,
     Draw,
+
+    /// <summary>Played with no fixed teams (DECISIONS #86): nobody wins or loses.</summary>
+    NoResult,
 }

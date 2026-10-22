@@ -9,13 +9,15 @@ namespace Quadra.Shared.Contracts;
 /// <param name="Position">Court position code (LEV, PON, OPO, CEN, LIB, COR); null when not set.</param>
 /// <param name="Level">Beginner | Intermediate | Advanced | Elite.</param>
 /// <param name="PhotoUrl">Short-lived photo URL; null when the player has no photo.</param>
+/// <param name="Overall">GERAL (1–99), the same number the profile and the card show; null without a profile.</param>
 public sealed record PlayerSummary(
     Guid UserId,
     string DisplayName,
     string? Handle,
     string? Position,
     string Level,
-    string? PhotoUrl);
+    string? PhotoUrl,
+    int? Overall = null);
 
 /// <summary>
 /// Cross-module read interface over player identity, implemented by the Profile module.

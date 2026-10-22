@@ -9,4 +9,5 @@ public sealed record MatchDescriptor(
     Guid MatchId,
     string Name,
     DateTimeOffset DateTime,
-    string? Format = null);       // 2X2 | 4X4 | 6X6; null when the match declared none
+    string? Format = null,        // 2X2 | 4X4 | 6X6; null when the match declared none
+    int? DurationMinutes = null); // planned playing time; null when the match declared none

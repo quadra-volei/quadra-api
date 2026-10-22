@@ -59,6 +59,12 @@ public sealed class ApplyFinishedMatchHandler : IPlayerStatsWriter
             participation.FinishedAt,
             now);
         entry.SetScore(participation.Format, participation.SetsWon, participation.SetsLost);
+        if (participation.Actions is { } a)
+        {
+            entry.SetActions(
+                a.Kills, a.Blocks, a.Aces, a.Digs, a.Assists,
+                PlayerSkillCalculator.ExposureGames(participation.RalliesPlayed, participation.PlannedMinutes, participation.Format));
+        }
 
         await _history.UpsertAsync(entry, cancellationToken);
 
@@ -75,13 +81,13 @@ public sealed class ApplyFinishedMatchHandler : IPlayerStatsWriter
             // Defensive: profile should already be provisioned; bootstrap it if not.
             profile = PlayerProfile.Provision(participation.PlayerId, now);
             stats = PlayerStats.Empty(participation.PlayerId, now);
-            stats.Recompute(counts.Wins, counts.Losses, counts.Draws, counts.MvpsReceived, now);
+            stats.Recompute(counts.Wins, counts.Losses, counts.Draws, counts.MvpsReceived, now, counts.NoResults);
             profile.SetLevel(PlayerLevelCalculator.Calculate(stats, profile.DeclaredLevel), now);
             await _profiles.AddAsync(profile, stats, cancellationToken);
         }
         else
         {
-            found.Stats.Recompute(counts.Wins, counts.Losses, counts.Draws, counts.MvpsReceived, now);
+            found.Stats.Recompute(counts.Wins, counts.Losses, counts.Draws, counts.MvpsReceived, now, counts.NoResults);
             found.Profile.SetLevel(
                 PlayerLevelCalculator.Calculate(found.Stats, found.Profile.DeclaredLevel), now);
             await _profiles.UpdateAsync(found.Profile, cancellationToken);

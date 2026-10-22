@@ -6,14 +6,16 @@ namespace Quadra.Modules.Geo.Contracts;
 /// </summary>
 public sealed record NearbyVenuesResponse(
     IReadOnlyList<NearbyVenueResponse> Items,
-    int Count);
+    int Count,
+    bool HasMore = false);                     // more arenas in the radius than listed (closest kept)
 
 public sealed record NearbyVenueResponse(
     string PlaceId,
     double Latitude,
     double Longitude,
     double DistanceKm,                         // from the query point, 3 decimals
-    IReadOnlyList<VenueMatchResponse> Matches); // public games here today or happening now, earliest first
+    IReadOnlyList<VenueMatchResponse> Matches, // public games here today or happening now, earliest first
+    string Kind = "Court");                    // Court | Sand | Park (DECISIONS #87)
 
 public sealed record VenueMatchResponse(
     Guid Id,

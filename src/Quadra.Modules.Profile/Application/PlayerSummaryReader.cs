@@ -14,11 +14,13 @@ public sealed class PlayerSummaryReader : IPlayerSummaryReader
 {
     private readonly ProfileDbContext _context;
     private readonly IProfilePhotoStorage _photoStorage;
+    private readonly IPlayerMatchHistoryRepository _history;
 
-    public PlayerSummaryReader(ProfileDbContext context, IProfilePhotoStorage photoStorage)
+    public PlayerSummaryReader(ProfileDbContext context, IProfilePhotoStorage photoStorage, IPlayerMatchHistoryRepository history)
     {
         _context = context;
         _photoStorage = photoStorage;
+        _history = history;
     }
 
     public async Task<IReadOnlyDictionary<Guid, PlayerSummary>> GetSummariesAsync(
@@ -38,6 +40,7 @@ public sealed class PlayerSummaryReader : IPlayerSummaryReader
             .AsNoTracking()
             .Where(p => ids.Contains(p.UserId))
             .ToListAsync(cancellationToken);
+        var actions = await _history.GetActionTotalsAsync(ids, cancellationToken);
 
         foreach (var profile in profiles)
         {
@@ -50,7 +53,8 @@ public sealed class PlayerSummaryReader : IPlayerSummaryReader
                 profile.Handle,
                 profile.Position?.ToString(),
                 profile.Level.ToString(),
-                photoUrl);
+                photoUrl,
+                PlayerSkillCalculator.Calculate(profile.DeclaredLevel, profile.Position, actions[profile.UserId]).Overall);
         }
 
         return result;

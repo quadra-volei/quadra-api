@@ -92,6 +92,11 @@ public abstract class ScoreboardSetHandlerBase
             throw new InvalidScoreboardStateException("The game is not in progress.");
         }
 
+        if (scoreboard.Format == ScoreboardFormat.Free)
+        {
+            throw new InvalidScoreboardStateException("A match without fixed teams has no sets.");
+        }
+
         return scoreboard;
     }
 

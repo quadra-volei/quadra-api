@@ -76,6 +76,12 @@ namespace Quadra.Modules.Matches.Migrations
                         .HasColumnType("character varying(8)")
                         .HasColumnName("format");
 
+                    b.Property<bool>("FreeTeams")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("free_teams");
+
                     b.Property<string>("Frequency")
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)")

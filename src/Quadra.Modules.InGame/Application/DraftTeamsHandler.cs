@@ -158,7 +158,7 @@ public sealed class DraftTeamsHandler
                 .ToList();
 
         var teams = Enumerable.Range(0, teamCount)
-            .Select(i => Team.Create(matchId, $"Team {(char)('A' + i)}", now))
+            .Select(i => Team.Create(matchId, TeamPalette.Names[i], now))
             .ToList();
 
         for (var i = 0; i < ordered.Count; i++)

@@ -49,9 +49,14 @@ public sealed class GetNearbyVenuesHandler
             .AsNoTracking()
             .Where(v => v.FetchedAt > freshSince && v.Location.IsWithinDistance(point, radiusMeters))
             .OrderBy(v => v.Location.Distance(point))
-            .Take(MaxResults)
-            .Select(v => new { v.PlaceId, v.Location, DistanceMeters = v.Location.Distance(point) })
+            .Take(MaxResults + 1)
+            .Select(v => new { v.PlaceId, v.Location, v.Kind, DistanceMeters = v.Location.Distance(point) })
             .ToListAsync(cancellationToken);
+        var hasMore = venues.Count > MaxResults;
+        if (hasMore)
+        {
+            venues.RemoveAt(MaxResults);
+        }
 
         if (venues.Count == 0)
         {
@@ -94,10 +99,11 @@ public sealed class GetNearbyVenuesHandler
                 v.Location.Y,
                 v.Location.X,
                 Math.Round(v.DistanceMeters / 1000, 3),
-                byVenue[v.PlaceId]))
+                byVenue[v.PlaceId],
+                v.Kind))
             .ToList();
 
-        return new NearbyVenuesResponse(items, items.Count);
+        return new NearbyVenuesResponse(items, items.Count, hasMore);
     }
 }
 

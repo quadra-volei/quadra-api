@@ -10,12 +10,12 @@ namespace Quadra.Modules.InGame.Validation;
 public sealed class CreateScoreboardRequestValidator : AbstractValidator<CreateScoreboardRequest>
 {
     private static readonly HashSet<string> ValidFormats =
-        new(StringComparer.OrdinalIgnoreCase) { "SingleGame", "BestOf3", "BestOf5" };
+        new(StringComparer.OrdinalIgnoreCase) { "SingleGame", "BestOf3", "BestOf5", "Free" };
 
     public CreateScoreboardRequestValidator()
     {
         RuleFor(x => x.Format)
             .Must(f => f is null || ValidFormats.Contains(f))
-            .WithMessage("Format must be 'SingleGame', 'BestOf3' or 'BestOf5'.");
+            .WithMessage("Format must be 'SingleGame', 'BestOf3', 'BestOf5' or 'Free'.");
     }
 }

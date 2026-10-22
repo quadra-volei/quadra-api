@@ -11,4 +11,8 @@ public sealed record MatchHistoryEntryResponse(
     int? DurationSeconds,
     string? Format = null,
     int? SetsWon = null,
-    int? SetsLost = null);
+    int? SetsLost = null,
+    MatchActionsResponse? Actions = null);  // null when no sheet was recorded
+
+/// <summary>A player's actions in one match; a null action was not recorded.</summary>
+public sealed record MatchActionsResponse(int? Kills, int? Blocks, int? Aces, int? Digs, int? Assists);

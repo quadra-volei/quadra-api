@@ -40,11 +40,14 @@ public sealed class VenuesEndpointTests : IClassFixture<MatchesWebApplicationFac
     public async Task Lists_the_area_arenas_with_todays_public_games_and_searches_google_once()
     {
         await ResetAsync();
-        var source = new FixedVenueSource(new()
-        {
-            ["arena-a"] = (Lat, Lon),
-            ["arena-b"] = (Lat + 0.009, Lon),
-        });
+        var source = new FixedVenueSource(
+            new()
+            {
+                ["arena-a"] = (Lat, Lon),
+                ["arena-b"] = (Lat + 0.009, Lon),
+            },
+            // Which of our searches finds each one decides its kind (DECISIONS #87).
+            foundBy: new() { ["arena-a"] = "arena", ["arena-b"] = "praia" });
         var client = Client(source);
 
         var today = await SeedMatchAsync("Hoje", Lat + 0.0003, Lon); // ~33 m from arena A
@@ -65,6 +68,9 @@ public sealed class VenuesEndpointTests : IClassFixture<MatchesWebApplicationFac
         first.Single(v => v.GetProperty("placeId").GetString() == "arena-b")
             .GetProperty("matches").GetArrayLength().Should().Be(0);
         first[0].GetProperty("placeId").GetString().Should().Be("arena-a", "closest first");
+        a.GetProperty("kind").GetString().Should().Be("Court");
+        first.Single(v => v.GetProperty("placeId").GetString() == "arena-b")
+            .GetProperty("kind").GetString().Should().Be("Sand");
 
         searchesAfterFirst.Should().BeGreaterThan(0);
         second.Should().HaveCount(2);
@@ -159,10 +165,15 @@ public sealed class VenuesEndpointTests : IClassFixture<MatchesWebApplicationFac
     private sealed class FixedVenueSource : IVenueSource
     {
         private readonly Dictionary<string, (double Latitude, double Longitude)> _places;
+        private readonly Dictionary<string, string> _foundBy;
 
-        public FixedVenueSource(Dictionary<string, (double Latitude, double Longitude)> places)
+        /// <param name="foundBy">A place listed here is only found by searches containing that word.</param>
+        public FixedVenueSource(
+            Dictionary<string, (double Latitude, double Longitude)> places,
+            Dictionary<string, string>? foundBy = null)
         {
             _places = places;
+            _foundBy = foundBy ?? [];
         }
 
         private int _searches;
@@ -176,7 +187,8 @@ public sealed class VenuesEndpointTests : IClassFixture<MatchesWebApplicationFac
             Interlocked.Increment(ref _searches);
             IReadOnlyList<string> ids = _places
                 .Where(p => p.Value.Latitude >= south && p.Value.Latitude < north
-                    && p.Value.Longitude >= west && p.Value.Longitude < east)
+                    && p.Value.Longitude >= west && p.Value.Longitude < east
+                    && (!_foundBy.TryGetValue(p.Key, out var word) || text.Contains(word, StringComparison.Ordinal)))
                 .Select(p => p.Key)
                 .ToList();
             return Task.FromResult(ids);

@@ -26,7 +26,7 @@ Each module is a project `src/Quadra.Modules.<Name>/` with its own DbContext and
 | --- | --- | --- |
 | Auth | Login, JWT issuance and validation, refresh tokens | `users`, `refresh_tokens` |
 | Matches | Match lifecycle, presence, waiting list, guests, summary | `matches`, `match_presences`, `waiting_list`, `match_guests`, `match_summaries`, `match_summary_players`, `match_summary_sets` |
-| InGame | Teams, scoreboard, MVP vote | `teams`, `team_members`, `scoreboards`, `scoreboard_sets`, `mvp_votings`, `mvp_votes` |
+| InGame | Teams, scoreboard, MVP vote | `teams`, `team_members`, `scoreboards`, `scoreboard_sets`, `mvp_votings`, `mvp_votes`, `player_match_stats` |
 | Profile | Player identity, stats, history, card, feedback, Rede (posts, likes, comments, follows), friends' activity | `player_profiles`, `player_stats`, `player_match_history`, `player_cards`, `feedback`, `posts`, `post_likes`, `post_comments`, `follows`, `activities` |
 | Gamification | Points and group ranking | `point_transactions`, `group_rankings` |
 | Geo | Nearby matches, address search, arenas on the map | `venues`, `venue_areas` (arena cache); reads `matches` read-only |

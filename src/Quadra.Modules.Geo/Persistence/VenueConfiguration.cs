@@ -30,6 +30,12 @@ public sealed class VenueConfiguration : IEntityTypeConfiguration<Venue>
             .HasColumnName("fetched_at")
             .IsRequired();
 
+        builder.Property(v => v.Kind)
+            .HasColumnName("kind")
+            .HasMaxLength(8)
+            .HasDefaultValue(VenueKinds.Court)
+            .IsRequired();
+
         builder.HasIndex(v => v.PlaceId)
             .IsUnique()
             .HasDatabaseName("uq_venues_place_id");
