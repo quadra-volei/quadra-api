@@ -1,0 +1,30 @@
+# Build and tests on every pull request into dev or main, and on pushes to them.
+# Deploys are not here: Render watches main by itself (render.yaml).
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet build --configuration Release
+      - run: dotnet test tests/Quadra.UnitTests --configuration Release --no-build
+      # Testcontainers starts postgis/postgis:16-3.4 on the runner's Docker.
+      - run: dotnet test tests/Quadra.IntegrationTests --configuration Release --no-build

@@ -7,6 +7,7 @@ using Quadra.Modules.Auth.Persistence;
 using Quadra.Modules.Gamification.DependencyInjection;
 using Quadra.Modules.Gamification.Persistence;
 using Quadra.Modules.Geo.DependencyInjection;
+using Quadra.Modules.Geo.Persistence;
 using Quadra.Modules.InGame.DependencyInjection;
 using Quadra.Modules.InGame.Persistence;
 using Quadra.Modules.Matches.DependencyInjection;
@@ -18,6 +19,10 @@ using Quadra.Modules.Realtime;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Errors and traces to Sentry, configured from the "Sentry" section; off while Sentry:Dsn is empty.
+// Render sets RENDER_GIT_COMMIT, so each event names the deployed commit.
+builder.WebHost.UseSentry(options => options.Release ??= Environment.GetEnvironmentVariable("RENDER_GIT_COMMIT"));
 
 builder.Services.AddControllers();
 // Unhandled exceptions answer ProblemDetails without internals; unique-index races answer 409.
@@ -40,6 +45,7 @@ builder.Services.AddRealtimeModule();
 builder.Services.AddHostedService<MatchWindowSweeper>();
 builder.Services.AddSingleton<MatchReminderSweeper>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<MatchReminderSweeper>());
+builder.Services.AddHostedService<VenueCacheSweeper>();
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
@@ -57,6 +63,7 @@ if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
     await services.GetRequiredService<ProfileDbContext>().Database.MigrateAsync();
     await services.GetRequiredService<GamificationDbContext>().Database.MigrateAsync();
     await services.GetRequiredService<NotificationsDbContext>().Database.MigrateAsync();
+    await services.GetRequiredService<GeoDbContext>().Database.MigrateAsync();
 }
 
 if (app.Environment.IsDevelopment())

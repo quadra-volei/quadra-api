@@ -18,15 +18,18 @@ public sealed class UpdateProfileHandler
     private readonly IProfilePhotoStorage _photoStorage;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<UpdateProfileHandler> _logger;
+    private readonly IPlayerMatchHistoryRepository _history;
 
     public UpdateProfileHandler(
         IPlayerProfileRepository profiles,
         IProfilePhotoStorage photoStorage,
         TimeProvider timeProvider,
-        ILogger<UpdateProfileHandler> logger)
+        ILogger<UpdateProfileHandler> logger,
+        IPlayerMatchHistoryRepository history)
     {
         _profiles = profiles;
         _photoStorage = photoStorage;
+        _history = history;
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -109,6 +112,7 @@ public sealed class UpdateProfileHandler
             profile.PhotoObjectKey, _photoStorage, cancellationToken);
 
         var cardStyle = await CardStyle.CardStyleHandler.MapAsync(profile, includePrivate: true, _photoStorage, cancellationToken);
-        return GetProfileHandler.MapToResponse(profile, found.Stats, photoUrl, includePrivate: true, cardStyle);
+        var actions = (await _history.GetActionTotalsAsync([profile.UserId], cancellationToken))[profile.UserId];
+        return GetProfileHandler.MapToResponse(profile, found.Stats, actions, photoUrl, includePrivate: true, cardStyle);
     }
 }

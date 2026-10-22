@@ -15,6 +15,7 @@ public sealed class CreateScoreboardHandler
     private readonly IMatchReader _matchReader;
     private readonly ITeamRepository _teamRepository;
     private readonly IScoreboardRepository _scoreboardRepository;
+    private readonly IConfirmedPlayersReader _confirmedPlayers;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<CreateScoreboardHandler> _logger;
 
@@ -22,12 +23,14 @@ public sealed class CreateScoreboardHandler
         IMatchReader matchReader,
         ITeamRepository teamRepository,
         IScoreboardRepository scoreboardRepository,
+        IConfirmedPlayersReader confirmedPlayers,
         TimeProvider timeProvider,
         ILogger<CreateScoreboardHandler> logger)
     {
         _matchReader = matchReader;
         _teamRepository = teamRepository;
         _scoreboardRepository = scoreboardRepository;
+        _confirmedPlayers = confirmedPlayers;
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -60,18 +63,25 @@ public sealed class CreateScoreboardHandler
         // 3b. No game before the match happens (no farming points ahead of kickoff).
         Kickoff.EnsureReached(matchSummary.StartsAt, _timeProvider.GetUtcNow());
 
-        // 4. Load teams; must have the two formed teams.
-        var teams = await _teamRepository.ListByMatchAsync(matchId, cancellationToken);
-        if (teams.Count < 2)
-        {
-            throw new TeamsNotFormedException();
-        }
-
-        // 5. Reject if a scoreboard already exists for this match.
+        // 4. Reject if a scoreboard already exists for this match.
         var existing = await _scoreboardRepository.FindByMatchAsync(matchId, cancellationToken);
         if (existing is not null)
         {
             throw new ScoreboardAlreadyExistsException();
+        }
+
+        // 4b. No fixed teams: one roster of everyone confirmed, and a game with no score.
+        if (format == ScoreboardFormat.Free)
+        {
+            var roster = await FreeRoster.ReplaceAsync(matchId, _confirmedPlayers, _teamRepository, _timeProvider.GetUtcNow(), cancellationToken);
+            return await AddAsync(Scoreboard.Create(matchId, format, roster.Id, roster.Id, _timeProvider.GetUtcNow()), cancellationToken);
+        }
+
+        // 5. Load teams; must have the two formed teams.
+        var teams = await _teamRepository.ListByMatchAsync(matchId, cancellationToken);
+        if (teams.Count < 2)
+        {
+            throw new TeamsNotFormedException();
         }
 
         // 6. Deterministic team assignment: teams are ordered by name ascending by the repository.
@@ -90,8 +100,11 @@ public sealed class CreateScoreboardHandler
         // A single game rotates even with two teams: a match is the day's session, game after
         // game, and only the organizer ends it (DECISIONS #80).
         var rotatesTeams = teams.Count > 2 || format == ScoreboardFormat.SingleGame;
-        var scoreboard = Scoreboard.Create(matchId, format, teamAId, teamBId, now, rotatesTeams, pointsToWin);
+        return await AddAsync(Scoreboard.Create(matchId, format, teamAId, teamBId, now, rotatesTeams, pointsToWin), cancellationToken);
+    }
 
+    private async Task<ScoreboardResponse> AddAsync(Scoreboard scoreboard, CancellationToken cancellationToken)
+    {
         // 8. Persist. The UNIQUE (match_id) constraint is a last-resort guard against races.
         try
         {
@@ -104,7 +117,7 @@ public sealed class CreateScoreboardHandler
 
         _logger.LogInformation(
             "Scoreboard created for MatchId={MatchId}. Format={Format}, State={State}.",
-            matchId, scoreboard.Format, scoreboard.State);
+            scoreboard.MatchId, scoreboard.Format, scoreboard.State);
 
         // 9. Map and return.
         return GetScoreboardHandler.MapToResponse(scoreboard);

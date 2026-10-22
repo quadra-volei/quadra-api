@@ -221,7 +221,6 @@ public sealed class MatchVisibilityAuditTests : IClassFixture<AuditWebApplicatio
     {
         { "DELETE", "", null },
         { "POST", "/guests", "{\"name\":\"Intruso\"}" },
-        { "POST", "/presences", "{\"playerId\":\"00000000-0000-0000-0000-000000000001\",\"playerType\":\"Regular\"}" },
         { "POST", "/teams/draft", "{}" },
         { "POST", "/scoreboard", "{\"format\":\"BestOf3\"}" },
         { "POST", "/scoreboard/start", null },

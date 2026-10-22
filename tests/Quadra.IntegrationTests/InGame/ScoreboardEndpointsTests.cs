@@ -33,7 +33,7 @@ namespace Quadra.IntegrationTests.InGame;
 ///
 /// Error paths: 401 (no JWT), 403 (non-organizer), 404 (match/scoreboard/team not found),
 ///              409 (duplicate scoreboard, wrong state, non-current set), 400 (invalid format).
-/// Deterministic team A/B assignment: teamAId corresponds to the team named "Team A".
+/// Deterministic team A/B assignment: teamAId corresponds to the team named "Time Azul".
 /// </summary>
 public sealed class ScoreboardEndpointsTests : IClassFixture<InGameWebApplicationFactory>
 {
@@ -222,7 +222,7 @@ public sealed class ScoreboardEndpointsTests : IClassFixture<InGameWebApplicatio
 
     /// <summary>
     /// Covers: F1.4 AC-1 + AC-3 — POST /scoreboard creates a scoreboard (201) in NotStarted state,
-    /// persists it, and assigns teamAId/teamBId deterministically (teamAId = the "Team A" team).
+    /// persists it, and assigns teamAId/teamBId deterministically (teamAId = the "Time Azul" team).
     /// </summary>
     [Fact]
     public async Task POST_scoreboard_with_valid_data_returns_201_NotStarted_and_persists()
@@ -239,14 +239,14 @@ public sealed class ScoreboardEndpointsTests : IClassFixture<InGameWebApplicatio
         body.GetProperty("currentSetNumber").GetInt32().Should().Be(0);
         body.GetProperty("sets").GetArrayLength().Should().Be(0);
 
-        // Deterministic assignment: teamAId corresponds to the team named "Team A".
+        // Deterministic assignment: teamAId corresponds to the team named "Time Azul".
         var teamsResponse = await client.GetAsync(
             $"/api/v1/matches/{matchId}/teams", TestContext.Current.CancellationToken);
         var teamsBody = await teamsResponse.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         var teams = teamsBody.GetProperty("teams");
         var teamAId = Enumerable.Range(0, teams.GetArrayLength())
             .Select(i => teams[i])
-            .First(t => t.GetProperty("name").GetString() == "Team A")
+            .First(t => t.GetProperty("name").GetString() == "Time Azul")
             .GetProperty("id").GetGuid();
         body.GetProperty("teamAId").GetGuid().Should().Be(teamAId);
 

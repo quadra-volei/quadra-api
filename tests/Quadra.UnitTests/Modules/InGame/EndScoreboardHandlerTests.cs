@@ -32,12 +32,14 @@ public sealed class EndScoreboardHandlerTests
 
     private readonly IMatchReader _matchReader = Substitute.For<IMatchReader>();
     private readonly IScoreboardRepository _scoreboardRepository = Substitute.For<IScoreboardRepository>();
+    private readonly ITeamRepository _teamRepository = Substitute.For<ITeamRepository>();
+    private readonly IConfirmedPlayersReader _confirmed = Substitute.For<IConfirmedPlayersReader>();
     private readonly IEventPublisher _eventPublisher = Substitute.For<IEventPublisher>();
     private readonly IMatchRoomNotifier _notifier = Substitute.For<IMatchRoomNotifier>();
     private readonly TimeProvider _timeProvider = new FixedTimeProvider(FixedNow);
 
     private EndScoreboardHandler CreateSut() =>
-        new(_matchReader, _scoreboardRepository, _eventPublisher, _notifier, _timeProvider,
+        new(_matchReader, _scoreboardRepository, _teamRepository, _confirmed, _eventPublisher, _notifier, _timeProvider,
             NullLogger<EndScoreboardHandler>.Instance);
 
     private void SetupMatch(Guid matchId, Guid organizerId, string status = "Closed") =>

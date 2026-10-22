@@ -33,4 +33,5 @@ public sealed record MatchResponse(
     string? InviteMode = null,
     decimal? PriceMonthly = null,
     IReadOnlyList<int>? RecurrenceDays = null,
-    string? CoverUrl = null);
+    string? CoverUrl = null,
+    bool FreeTeams = false);   // no fixed teams (DECISIONS #86)

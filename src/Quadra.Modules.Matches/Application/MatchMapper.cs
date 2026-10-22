@@ -36,7 +36,8 @@ public static class MatchMapper
             Visibility: m.Visibility.ToString(),
             InviteMode: m.InviteMode?.ToString(),
             PriceMonthly: m.PriceMonthly,
-            RecurrenceDays: m.RecurrenceDays);
+            RecurrenceDays: m.RecurrenceDays,
+            FreeTeams: m.FreeTeams);
 
     public static MatchPlayerResponse ToPlayer(PlayerSummary summary) =>
         new(

@@ -29,6 +29,19 @@ public sealed class ScoreboardRepository : IScoreboardRepository
     }
 
     /// <inheritdoc/>
+    public async Task<IReadOnlySet<Guid>> ListEndedMatchIdsAsync(
+        IReadOnlyCollection<Guid> matchIds,
+        CancellationToken cancellationToken)
+    {
+        var ended = await _context.Scoreboards
+            .AsNoTracking()
+            .Where(s => matchIds.Contains(s.MatchId) && s.State == ScoreboardState.Ended)
+            .Select(s => s.MatchId)
+            .ToListAsync(cancellationToken);
+        return ended.ToHashSet();
+    }
+
+    /// <inheritdoc/>
     public async Task<Scoreboard?> FindByMatchAsync(Guid matchId, CancellationToken cancellationToken)
     {
         var scoreboard = await _context.Scoreboards

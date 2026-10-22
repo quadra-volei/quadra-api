@@ -26,4 +26,5 @@ public sealed record UpdateMatchRequest(
     int? GamePoints = null,
     decimal? PriceMonthly = null,
     IReadOnlyList<int>? RecurrenceDays = null,
-    string? CoverObjectKey = null);
+    string? CoverObjectKey = null,
+    bool? FreeTeams = null);   // null keeps the current mode

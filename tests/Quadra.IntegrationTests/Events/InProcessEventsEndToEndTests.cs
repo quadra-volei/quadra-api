@@ -185,6 +185,44 @@ public sealed class InProcessEventsEndToEndTests : IClassFixture<InProcessEvents
             .Should().OnlyContain(e => e.GetProperty("matchesCounted").GetInt32() == 2);
     }
 
+    /// <summary>
+    /// A cancelled recurring game still schedules the next one, with nobody carried over (they
+    /// join again); cancelling with <c>endGroup=true</c> ends the group.
+    /// </summary>
+    [Fact]
+    public async Task A_cancelled_recurring_game_schedules_the_next_unless_the_group_is_ended()
+    {
+        var organizer = await LoginAsync("+5511944440000");
+        var player = await LoginAsync("+5511944440001");
+
+        var firstId = await CreateRecurringMatchAsync(organizer);
+        await AddConfirmedPresenceAsync(firstId, player.UserId);
+
+        (await organizer.Client.DeleteAsync($"/api/v1/matches/{firstId}", Ct))
+            .StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        Guid secondId;
+        using (var scope = _fx.Factory.Services.CreateScope())
+        {
+            var ctx = scope.ServiceProvider.GetRequiredService<MatchesDbContext>();
+            var first = await ctx.Matches.AsNoTracking().SingleAsync(m => m.Id == firstId, Ct);
+            var next = await ctx.Matches.AsNoTracking().SingleAsync(m => m.GroupId == firstId, Ct);
+            first.Status.Should().Be(MatchStatus.Cancelled);
+            (next.DateTime - first.DateTime).Should().Be(TimeSpan.FromDays(7));
+            (await ctx.Presences.AsNoTracking().AnyAsync(p => p.MatchId == next.Id, Ct)).Should().BeFalse();
+            secondId = next.Id;
+        }
+
+        (await organizer.Client.DeleteAsync($"/api/v1/matches/{secondId}?endGroup=true", Ct))
+            .StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        using (var scope = _fx.Factory.Services.CreateScope())
+        {
+            var ctx = scope.ServiceProvider.GetRequiredService<MatchesDbContext>();
+            (await ctx.Matches.AsNoTracking().CountAsync(m => m.GroupId == firstId, Ct)).Should().Be(1);
+        }
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private sealed record LoggedInPlayer(Guid UserId, HttpClient Client);
@@ -339,7 +377,7 @@ public sealed class InProcessEventsEndToEndTests : IClassFixture<InProcessEvents
     {
         var body = await GetJsonAsync(organizer, $"/api/v1/matches/{matchId}/teams");
         var teamA = body.GetProperty("teams").EnumerateArray()
-            .First(t => t.GetProperty("name").GetString() == "Team A");
+            .First(t => t.GetProperty("name").GetString() == "Time Azul");
 
         var playerIds = teamA.GetProperty("members").EnumerateArray()
             .Select(m => m.GetProperty("playerId").GetGuid())

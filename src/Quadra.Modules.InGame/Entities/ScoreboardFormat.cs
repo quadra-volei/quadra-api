@@ -9,4 +9,10 @@ public enum ScoreboardFormat
     SingleGame,
     BestOf3,
     BestOf5,
+
+    /// <summary>
+    /// No fixed teams (DECISIONS #86): the match only starts and ends, with no score. Its one
+    /// roster holds everyone confirmed; teams form and change on court.
+    /// </summary>
+    Free,
 }

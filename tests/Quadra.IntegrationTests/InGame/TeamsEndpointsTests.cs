@@ -217,7 +217,7 @@ public sealed class TeamsEndpointsTests : IClassFixture<InGameWebApplicationFact
     /// <summary>
     /// Covers: F1.3 AC-1 — POST /teams/draft returns 200 with TeamsResponse;
     /// produces two teams with all confirmed players assigned,
-    /// team names are "Team A" and "Team B",
+    /// team names are "Time Azul" and "Time Limão",
     /// all player IDs appear in the response.
     /// Also verifies the TeamsFormed SQS event is published.
     /// </summary>
@@ -254,7 +254,7 @@ public sealed class TeamsEndpointsTests : IClassFixture<InGameWebApplicationFact
             .Select(i => teams[i].GetProperty("name").GetString())
             .OrderBy(n => n)
             .ToList();
-        teamNames.Should().BeEquivalentTo(["Team A", "Team B"]);
+        teamNames.Should().BeEquivalentTo(["Time Azul", "Time Limão"]);
 
         // Verify all 4 players are assigned across the two teams
         var allMemberIds = Enumerable.Range(0, 2)

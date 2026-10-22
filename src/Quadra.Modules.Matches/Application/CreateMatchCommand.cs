@@ -23,6 +23,7 @@ public sealed record CreateMatchCommand(
     string? Level = null,
     int? DurationMinutes = null,
     int? GamePoints = null,
+    bool? FreeTeams = null,
     string? Visibility = null,
     string? InviteMode = null,
     decimal? PriceMonthly = null,

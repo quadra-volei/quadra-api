@@ -50,6 +50,10 @@ services:
       - key: Auth__Jwt__SigningKey
         generateValue: true
 
+      # Sentry DSN of project quadra-api (org quadra-un). Empty = Sentry off.
+      - key: Sentry__Dsn
+        sync: false
+
       # Phone login. Fake = no SMS, code always 123456: anyone can log in as any phone, so it
       # is for testing only. Firebase = the app verifies the phone with Firebase Phone Auth and
       # the fixed-code route is off (DECISIONS #78): switch to it once the APK with Firebase login

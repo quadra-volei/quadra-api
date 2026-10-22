@@ -98,7 +98,6 @@ public static class MatchesModuleExtensions
         services.AddScoped<IPersonalDataStore, MatchesPersonalData>();
         services.AddScoped<IUpcomingMatchReader, UpcomingMatchReader>();
         services.AddScoped<UpdateMatchHandler>();
-        services.AddScoped<AddPresenceHandler>();
         services.AddScoped<UpdateMyPresenceHandler>();
         services.AddScoped<GetPresenceListHandler>();
         services.AddScoped<RemovePresenceHandler>();
@@ -117,7 +116,6 @@ public static class MatchesModuleExtensions
         services.AddScoped<IValidator<CreateMatchRequest>, CreateMatchRequestValidator>();
         services.AddScoped<IValidator<UpdateMatchRequest>, UpdateMatchRequestValidator>();
         services.AddScoped<IValidator<ListMatchesQuery>, ListMatchesQueryValidator>();
-        services.AddScoped<IValidator<AddPresenceRequest>, AddPresenceRequestValidator>();
         services.AddScoped<IValidator<UpdateMyPresenceRequest>, UpdateMyPresenceRequestValidator>();
         services.AddScoped<IValidator<AddGuestRequest>, AddGuestRequestValidator>();
 

@@ -117,6 +117,11 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
         builder.Property(m => m.GamePoints)
             .HasColumnName("game_points");
 
+        builder.Property(m => m.FreeTeams)
+            .HasColumnName("free_teams")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.Property(m => m.DurationMinutes)
             .HasColumnName("duration_minutes");
 

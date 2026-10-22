@@ -61,6 +61,7 @@ public static class InGameModuleExtensions
         services.AddScoped<ITeamRepository, TeamRepository>();
         services.AddScoped<IScoreboardRepository, ScoreboardRepository>();
         services.AddScoped<IMvpVotingRepository, MvpVotingRepository>();
+        services.AddScoped<IPlayerMatchStatsRepository, PlayerMatchStatsRepository>();
         services.AddScoped<Quadra.Shared.Contracts.IPersonalDataStore, InGamePersonalData>();
 
         // Cross-module read interface implemented by the InGame module (consumed by Matches, F1.6).
@@ -85,11 +86,13 @@ public static class InGameModuleExtensions
         services.AddScoped<CastMvpVoteHandler>();
         services.AddScoped<CloseMvpVotingHandler>();
         services.AddScoped<GetMvpVotingHandler>();
+        services.AddScoped<PlayerStatsHandler>();
 
         services.AddScoped<IValidator<CreateScoreboardRequest>, CreateScoreboardRequestValidator>();
         services.AddScoped<IValidator<RecordPointRequest>, RecordPointRequestValidator>();
         services.AddScoped<IValidator<OpenMvpVotingRequest>, OpenMvpVotingRequestValidator>();
         services.AddScoped<IValidator<CastMvpVoteRequest>, CastMvpVoteRequestValidator>();
+        services.AddScoped<IValidator<SavePlayerStatsRequest>, SavePlayerStatsRequestValidator>();
 
         // IPlayerLevelReader — no-op until F2.1 (Profile module) delivers the real implementation.
         // TryAddScoped allows the Profile module to override this at composition time.

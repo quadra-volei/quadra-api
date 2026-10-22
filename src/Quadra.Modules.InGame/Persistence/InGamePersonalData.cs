@@ -25,6 +25,8 @@ public sealed class InGamePersonalData : IPersonalDataStore
             .Select(m => new { m.MatchId, m.TeamId, m.CreatedAt }).ToListAsync(cancellationToken),
         MvpVotesCast = await _db.MvpVotes.AsNoTracking().Where(v => v.VoterPlayerId == userId)
             .Select(v => new { v.MatchId, v.VotedPlayerId, v.CreatedAt }).ToListAsync(cancellationToken),
+        Stats = await _db.PlayerMatchStats.AsNoTracking().Where(s => s.PlayerId == userId)
+            .Select(s => new { s.MatchId, s.Kills, s.Blocks, s.Aces, s.Digs, s.Assists, s.UpdatedAt }).ToListAsync(cancellationToken),
     };
 
     public Task EraseAsync(Guid userId, CancellationToken cancellationToken) => Task.CompletedTask;

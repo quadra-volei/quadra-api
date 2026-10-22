@@ -166,5 +166,5 @@ public sealed class GetRankingHandler
     }
 
     private static RankingEntryResponse Entry(int? rank, SeasonTotals t, PlayerSummary p) =>
-        new(rank, t.UserId, p.DisplayName, p.Handle, p.Position, p.Level, p.PhotoUrl, t.Points, t.Matches, t.Wins, t.Mvps);
+        new(rank, t.UserId, p.DisplayName, p.Handle, p.Position, p.Level, p.PhotoUrl, t.Points, t.Matches, t.Wins, t.Mvps, p.Overall);
 }

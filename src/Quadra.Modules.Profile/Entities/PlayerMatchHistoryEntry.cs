@@ -38,6 +38,19 @@ public sealed class PlayerMatchHistoryEntry
 
     public int? SetsLost { get; private set; }
 
+    // The player's recorded actions in the match; null = not recorded (DECISIONS #85).
+    public int? Kills { get; private set; }
+    public int? Blocks { get; private set; }
+    public int? Aces { get; private set; }
+    public int? Digs { get; private set; }
+    public int? Assists { get; private set; }
+
+    /// <summary>
+    /// Standard games the match counts for (PlayerSkillCalculator.ExposureGames); set only when
+    /// the match has a sheet for the player.
+    /// </summary>
+    public double? ExposureGames { get; private set; }
+
     /// <summary>The originating summary's <c>GeneratedAt</c>.</summary>
     public DateTimeOffset RecordedAt { get; private set; }
 
@@ -81,6 +94,18 @@ public sealed class PlayerMatchHistoryEntry
         Format = format;
         SetsWon = setsWon;
         SetsLost = setsLost;
+    }
+
+    /// <summary>Records the player's actions; all null leaves the match without a sheet.</summary>
+    public void SetActions(int? kills, int? blocks, int? aces, int? digs, int? assists, double exposureGames)
+    {
+        Kills = kills;
+        Blocks = blocks;
+        Aces = aces;
+        Digs = digs;
+        Assists = assists;
+        var recorded = kills is not null || blocks is not null || aces is not null || digs is not null || assists is not null;
+        ExposureGames = recorded ? exposureGames : null;
     }
 
     public void UpdateSnapshot(

@@ -25,7 +25,7 @@ public sealed class MatchDescriptorReader : IMatchDescriptorReader
         return await _context.Matches
             .AsNoTracking()
             .Where(m => m.Id == matchId)
-            .Select(m => new MatchDescriptor(m.Id, m.Name, m.DateTime, m.Format))
+            .Select(m => new MatchDescriptor(m.Id, m.Name, m.DateTime, m.Format, (int?)m.DurationMinutes))
             .FirstOrDefaultAsync(cancellationToken);
     }
 }

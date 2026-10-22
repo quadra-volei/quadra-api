@@ -4,6 +4,8 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Quadra.Api.Background;
+using Quadra.Modules.Matches.Entities;
+using Quadra.Modules.Matches.Persistence;
 
 namespace Quadra.IntegrationTests.SecurityAudit;
 
@@ -74,8 +76,12 @@ public sealed class NotificationsAuditTests : IClassFixture<AuditWebApplicationF
         var player = await _fx.LoginAsync();
         var matchId = await CreateMatchAsync(organizer, DateTimeOffset.UtcNow.AddHours(10), slots: 6);
         (await Confirm(organizer, matchId)).IsSuccessStatusCode.Should().BeTrue();
-        (await organizer.Client.PostAsJsonAsync($"/api/v1/matches/{matchId}/presences", new { playerId = player.Id, playerType = "Regular" }, Ct))
-            .IsSuccessStatusCode.Should().BeTrue("the organizer adds a pending player");
+        // A pending player, as the next game of a recurring group gets (DECISIONS #64).
+        using (var scope = _fx.Factory.Services.CreateScope())
+        {
+            var presences = scope.ServiceProvider.GetRequiredService<IPresenceRepository>();
+            await presences.AddAsync(MatchPresence.Create(matchId, player.Id, PlayerType.Regular, DateTimeOffset.UtcNow), Ct);
+        }
 
         var sweeper = _fx.Factory.Services.GetRequiredService<MatchReminderSweeper>();
         await sweeper.SweepOnceAsync(Ct);

@@ -67,7 +67,8 @@ dotnet ef database update --startup-project ../Quadra.Api
 - Start every change from `dev` and merge it back into `dev`. Never commit straight to `dev`
   or `main`.
 - `dev` collects the merged changes; a PR from `dev` into `main` releases them. A push to
-  `main` redeploys the hosted API. Build and tests must pass before merging.
+  `main` redeploys the hosted API. Build and tests must pass before merging; GitHub Actions
+  (`.github/workflows/ci.yml`) runs them, integration tests included, on every PR into `dev` or `main`.
 - Commit messages in Portuguese, `tipo(modulo): resumo` (as in `git log`).
 
 ## Conventions
@@ -118,7 +119,8 @@ the workspace root `.claude/`, also outside git: start Claude from the workspace
 - Do not add a NuGet package, change the stack or add a feature listed as out of the MVP
   without asking.
 - Do not generate more than the next game of a recurring group: it is created only when the
-  previous game's summary is generated (DECISIONS #64), never a calendar of future games.
+  previous game's summary is generated or the game is cancelled (DECISIONS #64, #89), never a
+  calendar of future games.
 - No generic repositories, no service locator outside the composition root, no
   `catch (Exception)` that swallows.
 - When unsure about scope or stack, stop and ask instead of inventing a decision.

@@ -50,13 +50,13 @@ public sealed class PlayerStats
     /// Overwrites all counters from freshly computed totals. <see cref="MatchesPlayed"/> is the sum
     /// of the three outcome counts (one history row per finished match).
     /// </summary>
-    public void Recompute(int wins, int losses, int draws, int mvpsReceived, DateTimeOffset now)
+    public void Recompute(int wins, int losses, int draws, int mvpsReceived, DateTimeOffset now, int noResults = 0)
     {
         Wins = wins;
         Losses = losses;
         Draws = draws;
         MvpsReceived = mvpsReceived;
-        MatchesPlayed = wins + losses + draws;
+        MatchesPlayed = wins + losses + draws + noResults;
         UpdatedAt = now;
     }
 }

@@ -371,10 +371,10 @@ public sealed class MatchSummaryEndpointsTests : IClassFixture<InGameWebApplicat
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         var teams = body.GetProperty("teams");
         var teamAId = Enumerable.Range(0, teams.GetArrayLength())
-            .Select(i => teams[i]).First(t => t.GetProperty("name").GetString() == "Team A")
+            .Select(i => teams[i]).First(t => t.GetProperty("name").GetString() == "Time Azul")
             .GetProperty("id").GetGuid();
         var teamBId = Enumerable.Range(0, teams.GetArrayLength())
-            .Select(i => teams[i]).First(t => t.GetProperty("name").GetString() == "Team B")
+            .Select(i => teams[i]).First(t => t.GetProperty("name").GetString() == "Time Limão")
             .GetProperty("id").GetGuid();
         return (teamAId, teamBId);
     }

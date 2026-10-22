@@ -154,7 +154,7 @@ public sealed class GenerateMatchSummaryHandler
         // 12. A recurring group goes on: its next game is created (DECISIONS #64).
         if (statusChanged)
         {
-            await _nextGame.ScheduleAsync(match, cancellationToken);
+            await _nextGame.ScheduleAsync(match, carryConfirmed: true, cancellationToken);
         }
 
         // 13. Map and return.

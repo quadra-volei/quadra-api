@@ -171,20 +171,44 @@ namespace Quadra.Modules.Profile.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<int?>("Aces")
+                        .HasColumnType("integer")
+                        .HasColumnName("aces");
+
+                    b.Property<int?>("Assists")
+                        .HasColumnType("integer")
+                        .HasColumnName("assists");
+
+                    b.Property<int?>("Blocks")
+                        .HasColumnType("integer")
+                        .HasColumnName("blocks");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
 
+                    b.Property<int?>("Digs")
+                        .HasColumnType("integer")
+                        .HasColumnName("digs");
+
                     b.Property<int?>("DurationSeconds")
                         .HasColumnType("integer")
                         .HasColumnName("duration_seconds");
+
+                    b.Property<double?>("ExposureGames")
+                        .HasColumnType("double precision")
+                        .HasColumnName("exposure_games");
 
                     b.Property<string>("Format")
                         .HasMaxLength(8)
                         .HasColumnType("character varying(8)")
                         .HasColumnName("format");
+
+                    b.Property<int?>("Kills")
+                        .HasColumnType("integer")
+                        .HasColumnName("kills");
 
                     b.Property<DateTimeOffset>("MatchDateTime")
                         .HasColumnType("timestamp with time zone")

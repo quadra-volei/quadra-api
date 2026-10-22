@@ -14,15 +14,17 @@ Carta do Jogador = PlayerCard · Janela de Confirmação = ConfirmationWindow.
 | Auth (FA.1, FA.3) | SMS OTP (6 digits) and Google login; the first valid login creates the user; own JWT + rotating refresh token; logout ends the session; export and delete the account (LGPD, DECISIONS #69) | `auth/login/sms-otp`, `auth/login/google`, `auth/refresh`, `auth/logout`, `auth/me`, `auth/me/export`, `DELETE auth/me` |
 | Match creation (F1.1) | Recurring or one-off match with format, level, duration, prices, visibility (open / private by code / private by guests), confirmations open from creation (an explicit window or "opens N hours before" still accepted); optional cover photo (key from the profile-photo upload, read URL in the detail) | `POST matches`, `GET matches/mine`, `GET matches/{id}/detail` |
 | Edit and cancel | The organizer edits the details (not type nor visibility) and cancels until the game starts; slots never below the confirmed players | `PUT matches/{id}`, `DELETE matches/{id}` |
-| Next game of a recurring group | Generating a recurring game's summary creates the group's next game (next week day by frequency, same settings and invite code, same window distance), with everyone who had confirmed as Pending (DECISIONS #64) | `POST matches/{id}/summary` |
+| Next game of a recurring group | Generating a recurring game's summary creates the group's next game (next week day by frequency, same settings and invite code, same window distance), with everyone who had confirmed as Pending (DECISIONS #64); cancelling one creates it empty, and `endGroup=true` ends the group (DECISIONS #89) | `POST matches/{id}/summary`, `DELETE matches/{id}` |
 | Presence (F1.2) | Confirm / decline, self-enrollment by confirming, Regular vs DropIn slots, waiting list, guests without an account, window opened and closed by the clock | `PUT matches/{id}/presences/me`, `matches/{id}/guests` |
 | Teams (F1.3) | 2 to 4 teams, balanced or random draw, guests drawn in, manual adjustment | `matches/{id}/teams/draft`, `PUT matches/{id}/teams/{teamId}/members/{playerId}` |
-| Scoreboard (F1.4) | Sets best of 3 or 5, pair of teams per set (rotation), end set early, undo last point, live updates over SignalR | `matches/{id}/scoreboard/…`, hub `/hubs/match` |
+| Scoreboard (F1.4) | Sets best of 3 or 5, pair of teams per set (rotation), end set early, undo last point, live updates over SignalR; a match without fixed teams (`freeTeams`, format `Free`) only starts and ends, with one roster of everyone confirmed (DECISIONS #86) | `matches/{id}/scoreboard/…`, hub `/hubs/match` |
+| Player stats | The organizer records each player's cortadas, blocks, aces, salvadas and assistências, from the start of the game until the summary; participants read them (DECISIONS #84) | `GET/PUT matches/{id}/player-stats` |
 | MVP vote (F1.5) | One vote each (who played, plus the organizer even without playing), no self-vote, opens when the game ends, 24 h deadline | `matches/{id}/mvp-voting/…` |
 | Summary (F1.6) | Immutable summary; generating it is what records stats, history and ranking points | `matches/{id}/summary` |
 | Map (F1.7) | Nearby matches by radius (PostGIS), including drafts; private matches never listed | `matches/nearby` |
+| Arenas on the map | Arenas found on Google Places around the map, each a court, sand court or park (DECISIONS #87) (only the place id and coordinates kept, for up to 29 days), each with today's public games and the one being played now; name and address on tap via `places/{id}`. Partner showcase not done | `venues/nearby` |
 | Address search | Proxy to Google Places or Photon, restricted to Brazil | `places/autocomplete`, `places/{id}` |
-| Profile (F2.1) | Name, surname, unique `@handle`, birth date, single position, modality, declared level, derived skills (ACE/BLK/ATA/DEF/GERAL), stats, match history, photo by signed URL; level number from accumulated points (attendance +10, win +15, MVP +25; 10 × n × (n − 1) points for level n) | `profiles/me`, `profiles/handle-availability`, `profiles/me/match-history`, `profiles/me/photo/upload-url` |
+| Profile (F2.1) | Name, surname, unique `@handle`, birth date, single position, modality, declared level, derived skills (ACE/BLK/ATK/DEF/GERAL, moved by the recorded actions: DECISIONS #85), recorded actions (total and per match), stats, match history, photo by signed URL; level number from accumulated points (attendance +10, win +15, MVP +25; 10 × n × (n − 1) points for level n) | `profiles/me`, `profiles/handle-availability`, `profiles/me/match-history`, `profiles/me/photo/upload-url` |
 | Player card (F2.2) | Card data after 3 matches; premium flag is a stub that always answers `false` | `profiles/me/card` |
 | Card style | Finish, identity title and card photo chosen by the player, shown to everyone who sees the profile | `PUT profiles/me/card-style`, `cardStyle` on `profiles/me` and `profiles/{id}` |
 | Group ranking (F2.3) | Points per recurring match: attendance +10, win +15, MVP +25, adding up over every game of the group (DECISIONS #64) | `matches/{id}/ranking`, `rankings/mine` |
@@ -50,10 +52,8 @@ Needs code:
 - **Push on the phone** needs the app side (`expo-notifications`, waiting for Johny's OK on the package) and FCM credentials in EAS; the API already stores tokens and sends through Expo Push (DECISIONS #77).
 - **Summary of a game with rotating teams** does not record which pair played each set
   (DECISIONS #30).
-- **Per-player stats**: the score is recorded by team; the app shows zeros in "Meu desempenho".
-  (Level number and points exist since DECISIONS #57.)
-- **A recurring group stops** when a game is cancelled or never summarized: only a summary creates
-  the next game (DECISIONS #64).
+- **A recurring group stops** when a game is never summarized: only a summary or a cancellation
+  creates the next game (DECISIONS #64, #89).
 - **Event retry**: a failed in-process handler is logged and not retried (no outbox).
 - **Cleanup**: the `Aws:Sqs:*` settings are still required at startup although nothing is
   sent; the `StackExchange.Redis` package and the `Quadra.Workers.*` projects are unused.
@@ -69,8 +69,8 @@ Human rulings (do not implement without a new decision):
 - **One-off matches earn no ranking points**; the ranking endpoint answers `409` for them.
 - **Premium**: no table or column; only the `IPremiumStatusReader` stub. No billing.
 - **+5 "first match as DropIn" bonus**: not in the MVP.
-- **Earning `Advanced` / `Elite` by playing**, the `frequency` stat and skill ratings that
-  grow with play: deferred until their formulas are defined.
+- **Earning `Advanced` / `Elite` by playing** and the `frequency` stat: deferred until their
+  formulas are defined. (Skill ratings grow with recorded actions since DECISIONS #85.)
 - **Separate signup** (`POST auth/signup`), passwords, account linking between providers.
 
 Rede (social feed, in scope since 2026-10-09, DECISIONS #40 to #49): each next step waits for
@@ -82,7 +82,8 @@ Never part of the MVP (Layer 3):
 
 - Courts and arenas (venues, photos, reviews), contacts sync
 - Player search by name (search by @handle is in, DECISIONS #75), player rating, city ranking
-- Achievements and badges, per-play stats input (serve, block, attack, defense)
+- Achievements and badges, per-play stats input (each rally's action as it happens; per-match
+  counts are in since DECISIONS #84)
 - Payments, cost splitting, microtransactions, organizer premium plan
 - Calendar, Instagram or WhatsApp integration; routes and directions
 - More than 4 teams, balancing by position, partial confirmation, player-to-player substitution
