@@ -17,6 +17,7 @@ public sealed class UpdateMatchHandler
     private readonly IMatchResultReader _matchResultReader;
     private readonly MatchWindowSynchronizer _windowSynchronizer;
     private readonly TimeProvider _timeProvider;
+    private readonly MatchArenaResolver _arenaResolver;
 
     public UpdateMatchHandler(
         IMatchRepository matchRepository,
@@ -24,8 +25,10 @@ public sealed class UpdateMatchHandler
         IMatchGuestRepository guestRepository,
         IMatchResultReader matchResultReader,
         MatchWindowSynchronizer windowSynchronizer,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        MatchArenaResolver arenaResolver)
     {
+        _arenaResolver = arenaResolver;
         _matchRepository = matchRepository;
         _presenceRepository = presenceRepository;
         _guestRepository = guestRepository;
@@ -63,6 +66,11 @@ public sealed class UpdateMatchHandler
             throw new MatchSlotsBelowConfirmedException(regulars + dropIns);
         }
 
+        // Sending a place or an arena relinks the game; sending neither keeps its arena (Update
+        // drops it when the game moved).
+        var relink = request.ArenaId is not null || request.PlaceId is not null;
+        var arenaId = relink ? await _arenaResolver.ResolveAsync(request.ArenaId, request.PlaceId, cancellationToken) : null;
+
         var cover = request.CoverObjectKey switch
         {
             null => match.CoverObjectKey,
@@ -90,6 +98,10 @@ public sealed class UpdateMatchHandler
                 CoverObjectKey: cover,
                 FreeTeams: request.FreeTeams),
             _timeProvider.GetUtcNow());
+        if (relink)
+        {
+            match.LinkArena(arenaId, _timeProvider.GetUtcNow());
+        }
 
         await _matchRepository.UpdateAsync(match, cancellationToken);
         match = await _windowSynchronizer.SyncAsync(match, cancellationToken);

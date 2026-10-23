@@ -40,7 +40,8 @@ Each module is a project `src/Quadra.Modules.<Name>/` with its own DbContext and
 - Cross-module foreign keys: only `matches.arena_id` → `arenas`. Matches owns the column; the key is
   created by the Geo migration `CreateArenas`, which needs the Matches migration `AddMatchArena` first
   (startup migrates Geo last). Neither EF model knows the key (DECISIONS #91).
-- Modules talk through interfaces in `Quadra.Shared` (for example `IPlayerSummaryReader`) or
+- Modules talk through interfaces in `Quadra.Shared` (for example `IPlayerSummaryReader`, or `IArenaReader`
+  for Matches to link a game to a Geo arena) or
   through events.
 
 ## Events

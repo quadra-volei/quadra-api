@@ -330,6 +330,12 @@ public sealed class Match
         WindowOpensAt += shift;
         WindowClosesAt += shift;
 
+        // A game moved elsewhere is no longer at its arena; the caller may link it again.
+        if (Location.X != edit.Longitude || Location.Y != edit.Latitude)
+        {
+            ArenaId = null;
+        }
+
         Name = edit.Name;
         Description = edit.Description;
         Address = edit.Address;
@@ -356,6 +362,16 @@ public sealed class Match
             }
         }
 
+        UpdatedAt = now;
+    }
+
+    /// <summary>
+    /// Links the game to an active arena, or unlinks it with null. The caller resolves the arena
+    /// (<c>MatchArenaResolver</c>): an organizer's choice or the arena of the picked Google place.
+    /// </summary>
+    public void LinkArena(Guid? arenaId, DateTimeOffset now)
+    {
+        ArenaId = arenaId;
         UpdatedAt = now;
     }
 

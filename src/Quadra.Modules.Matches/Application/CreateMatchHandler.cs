@@ -14,14 +14,17 @@ public sealed class CreateMatchHandler
     private readonly IEventPublisher _eventPublisher;
     private readonly TimeProvider _timeProvider;
     private readonly MatchWindowSynchronizer _windowSynchronizer;
+    private readonly MatchArenaResolver _arenaResolver;
 
     public CreateMatchHandler(
         IMatchRepository repository,
         IEventPublisher eventPublisher,
         TimeProvider timeProvider,
-        MatchWindowSynchronizer windowSynchronizer)
+        MatchWindowSynchronizer windowSynchronizer,
+        MatchArenaResolver arenaResolver)
     {
         _windowSynchronizer = windowSynchronizer;
+        _arenaResolver = arenaResolver;
         _repository = repository;
         _eventPublisher = eventPublisher;
         _timeProvider = timeProvider;
@@ -30,6 +33,7 @@ public sealed class CreateMatchHandler
     public async Task<Match> HandleAsync(CreateMatchCommand command, CancellationToken cancellationToken)
     {
         var now = _timeProvider.GetUtcNow();
+        var arenaId = await _arenaResolver.ResolveAsync(command.ArenaId, command.PlaceId, cancellationToken);
 
         var type = Enum.Parse<Entities.MatchType>(command.Type, ignoreCase: true);
         Entities.MatchFrequency? frequency = command.Frequency is not null
@@ -78,6 +82,11 @@ public sealed class CreateMatchHandler
                 PriceMonthly: command.PriceMonthly,
                 RecurrenceDays: command.RecurrenceDays,
                 CoverObjectKey: command.CoverObjectKey));
+
+        if (arenaId is not null)
+        {
+            match.LinkArena(arenaId, now);
+        }
 
         await _repository.AddAsync(match, cancellationToken);
 

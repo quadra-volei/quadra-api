@@ -10,11 +10,13 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Quadra.Infrastructure.Persistence;
 using Quadra.Modules.Geo.Application;
+using Quadra.Modules.Geo.Arenas;
 using Quadra.Modules.Geo.Contracts;
 using Quadra.Modules.Geo.Persistence;
 using Quadra.Modules.Geo.Places;
 using Quadra.Modules.Geo.Validation;
 using Quadra.Modules.Geo.Venues;
+using Quadra.Shared.Contracts;
 
 namespace Quadra.Modules.Geo.DependencyInjection;
 
@@ -101,6 +103,10 @@ public static class GeoModuleExtensions
                 : sp.GetRequiredService<NoVenueSource>());
         services.AddScoped<VenueDiscovery>();
         services.AddScoped<GetNearbyVenuesHandler>();
+
+        // Curated arenas (DECISIONS #91, #92): Matches links games to them through IArenaReader.
+        services.AddScoped<ArenaReader>();
+        services.AddScoped<IArenaReader>(static sp => sp.GetRequiredService<ArenaReader>());
 
         // TimeProvider.System — register only if not already registered by another module.
         services.TryAddSingleton(TimeProvider.System);

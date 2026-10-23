@@ -141,12 +141,20 @@ public sealed class MatchesController : ControllerBase
             PriceMonthly: request.PriceMonthly,
             RecurrenceDays: request.RecurrenceDays,
             ConfirmationOpensHoursBefore: request.ConfirmationOpensHoursBefore,
-            CoverObjectKey: string.IsNullOrWhiteSpace(request.CoverObjectKey) ? null : request.CoverObjectKey);
+            CoverObjectKey: string.IsNullOrWhiteSpace(request.CoverObjectKey) ? null : request.CoverObjectKey,
+            PlaceId: request.PlaceId,
+            ArenaId: request.ArenaId);
 
-        var match = await _createHandler.HandleAsync(command, cancellationToken);
-        var response = ToResponse(match);
-
-        return CreatedAtAction(nameof(GetById), new { id = match.Id }, response);
+        try
+        {
+            var match = await _createHandler.HandleAsync(command, cancellationToken);
+            return CreatedAtAction(nameof(GetById), new { id = match.Id }, ToResponse(match));
+        }
+        catch (MatchArenaUnavailableException ex)
+        {
+            ModelState.AddModelError(nameof(request.ArenaId), ex.Message);
+            return ValidationProblem(ModelState);
+        }
     }
 
     /// <summary>GET /api/v1/matches/{id}</summary>
@@ -264,6 +272,11 @@ public sealed class MatchesController : ControllerBase
         catch (MatchSlotsBelowConfirmedException ex)
         {
             return Conflict(new ProblemDetails { Detail = ex.Message });
+        }
+        catch (MatchArenaUnavailableException ex)
+        {
+            ModelState.AddModelError(nameof(request.ArenaId), ex.Message);
+            return ValidationProblem(ModelState);
         }
     }
 

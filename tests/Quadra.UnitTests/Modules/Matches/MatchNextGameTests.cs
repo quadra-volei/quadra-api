@@ -86,7 +86,7 @@ public sealed class MatchNextGameTests
     }
 
     [Fact]
-    public void CreateNext_keeps_the_arena_across_the_group_and_editing_does_not_drop_it()
+    public void CreateNext_keeps_the_arena_and_an_edit_drops_it_only_when_the_game_moves()
     {
         var first = Match.Create(
             Guid.NewGuid(), "Racha", null, "Rua A", -23.5, -46.6, Tuesday, 12, 12, null,
@@ -106,7 +106,13 @@ public sealed class MatchNextGameTests
 
         loose.ArenaId.Should().BeNull("a game created without an arena has none");
         second.ArenaId.Should().Be(arenaId);
-        third.ArenaId.Should().Be(arenaId);
+        third.ArenaId.Should().BeNull("the edit moved the game, so it left its arena");
+
+        second.Update(
+            new MatchEdit("Racha", null, "Rua A", -23.5, -46.6, Tuesday.AddDays(8), 12, 12, null,
+                null, null, null, null, null, null, null),
+            now);
+        second.ArenaId.Should().Be(arenaId, "an edit at the same spot keeps the arena");
     }
 
     [Fact]
