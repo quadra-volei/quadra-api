@@ -159,6 +159,10 @@ namespace Quadra.Modules.Geo.Migrations
                         .HasColumnType("text")
                         .HasColumnName("address");
 
+                    b.Property<Guid?>("ArenaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("arena_id");
+
                     b.Property<DateTimeOffset>("DateTime")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("date_time");

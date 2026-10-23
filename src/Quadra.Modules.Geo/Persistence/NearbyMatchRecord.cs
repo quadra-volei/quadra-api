@@ -29,4 +29,7 @@ public sealed class NearbyMatchRecord
     public string? Format { get; private set; }
 
     public string? Level { get; private set; }
+
+    /// <summary>The curated arena the game is at (DECISIONS #91), or null.</summary>
+    public Guid? ArenaId { get; private set; }
 }
