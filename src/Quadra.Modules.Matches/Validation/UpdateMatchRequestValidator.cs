@@ -66,5 +66,6 @@ public sealed class UpdateMatchRequestValidator : AbstractValidator<UpdateMatchR
             .When(x => x.DurationMinutes.HasValue);
 
         RuleFor(x => x.CoverObjectKey).MaximumLength(256);
+        RuleFor(x => x.PlaceId).MaximumLength(255);
     }
 }

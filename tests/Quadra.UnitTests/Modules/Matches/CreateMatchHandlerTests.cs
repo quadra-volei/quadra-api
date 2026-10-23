@@ -4,6 +4,7 @@ using Quadra.Infrastructure.Messaging;
 using Quadra.Modules.Matches.Application;
 using Quadra.Modules.Matches.Entities;
 using Quadra.Modules.Matches.Persistence;
+using Quadra.Shared.Contracts;
 using Quadra.Shared.Events.Matches;
 using MatchType = Quadra.Modules.Matches.Entities.MatchType;
 
@@ -20,9 +21,10 @@ public sealed class CreateMatchHandlerTests
     private readonly IMatchRepository _repository = Substitute.For<IMatchRepository>();
     private readonly IEventPublisher _eventPublisher = Substitute.For<IEventPublisher>();
     private readonly TimeProvider _timeProvider = new FixedTimeProvider(FixedNow);
+    private readonly IArenaReader _arenas = Substitute.For<IArenaReader>();
 
     private CreateMatchHandler CreateSut() =>
-        new(_repository, _eventPublisher, _timeProvider, MatchTestSupport.Synchronizer(_repository, _timeProvider));
+        new(_repository, _eventPublisher, _timeProvider, MatchTestSupport.Synchronizer(_repository, _timeProvider), new MatchArenaResolver(_arenas));
 
     private static CreateMatchCommand BuildValidOneOffCommand(Guid? organizerId = null) =>
         new(
@@ -196,6 +198,39 @@ public sealed class CreateMatchHandlerTests
 
         await sut.HandleAsync(command, CancellationToken.None);
 
+        await _repository.Received(1).AddAsync(Arg.Any<Match>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_picked_place_of_an_arena_links_the_game_and_a_loose_place_does_not()
+    {
+        var arenaId = Guid.NewGuid();
+        _arenas.FindActiveByPlaceAsync("place-arena", Arg.Any<CancellationToken>()).Returns(arenaId);
+
+        var linked = await CreateSut().HandleAsync(BuildValidOneOffCommand() with { PlaceId = "place-arena" }, CancellationToken.None);
+        var loose = await CreateSut().HandleAsync(BuildValidOneOffCommand() with { PlaceId = "place-street" }, CancellationToken.None);
+        var typed = await CreateSut().HandleAsync(BuildValidOneOffCommand(), CancellationToken.None);
+
+        linked.ArenaId.Should().Be(arenaId);
+        loose.ArenaId.Should().BeNull("a place outside every arena links nothing, however close it is");
+        typed.ArenaId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task The_organizers_arena_wins_over_the_place_and_must_be_active()
+    {
+        var chosen = Guid.NewGuid();
+        var stayed = Guid.NewGuid();
+        _arenas.FindActiveAsync(chosen, Arg.Any<CancellationToken>()).Returns(stayed);
+        _arenas.FindActiveByPlaceAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Guid.NewGuid());
+
+        var match = await CreateSut().HandleAsync(
+            BuildValidOneOffCommand() with { PlaceId = "place-other", ArenaId = chosen }, CancellationToken.None);
+        var act = () => CreateSut().HandleAsync(
+            BuildValidOneOffCommand() with { ArenaId = Guid.NewGuid() }, CancellationToken.None);
+
+        match.ArenaId.Should().Be(stayed, "a merged arena answers with the one that stayed");
+        await act.Should().ThrowAsync<MatchArenaUnavailableException>();
         await _repository.Received(1).AddAsync(Arg.Any<Match>(), Arg.Any<CancellationToken>());
     }
 

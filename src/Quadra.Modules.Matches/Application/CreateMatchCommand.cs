@@ -29,4 +29,6 @@ public sealed record CreateMatchCommand(
     decimal? PriceMonthly = null,
     IReadOnlyList<int>? RecurrenceDays = null,
     int? ConfirmationOpensHoursBefore = null,
-    string? CoverObjectKey = null);
+    string? CoverObjectKey = null,
+    string? PlaceId = null,
+    Guid? ArenaId = null);

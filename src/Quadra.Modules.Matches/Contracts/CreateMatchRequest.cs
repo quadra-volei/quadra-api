@@ -22,6 +22,8 @@ namespace Quadra.Modules.Matches.Contracts;
 /// <param name="RecurrenceDays">ISO week days (1–7) a recurring match repeats on.</param>
 /// <param name="CoverObjectKey">Key from <c>POST /profiles/me/photo/upload-url</c> of the uploaded cover; must be the caller's.</param>
 /// <param name="ConfirmationOpensHoursBefore">Hours before the match the confirmation window opens (1–168).</param>
+/// <param name="PlaceId">Google place picked in the address search; links the game when the place belongs to an arena.</param>
+/// <param name="ArenaId">Arena the organizer confirmed ("É no …?"); must be active. Wins over <see cref="PlaceId"/>.</param>
 public sealed record CreateMatchRequest(
     string Name,
     string? Description,
@@ -47,4 +49,6 @@ public sealed record CreateMatchRequest(
     decimal? PriceMonthly = null,
     IReadOnlyList<int>? RecurrenceDays = null,
     int? ConfirmationOpensHoursBefore = null,
-    string? CoverObjectKey = null);
+    string? CoverObjectKey = null,
+    string? PlaceId = null,
+    Guid? ArenaId = null);

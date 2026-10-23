@@ -10,6 +10,8 @@ namespace Quadra.Modules.Matches.Contracts;
 /// Null keeps the current cover, an empty string removes it, a key from
 /// <c>POST /profiles/me/photo/upload-url</c> (the caller's) replaces it.
 /// </param>
+/// <param name="PlaceId">Google place picked again in the address search; links the game to its arena, or unlinks it.</param>
+/// <param name="ArenaId">Arena the organizer confirmed; must be active. With neither sent the arena stays, unless the game moved.</param>
 public sealed record UpdateMatchRequest(
     string Name,
     string? Description,
@@ -27,4 +29,6 @@ public sealed record UpdateMatchRequest(
     decimal? PriceMonthly = null,
     IReadOnlyList<int>? RecurrenceDays = null,
     string? CoverObjectKey = null,
-    bool? FreeTeams = null);   // null keeps the current mode
+    bool? FreeTeams = null,   // null keeps the current mode
+    string? PlaceId = null,
+    Guid? ArenaId = null);
