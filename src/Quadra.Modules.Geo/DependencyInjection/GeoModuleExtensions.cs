@@ -107,6 +107,8 @@ public static class GeoModuleExtensions
         // Curated arenas (DECISIONS #91, #92): Matches links games to them through IArenaReader.
         services.AddScoped<ArenaReader>();
         services.AddScoped<IArenaReader>(static sp => sp.GetRequiredService<ArenaReader>());
+        services.AddScoped<GetMapItemsHandler>();
+        services.AddScoped<IValidator<MapItemsQuery>, MapItemsQueryValidator>();
 
         // TimeProvider.System — register only if not already registered by another module.
         services.TryAddSingleton(TimeProvider.System);
