@@ -29,7 +29,7 @@ Each module is a project `src/Quadra.Modules.<Name>/` with its own DbContext and
 | InGame | Teams, scoreboard, MVP vote | `teams`, `team_members`, `scoreboards`, `scoreboard_sets`, `mvp_votings`, `mvp_votes`, `player_match_stats` |
 | Profile | Player identity, stats, history, card, feedback, Rede (posts, likes, comments, follows), friends' activity | `player_profiles`, `player_stats`, `player_match_history`, `player_cards`, `feedback`, `posts`, `post_likes`, `post_comments`, `follows`, `activities` |
 | Gamification | Points and group ranking | `point_transactions`, `group_rankings` |
-| Geo | Nearby matches, address search, arenas on the map | `venues`, `venue_areas` (arena cache); reads `matches` read-only |
+| Geo | Nearby matches, address search, arenas on the map | `venues`, `venue_areas` (Google candidate cache), `arenas`, `arena_places` (curated arenas); reads `matches` read-only |
 | Realtime | SignalR hub `/hubs/match` | none (groups in memory) |
 | Notifications | In-app notifications, push tokens and preferences; sends through Expo Push (`INotificationSender` for the other modules) | `notifications`, `push_tokens`, `notification_preferences` |
 
@@ -37,6 +37,9 @@ Each module is a project `src/Quadra.Modules.<Name>/` with its own DbContext and
 
 - A module never reads another module's tables; no cross-module JOINs. Geo's read-only access
   to `matches` is the only exception.
+- Cross-module foreign keys: only `matches.arena_id` → `arenas`. Matches owns the column; the key is
+  created by the Geo migration `CreateArenas`, which needs the Matches migration `AddMatchArena` first
+  (startup migrates Geo last). Neither EF model knows the key (DECISIONS #91).
 - Modules talk through interfaces in `Quadra.Shared` (for example `IPlayerSummaryReader`) or
   through events.
 
