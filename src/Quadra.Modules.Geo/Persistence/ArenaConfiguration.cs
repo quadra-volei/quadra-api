@@ -25,6 +25,9 @@ public sealed class ArenaConfiguration : IEntityTypeConfiguration<Arena>
                 "ck_arenas_merged_into",
                 $"((status = '{ArenaStatuses.Merged}') = (merged_into_id IS NOT NULL)) AND merged_into_id IS DISTINCT FROM id");
             t.HasCheckConstraint(
+                "ck_arenas_location_source",
+                $"location_source IN ('{ArenaLocationSources.Curator}', '{ArenaLocationSources.Candidate}')");
+            t.HasCheckConstraint(
                 "ck_arenas_reviewed",
                 $"status = '{ArenaStatuses.Draft}' OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)");
         });
@@ -42,6 +45,12 @@ public sealed class ArenaConfiguration : IEntityTypeConfiguration<Arena>
         builder.Property(a => a.Kind)
             .HasColumnName("kind")
             .HasMaxLength(8)
+            .IsRequired();
+
+        builder.Property(a => a.LocationSource)
+            .HasColumnName("location_source")
+            .HasMaxLength(16)
+            .HasDefaultValue(ArenaLocationSources.Curator)
             .IsRequired();
 
         builder.Property(a => a.Status)

@@ -49,6 +49,14 @@ namespace Quadra.Modules.Geo.Migrations
                         .HasColumnType("geography (point, 4326)")
                         .HasColumnName("location");
 
+                    b.Property<string>("LocationSource")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("Curator")
+                        .HasColumnName("location_source");
+
                     b.Property<Guid?>("MergedIntoId")
                         .HasColumnType("uuid")
                         .HasColumnName("merged_into_id");
@@ -91,6 +99,8 @@ namespace Quadra.Modules.Geo.Migrations
                     b.ToTable("arenas", null, t =>
                         {
                             t.HasCheckConstraint("ck_arenas_kind", "kind IN ('Court', 'Sand', 'Park')");
+
+                            t.HasCheckConstraint("ck_arenas_location_source", "location_source IN ('Curator', 'Candidate')");
 
                             t.HasCheckConstraint("ck_arenas_merged_into", "((status = 'Merged') = (merged_into_id IS NOT NULL)) AND merged_into_id IS DISTINCT FROM id");
 

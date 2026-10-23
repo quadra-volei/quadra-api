@@ -18,6 +18,12 @@ public sealed class Arena
     /// <summary>PostGIS geography point (SRID 4326). X = Longitude, Y = Latitude.</summary>
     public Point Location { get; private set; } = null!;
 
+    /// <summary>
+    /// Where the point came from (<see cref="ArenaLocationSources"/>): placed by the team, or the Google
+    /// candidate's as it was found. Kept for the legal review of Google's terms (D11).
+    /// </summary>
+    public string LocationSource { get; private set; } = ArenaLocationSources.Curator;
+
     /// <summary>One of <see cref="VenueKinds"/>.</summary>
     public string Kind { get; private set; } = null!;
 
@@ -37,8 +43,18 @@ public sealed class Arena
     public DateTimeOffset UpdatedAt { get; private set; }
 
     /// <summary>A new arena, in Draft: not on the map until <see cref="Approve"/>.</summary>
-    public static Arena Create(double latitude, double longitude, string kind, DateTimeOffset now)
+    public static Arena Create(
+        double latitude,
+        double longitude,
+        string kind,
+        DateTimeOffset now,
+        string locationSource = ArenaLocationSources.Curator)
     {
+        if (locationSource is not (ArenaLocationSources.Curator or ArenaLocationSources.Candidate))
+        {
+            throw new ArgumentException($"Unknown location source '{locationSource}'.", nameof(locationSource));
+        }
+
         if (kind is not (VenueKinds.Court or VenueKinds.Sand or VenueKinds.Park))
         {
             throw new ArgumentException($"Unknown arena kind '{kind}'.", nameof(kind));
@@ -48,6 +64,7 @@ public sealed class Arena
         {
             Id = Guid.NewGuid(),
             Location = new Point(longitude, latitude) { SRID = 4326 },
+            LocationSource = locationSource,
             Kind = kind,
             Status = ArenaStatuses.Draft,
             CreatedAt = now,
@@ -157,6 +174,16 @@ public static class ArenaStatuses
     public const string Active = "Active";
     public const string Inactive = "Inactive";
     public const string Merged = "Merged";
+}
+
+/// <summary>Where an arena's point came from.</summary>
+public static class ArenaLocationSources
+{
+    /// <summary>Placed or moved by the team.</summary>
+    public const string Curator = "Curator";
+
+    /// <summary>The Google candidate's point, approved as it was found.</summary>
+    public const string Candidate = "Candidate";
 }
 
 /// <summary>What was decided about a Google place id.</summary>

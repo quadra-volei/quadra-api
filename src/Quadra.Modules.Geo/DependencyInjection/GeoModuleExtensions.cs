@@ -110,6 +110,11 @@ public static class GeoModuleExtensions
         services.AddScoped<GetMapItemsHandler>();
         services.AddScoped<IValidator<MapItemsQuery>, MapItemsQueryValidator>();
 
+        // The team's arena curation (DECISIONS #94).
+        services.AddScoped<ArenaCuration>();
+        services.AddScoped<IValidator<CurationDecisionRequest>, CurationDecisionRequestValidator>();
+        services.AddScoped<IValidator<DiscoverCandidatesRequest>, DiscoverCandidatesRequestValidator>();
+
         // TimeProvider.System — register only if not already registered by another module.
         services.TryAddSingleton(TimeProvider.System);
 
