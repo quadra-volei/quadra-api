@@ -105,12 +105,19 @@ public sealed class Match
     /// </summary>
     public Guid? GroupId { get; private set; }
 
+    /// <summary>
+    /// The Geo arena this game is played at, or null. The source of truth for the game↔arena link:
+    /// distance may suggest an arena but never sets it. Foreign key to <c>arenas</c>, created by the
+    /// Geo migration (Geo migrates after Matches).
+    /// </summary>
+    public Guid? ArenaId { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
 
     /// <summary>
     /// The next game of this recurring group (DECISIONS #64): a copy of this one (same organizer,
-    /// place, slots, prices, settings and invite code) on <paramref name="dateTime"/>, in Draft, with
+    /// place and arena, slots, prices, settings and invite code) on <paramref name="dateTime"/>, in Draft, with
     /// the confirmation window as far from the game as this one's was (never opening before now).
     /// </summary>
     public Match CreateNext(DateTimeOffset dateTime, DateTimeOffset now)

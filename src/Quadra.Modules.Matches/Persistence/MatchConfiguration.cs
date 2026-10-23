@@ -158,6 +158,13 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
         builder.HasIndex(m => m.GroupId)
             .HasDatabaseName("ix_matches_group_id");
 
+        // No HasOne: the arena is a Geo table. Its foreign key comes from the Geo migration.
+        builder.Property(m => m.ArenaId)
+            .HasColumnName("arena_id");
+
+        builder.HasIndex(m => m.ArenaId)
+            .HasDatabaseName("ix_matches_arena_id");
+
         builder.HasIndex(m => m.OrganizerId)
             .HasDatabaseName("ix_matches_organizer_id");
 

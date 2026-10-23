@@ -38,6 +38,10 @@ namespace Quadra.Modules.Matches.Migrations
                         .HasColumnType("character varying(300)")
                         .HasColumnName("address");
 
+                    b.Property<Guid?>("ArenaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("arena_id");
+
                     b.Property<string>("CoverObjectKey")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)")
@@ -186,6 +190,9 @@ namespace Quadra.Modules.Matches.Migrations
                         .HasColumnName("window_opens_at");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ArenaId")
+                        .HasDatabaseName("ix_matches_arena_id");
 
                     b.HasIndex("DateTime")
                         .HasDatabaseName("ix_matches_date_time");

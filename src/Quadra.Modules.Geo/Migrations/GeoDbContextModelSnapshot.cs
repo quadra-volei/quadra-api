@@ -24,6 +24,129 @@ namespace Quadra.Modules.Geo.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "postgis");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Quadra.Modules.Geo.Arenas.Arena", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("kind");
+
+                    b.Property<Point>("Location")
+                        .IsRequired()
+                        .HasColumnType("geography (point, 4326)")
+                        .HasColumnName("location");
+
+                    b.Property<Guid?>("MergedIntoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("merged_into_id");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("Draft")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Location")
+                        .HasDatabaseName("ix_arenas_location_gist");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Location"), "gist");
+
+                    b.HasIndex("MergedIntoId")
+                        .HasDatabaseName("ix_arenas_merged_into_id");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("ix_arenas_status");
+
+                    b.ToTable("arenas", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_arenas_kind", "kind IN ('Court', 'Sand', 'Park')");
+
+                            t.HasCheckConstraint("ck_arenas_merged_into", "((status = 'Merged') = (merged_into_id IS NOT NULL)) AND merged_into_id IS DISTINCT FROM id");
+
+                            t.HasCheckConstraint("ck_arenas_reviewed", "status = 'Draft' OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_arenas_status", "status IN ('Draft', 'Active', 'Inactive', 'Merged')");
+                        });
+                });
+
+            modelBuilder.Entity("Quadra.Modules.Geo.Arenas.ArenaPlace", b =>
+                {
+                    b.Property<string>("PlaceId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("place_id");
+
+                    b.Property<Guid?>("ArenaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("arena_id");
+
+                    b.Property<bool>("IsPrimary")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_primary");
+
+                    b.Property<DateTimeOffset>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid>("ReviewedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.HasKey("PlaceId");
+
+                    b.HasIndex(new[] { "ArenaId" }, "ix_arena_places_arena_id");
+
+                    b.HasIndex(new[] { "ArenaId" }, "uq_arena_places_primary")
+                        .IsUnique()
+                        .HasFilter("is_primary");
+
+                    b.ToTable("arena_places", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_arena_places_primary", "NOT is_primary OR status = 'Linked'");
+
+                            t.HasCheckConstraint("ck_arena_places_status", "(status = 'Linked' AND arena_id IS NOT NULL) OR (status = 'Rejected' AND arena_id IS NULL)");
+                        });
+                });
+
             modelBuilder.Entity("Quadra.Modules.Geo.Persistence.NearbyMatchRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -151,6 +274,24 @@ namespace Quadra.Modules.Geo.Migrations
                     b.HasKey("Key");
 
                     b.ToTable("venue_areas", (string)null);
+                });
+
+            modelBuilder.Entity("Quadra.Modules.Geo.Arenas.Arena", b =>
+                {
+                    b.HasOne("Quadra.Modules.Geo.Arenas.Arena", null)
+                        .WithMany()
+                        .HasForeignKey("MergedIntoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_arenas_arenas_merged_into_id");
+                });
+
+            modelBuilder.Entity("Quadra.Modules.Geo.Arenas.ArenaPlace", b =>
+                {
+                    b.HasOne("Quadra.Modules.Geo.Arenas.Arena", null)
+                        .WithMany()
+                        .HasForeignKey("ArenaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_arena_places_arenas_arena_id");
                 });
 #pragma warning restore 612, 618
         }
