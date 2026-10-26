@@ -45,6 +45,10 @@ namespace Quadra.Modules.Notifications.Migrations
                         .HasColumnType("character varying(120)")
                         .HasColumnName("dedup_key");
 
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
                     b.Property<Guid?>("MatchId")
                         .HasColumnType("uuid")
                         .HasColumnName("match_id");
