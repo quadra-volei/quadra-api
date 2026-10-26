@@ -44,8 +44,8 @@ public sealed class ApplyFinishedMatchPointsHandler : IMatchPointsWriter
 
         await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
 
-        // 1. Insert the Attendance/Win/Mvp ledger rows idempotently.
-        foreach (var (userId, reason, awardPoints) in awards)
+        // 1. Insert the ledger rows idempotently.
+        foreach (var (userId, reason, awardPoints, quantity) in awards)
         {
             var ledgerRow = PointTransaction.Create(
                 userId,
@@ -54,7 +54,8 @@ public sealed class ApplyFinishedMatchPointsHandler : IMatchPointsWriter
                 reason,
                 awardPoints,
                 points.MatchDateTime,
-                points.FinishedAt);
+                points.FinishedAt,
+                quantity);
 
             await _transactions.AddIfAbsentAsync(ledgerRow, cancellationToken);
         }
@@ -82,11 +83,11 @@ public sealed class ApplyFinishedMatchPointsHandler : IMatchPointsWriter
 
         _logger.LogInformation(
             "Applied finished match {MatchId} points for group {GroupId}: {AttendanceCount} attendance, "
-            + "{WinCount} win, {MvpCount} mvp award(s).",
+            + "{GameWinCount} game-win, {MvpCount} mvp award(s).",
             points.MatchId,
             points.GroupId,
             awards.Count(a => a.Reason == PointReason.Attendance),
-            awards.Count(a => a.Reason == PointReason.Win),
+            awards.Count(a => a.Reason == PointReason.GameWin),
             awards.Count(a => a.Reason == PointReason.Mvp));
     }
 }

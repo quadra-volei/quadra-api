@@ -6,14 +6,24 @@ public sealed record RankingQuery(
     Guid? GroupId = null,
     string? Position = null,
     int Page = 1,
-    int PageSize = 20);
+    int PageSize = 20,
+    string? Season = null,               // "yyyy-MM"; null = the current season
+    string Sort = RankingSorts.Points);
 
-/// <summary>The scopes a ranking can have.</summary>
+/// <summary>The scopes a ranking can have. <c>friends</c> is the caller's network (#95).</summary>
 public static class RankingScopes
 {
     public const string Friends = "friends";
     public const string Group = "group";
     public const string General = "general";
+}
+
+/// <summary>What a ranking is ordered by.</summary>
+public static class RankingSorts
+{
+    public const string Points = "points";
+    public const string Mvps = "mvps";
+    public const string Wins = "wins";
 }
 
 /// <summary>One player's line in a season ranking.</summary>
@@ -27,9 +37,14 @@ public sealed record RankingEntryResponse(
     string? PhotoUrl,
     int Points,
     int Matches,
-    int Wins,
+    int Wins,                   // games won (DECISIONS #95)
     int Mvps,
-    int? Overall = null);       // GERAL, the same number as the profile (DECISIONS #85)
+    int? Overall = null,        // GERAL, the same number as the profile (DECISIONS #85)
+    int Votes = 0,              // MVP votes received
+    int AttendancePoints = 0,
+    int WinPoints = 0,
+    int MvpPoints = 0,          // votes + MVP bonus
+    int? PreviousRank = null);  // rank 7 days ago in the same season; null when not ranked then
 
 /// <summary>A season ranking of one scope, optionally of one court position.</summary>
 public sealed record RankingResponse(
@@ -45,7 +60,21 @@ public sealed record RankingResponse(
     int Page,
     int PageSize,
     long TotalCount,
-    bool HasNextPage);
+    bool HasNextPage,
+    string Sort = RankingSorts.Points,
+    RankingEntryResponse? NextUp = null);   // the line right above the caller's (who to pass)
 
 /// <summary>A recurring game the caller scored in, for the group picker.</summary>
 public sealed record RankingGroupResponse(Guid GroupId, string Name);
+
+/// <summary>What one match gave the caller (<c>GET /rankings/matches/{matchId}/me</c>).</summary>
+public sealed record MatchPointsResponse(
+    Guid MatchId,
+    Guid GroupId,
+    int Points,
+    int AttendancePoints,
+    int WinPoints,
+    int MvpPoints,
+    int GamesWon,
+    int Votes,
+    bool Mvp);

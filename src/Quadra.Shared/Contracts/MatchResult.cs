@@ -22,7 +22,8 @@ public sealed record MatchResult(
     Guid? MvpPlayerId,
     int? MvpVoteCount,
     int MvpTotalVotes,
-    IReadOnlyList<MatchResultPlayerStats>? PlayerStats = null);
+    IReadOnlyList<MatchResultPlayerStats>? PlayerStats = null,
+    IReadOnlyDictionary<Guid, int>? MvpVotesByPlayer = null);  // votes each player received
 
 /// <summary>Per-set result within a <see cref="MatchResult"/>, with the pair that played it (null on old sets).</summary>
 public sealed record MatchResultSet(

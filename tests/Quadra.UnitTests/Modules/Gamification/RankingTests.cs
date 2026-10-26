@@ -53,6 +53,28 @@ public sealed class RankingTests
     }
 
     [Fact]
+    public void Rank_by_mvps_or_wins_puts_that_count_first()
+    {
+        var totals = new[]
+        {
+            new SeasonTotals(A, 90, 3, 1, 0, Votes: 2),
+            new SeasonTotals(B, 40, 3, 0, 1, Votes: 3),
+            new SeasonTotals(C, 50, 3, 3, 0),
+        };
+
+        GetRankingHandler.Rank(totals, Players, null, 1, "mvps").Select(e => e.UserId).Should().Equal(B, A, C);
+        GetRankingHandler.Rank(totals, Players, null, 1, "wins").Select(e => e.UserId).Should().Equal(C, A, B);
+    }
+
+    [Fact]
+    public void Season_parses_a_month_in_brasilia_time()
+    {
+        GetRankingHandler.Season("2026-09").Should().Be((
+            new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.FromHours(-3)),
+            new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.FromHours(-3))));
+    }
+
+    [Fact]
     public void CurrentSeason_is_the_calendar_month_in_brasilia_time()
     {
         // 2026-11-01 01:00 UTC is still 31 October in Brasília (UTC-3).

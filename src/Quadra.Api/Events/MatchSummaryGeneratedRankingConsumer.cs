@@ -65,15 +65,16 @@ public sealed class MatchSummaryGeneratedRankingConsumer : IEventHandler<MatchSu
             return;
         }
 
-        // The participant set comes from the InGame team rosters (players who showed up). Each player's
-        // Won flag is derived from whether their team is the winning team.
+        // The participant set comes from the InGame team rosters (players who showed up). Each
+        // player's games won are the sets their team won (DECISIONS #95).
+        var votes = result.MvpVotesByPlayer ?? new Dictionary<Guid, int>();
         var players = new List<FinishedMatchPlayerPoints>();
         foreach (var team in result.Teams)
         {
-            var won = result.WinnerTeamId is not null && team.TeamId == result.WinnerTeamId;
+            var gamesWon = result.Sets.Count(s => s.WinnerTeamId == team.TeamId);
             foreach (var playerId in team.PlayerIds)
             {
-                players.Add(new FinishedMatchPlayerPoints(playerId, won));
+                players.Add(new FinishedMatchPlayerPoints(playerId, gamesWon, votes.GetValueOrDefault(playerId)));
             }
         }
 
@@ -83,7 +84,8 @@ public sealed class MatchSummaryGeneratedRankingConsumer : IEventHandler<MatchSu
             MatchDateTime: group.DateTime,
             MvpPlayerId: @event.MvpPlayerId,
             Players: players,
-            FinishedAt: @event.GeneratedAt);
+            FinishedAt: @event.GeneratedAt,
+            MvpTotalVotes: result.MvpTotalVotes);
 
         await _pointsWriter.ApplyFinishedMatchPointsAsync(points, cancellationToken);
 

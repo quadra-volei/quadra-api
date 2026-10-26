@@ -79,7 +79,8 @@ public sealed class MatchResultReader : IMatchResultReader
             MvpPlayerId: voting?.MvpPlayerId,
             MvpVoteCount: voting?.MvpVoteCount,
             MvpTotalVotes: voting?.TotalVotes ?? 0,
-            PlayerStats: ToResultStats(await _statsRepository.ListByMatchAsync(matchId, cancellationToken)));
+            PlayerStats: ToResultStats(await _statsRepository.ListByMatchAsync(matchId, cancellationToken)),
+            MvpVotesByPlayer: voting?.Votes.GroupBy(v => v.VotedPlayerId).ToDictionary(g => g.Key, g => g.Count()));
     }
 
     /// <summary>
