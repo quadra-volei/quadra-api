@@ -202,11 +202,11 @@ public sealed class GetRankingHandler
             .Where(t => position is null || players[t.UserId].Position == position);
 
         var ordered = (sort switch
-            {
-                RankingSorts.Mvps => qualifying.OrderByDescending(t => t.Mvps).ThenByDescending(t => t.Votes).ThenByDescending(t => t.Points),
-                RankingSorts.Wins => qualifying.OrderByDescending(t => t.Wins).ThenByDescending(t => t.Points),
-                _ => qualifying.OrderByDescending(t => t.Points),
-            })
+        {
+            RankingSorts.Mvps => qualifying.OrderByDescending(t => t.Mvps).ThenByDescending(t => t.Votes).ThenByDescending(t => t.Points),
+            RankingSorts.Wins => qualifying.OrderByDescending(t => t.Wins).ThenByDescending(t => t.Points),
+            _ => qualifying.OrderByDescending(t => t.Points),
+        })
             .ThenByDescending(t => t.Mvps)
             .ThenByDescending(t => t.Votes)
             .ThenByDescending(t => t.Wins)

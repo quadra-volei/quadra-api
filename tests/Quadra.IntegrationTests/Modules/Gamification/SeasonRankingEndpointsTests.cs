@@ -96,7 +96,13 @@ public sealed class SeasonRankingEndpointsTests
         // general needs 3 games: nobody qualifies, the caller still sees their own line
         byPoints!.CallerEntry.Should().BeEquivalentTo(new
         {
-            Points = 54, Wins = 1, Votes = 4, Mvps = 1, AttendancePoints = 10, WinPoints = 8, MvpPoints = 36,
+            Points = 54,
+            Wins = 1,
+            Votes = 4,
+            Mvps = 1,
+            AttendancePoints = 10,
+            WinPoints = 8,
+            MvpPoints = 36,
         });
         byWins!.Sort.Should().Be("wins");
         mine.Should().Be(new MatchPointsResponse(matchId, mine!.GroupId, 54, 10, 8, 36, 1, 4, true));
