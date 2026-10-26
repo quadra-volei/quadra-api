@@ -4,38 +4,48 @@ using Quadra.Modules.Gamification.Entities;
 namespace Quadra.Modules.Gamification.Application;
 
 /// <summary>
-/// Pure point-rule constants and the per-match award mapping (SCOPE F2.3: attendance +10, win +15,
-/// MVP +25). No streak or DropIn rule exists in the MVP.
+/// Pure point rules (DECISIONS #95): attendance +10, +8 per game won (at most 3 counted), +4 per
+/// MVP vote received, +20 for the MVP when at least 3 ballots were cast.
 /// </summary>
 public static class PointRules
 {
     public const int Attendance = 10;
-    public const int Win = 15;
-    public const int Mvp = 25;
+    public const int GameWin = 8;
+    public const int MaxGamesCounted = 3;
+    public const int MvpVote = 4;
+    public const int Mvp = 20;
+    public const int MvpMinVotes = 3;
 
     /// <summary>
-    /// Builds the flat list of awards for a finished match: every participant earns Attendance;
-    /// winners additionally earn Win; the single MVP additionally earns Mvp.
+    /// Builds the flat list of awards for a finished match, one row per player and reason, with the
+    /// quantity it stands for (games won, votes received; 1 otherwise).
     /// </summary>
-    public static IReadOnlyList<(Guid UserId, PointReason Reason, int Points)> BuildAwards(
+    public static IReadOnlyList<(Guid UserId, PointReason Reason, int Points, int Quantity)> BuildAwards(
         FinishedMatchPoints points)
     {
         ArgumentNullException.ThrowIfNull(points);
 
-        var awards = new List<(Guid UserId, PointReason Reason, int Points)>();
+        var awards = new List<(Guid UserId, PointReason Reason, int Points, int Quantity)>();
+        var mvpCounts = points.MvpTotalVotes >= MvpMinVotes;
 
         foreach (var player in points.Players)
         {
-            awards.Add((player.PlayerId, PointReason.Attendance, Attendance));
+            awards.Add((player.PlayerId, PointReason.Attendance, Attendance, 1));
 
-            if (player.Won)
+            if (player.GamesWon > 0)
             {
-                awards.Add((player.PlayerId, PointReason.Win, Win));
+                var games = Math.Min(player.GamesWon, MaxGamesCounted);
+                awards.Add((player.PlayerId, PointReason.GameWin, games * GameWin, games));
             }
 
-            if (points.MvpPlayerId is { } mvpId && mvpId == player.PlayerId)
+            if (player.MvpVotes > 0)
             {
-                awards.Add((player.PlayerId, PointReason.Mvp, Mvp));
+                awards.Add((player.PlayerId, PointReason.MvpVote, player.MvpVotes * MvpVote, player.MvpVotes));
+            }
+
+            if (mvpCounts && points.MvpPlayerId is { } mvpId && mvpId == player.PlayerId)
+            {
+                awards.Add((player.PlayerId, PointReason.Mvp, Mvp, 1));
             }
         }
 

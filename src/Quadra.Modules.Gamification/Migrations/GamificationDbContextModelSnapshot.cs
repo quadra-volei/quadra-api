@@ -117,6 +117,12 @@ namespace Quadra.Modules.Gamification.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("points");
 
+                    b.Property<int>("Quantity")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("quantity");
+
                     b.Property<string>("Reason")
                         .IsRequired()
                         .HasMaxLength(16)

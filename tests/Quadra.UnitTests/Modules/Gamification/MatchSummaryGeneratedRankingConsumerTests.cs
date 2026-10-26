@@ -50,13 +50,19 @@ public sealed class MatchSummaryGeneratedRankingConsumerTests
             .Returns(new MatchResult(
                 MatchId, "Ended", "BestOf3", TeamA, TeamB, 2, 1, TeamA,
                 MatchDateTime, MatchDateTime.AddHours(1),
-                Array.Empty<MatchResultSet>(),
+                new[]
+                {
+                    new MatchResultSet(1, 25, 20, TeamA),
+                    new MatchResultSet(2, 18, 25, TeamB),
+                    new MatchResultSet(3, 15, 10, TeamA),
+                },
                 new[]
                 {
                     new MatchResultTeam(TeamA, "Team A", new[] { PlayerA1, PlayerA2 }),
                     new MatchResultTeam(TeamB, "Team B", new[] { PlayerB1 }),
                 },
-                "Closed", PlayerA1, 3, 5));
+                "Closed", PlayerA1, 3, 5,
+                MvpVotesByPlayer: new Dictionary<Guid, int> { [PlayerA1] = 3, [PlayerB1] = 2 }));
 
     /// <summary>
     /// Covers AC-7 (OneOff, Worker side): when the match is OneOff the consumer awards no points —
@@ -78,7 +84,7 @@ public sealed class MatchSummaryGeneratedRankingConsumerTests
 
     /// <summary>
     /// Supports AC-1/AC-3: for a recurring match the consumer composes a <see cref="FinishedMatchPoints"/>
-    /// with the winning team's players flagged <c>Won = true</c>, losers <c>Won = false</c>, the MVP id
+    /// with each player's games won (sets their team won) and MVP votes received, the MVP id
     /// carried through, and the grouping key = match id (MVP grouping ruling).
     /// </summary>
     [Fact]
@@ -99,11 +105,12 @@ public sealed class MatchSummaryGeneratedRankingConsumerTests
         captured.GroupId.Should().Be(MatchId);
         captured.MvpPlayerId.Should().Be(PlayerA1);
         captured.MatchDateTime.Should().Be(MatchDateTime);
+        captured.MvpTotalVotes.Should().Be(5);
         captured.Players.Should().BeEquivalentTo(new[]
         {
-            new FinishedMatchPlayerPoints(PlayerA1, Won: true),
-            new FinishedMatchPlayerPoints(PlayerA2, Won: true),
-            new FinishedMatchPlayerPoints(PlayerB1, Won: false),
+            new FinishedMatchPlayerPoints(PlayerA1, GamesWon: 2, MvpVotes: 3),
+            new FinishedMatchPlayerPoints(PlayerA2, GamesWon: 2),
+            new FinishedMatchPlayerPoints(PlayerB1, GamesWon: 1, MvpVotes: 2),
         });
     }
 

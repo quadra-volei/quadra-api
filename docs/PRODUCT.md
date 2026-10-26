@@ -86,9 +86,8 @@ examples: `docs/DECISIONS.md` #84 to #86 and `PlayerSkillCalculator`.
 
 ## Point system
 
-- Confirmed attendance + showed up: +10
-- Win: +15
-- Voted MVP: +25
+- Ranking points per recurring match (DECISIONS #95): attendance +10, +8 per game won (at most 3 counted), +4 per MVP vote received, MVP of the day +20 (only with 3+ votes). Stats from the sheet do not count.
+- The level number (DECISIONS #57) still uses attendance +10, win +15, MVP +25 over the whole history.
 - 3 consecutive matches streak: bonus +20 — **not in the MVP** (see `SCOPE.md`)
 - First match as DropIn in a new group: +5 — **not in the MVP**
 

@@ -7,13 +7,15 @@ namespace Quadra.Modules.Gamification.Abstractions;
 /// </summary>
 public sealed record FinishedMatchPoints(
     Guid MatchId,
-    Guid GroupId,                 // grouping key; == MatchId in the MVP (SCOPE ruling)
+    Guid GroupId,                 // the recurring group (id of its first game)
     DateTimeOffset MatchDateTime,
     Guid? MvpPlayerId,
     IReadOnlyList<FinishedMatchPlayerPoints> Players,   // all participants who played
-    DateTimeOffset FinishedAt);
+    DateTimeOffset FinishedAt,
+    int MvpTotalVotes = 0);       // ballots cast; the MVP bonus needs PointRules.MvpMinVotes
 
 /// <summary>One participant's outcome within a finished match.</summary>
 public sealed record FinishedMatchPlayerPoints(
     Guid PlayerId,
-    bool Won);                    // true when the player's team is the winning team
+    int GamesWon = 0,             // games (sets) the player's team won
+    int MvpVotes = 0);            // MVP votes the player received

@@ -29,6 +29,9 @@ public sealed class PointTransaction
 
     public int Points { get; private set; }
 
+    /// <summary>What the points stand for: games won or votes received; 1 for the other reasons.</summary>
+    public int Quantity { get; private set; } = 1;
+
     /// <summary>Snapshot of the triggering match's date/time; ordering key within a group.</summary>
     public DateTimeOffset MatchDateTime { get; private set; }
 
@@ -45,7 +48,8 @@ public sealed class PointTransaction
         PointReason reason,
         int points,
         DateTimeOffset matchDateTime,
-        DateTimeOffset awardedAt)
+        DateTimeOffset awardedAt,
+        int quantity = 1)
     {
         return new PointTransaction
         {
@@ -55,6 +59,7 @@ public sealed class PointTransaction
             MatchId = matchId,
             Reason = reason,
             Points = points,
+            Quantity = quantity,
             MatchDateTime = matchDateTime,
             AwardedAt = awardedAt,
             // CreatedAt is left at its CLR default so the database applies its now() default.

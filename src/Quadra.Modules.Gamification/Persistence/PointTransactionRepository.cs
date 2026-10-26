@@ -72,12 +72,15 @@ public sealed class PointTransactionRepository : IPointTransactionRepository
     /// <inheritdoc/>
     public async Task<IReadOnlyList<SeasonTotals>> GetTotalsSinceAsync(
         DateTimeOffset since,
+        DateTimeOffset until,
         Guid? groupId,
         IReadOnlyCollection<Guid>? userIds,
         CancellationToken cancellationToken)
     {
         var sinceUtc = since.ToUniversalTime(); // Npgsql writes only UTC offsets
-        var query = _context.PointTransactions.AsNoTracking().Where(t => t.MatchDateTime >= sinceUtc);
+        var untilUtc = until.ToUniversalTime();
+        var query = _context.PointTransactions.AsNoTracking()
+            .Where(t => t.MatchDateTime >= sinceUtc && t.MatchDateTime < untilUtc);
         if (groupId is { } group)
         {
             query = query.Where(t => t.GroupId == group);
@@ -88,18 +91,32 @@ public sealed class PointTransactionRepository : IPointTransactionRepository
             query = query.Where(t => userIds.Contains(t.UserId));
         }
 
-        // One Attendance / Win / Mvp row per player and match (AddIfAbsentAsync), so counting rows
-        // by reason counts matches.
+        // One row per player, match and reason (AddIfAbsentAsync), so counting Attendance rows counts
+        // matches. Games won and votes are the quantities; an old Win row (before #95) is one game.
         return await query
             .GroupBy(t => t.UserId)
             .Select(g => new SeasonTotals(
                 g.Key,
                 g.Sum(t => t.Points),
                 g.Count(t => t.Reason == PointReason.Attendance),
-                g.Count(t => t.Reason == PointReason.Win),
-                g.Count(t => t.Reason == PointReason.Mvp)))
+                g.Sum(t => t.Reason == PointReason.GameWin || t.Reason == PointReason.Win ? t.Quantity : 0),
+                g.Count(t => t.Reason == PointReason.Mvp),
+                g.Sum(t => t.Reason == PointReason.MvpVote ? t.Quantity : 0),
+                g.Sum(t => t.Reason == PointReason.Attendance ? t.Points : 0),
+                g.Sum(t => t.Reason == PointReason.GameWin || t.Reason == PointReason.Win ? t.Points : 0),
+                g.Sum(t => t.Reason == PointReason.MvpVote || t.Reason == PointReason.Mvp ? t.Points : 0)))
             .ToListAsync(cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<PointTransaction>> GetMatchAwardsAsync(
+        Guid userId,
+        Guid matchId,
+        CancellationToken cancellationToken) =>
+        await _context.PointTransactions
+            .AsNoTracking()
+            .Where(t => t.UserId == userId && t.MatchId == matchId)
+            .ToListAsync(cancellationToken);
 
     /// <inheritdoc/>
     public async Task<IReadOnlyList<Guid>> GetGroupIdsAsync(Guid userId, CancellationToken cancellationToken) =>
