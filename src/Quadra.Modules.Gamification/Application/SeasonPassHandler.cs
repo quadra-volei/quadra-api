@@ -40,13 +40,12 @@ public sealed class SeasonPassHandler : ISeasonRewardReader
 
         var progress = await ProgressAsync(userId, season, now, cancellationToken);
         var premium = await IsPremiumAsync(userId, cancellationToken);
-        var status = now < season.StartsAt ? "Upcoming" : now < season.EndsAt ? "Active" : "Ended";
         return new SeasonPassResponse(
             season.Definition.Code,
             season.Definition.Name,
             season.StartsAt,
             season.EndsAt,
-            status,
+            SeasonPassRules.Status(season, now),
             progress.Points,
             progress.Level,
             SeasonPassRules.Levels,
@@ -58,6 +57,34 @@ public sealed class SeasonPassHandler : ISeasonRewardReader
             SeasonPassRules.Rewards(season.Definition)
                 .Select(r => new SeasonRewardResponse(r.Level, r.Track, r.Kind, r.Code, SeasonPassRules.IsUnlocked(r, progress, premium)))
                 .ToList());
+    }
+
+    /// <summary>
+    /// A player's card collection (DECISIONS #99): the card of every season set up, newest first, with
+    /// the pieces won and whether it is complete. A season still to come has no piece yet.
+    /// </summary>
+    public async Task<CardCollectionResponse> GetCollectionAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var now = _clock.GetUtcNow();
+        var premium = await IsPremiumAsync(userId, cancellationToken);
+        var cards = new List<CollectionCardResponse>();
+        foreach (var season in SeasonPassRules.Seasons(_options).OrderByDescending(s => s.StartsAt))
+        {
+            var progress = await ProgressAsync(userId, season, now, cancellationToken);
+            var rewards = SeasonPassRules.Rewards(season.Definition);
+            cards.Add(new CollectionCardResponse(
+                season.Definition.Code,
+                season.Definition.Name,
+                season.Definition.Finish,
+                season.StartsAt,
+                season.EndsAt,
+                SeasonPassRules.Status(season, now),
+                rewards.Count(r => r.Kind == "Piece" && SeasonPassRules.IsUnlocked(r, progress, premium)),
+                SeasonPassRules.Levels,
+                rewards.Any(r => r.Kind == "Finish" && SeasonPassRules.IsUnlocked(r, progress, premium))));
+        }
+
+        return new CardCollectionResponse(userId, cards);
     }
 
     /// <inheritdoc/>

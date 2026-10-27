@@ -73,5 +73,33 @@ public sealed class SeasonPassEndpointsTests
     {
         (await _fx.CreateAnonymousClient().GetAsync("/api/v1/season-pass", Ct))
             .StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await _fx.CreateAnonymousClient().GetAsync("/api/v1/card-collection", Ct))
+            .StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task The_collection_shows_each_season_card_with_its_pieces_to_its_owner_and_to_others()
+    {
+        await _fx.ResetAsync();
+        var me = Guid.NewGuid();
+        var other = Guid.NewGuid();
+        await PlayAsync(me, DateTimeOffset.UtcNow.AddDays(-10));    // 34 points: one piece
+
+        var mine = await _fx.CreateAuthenticatedClient(me).GetFromJsonAsync<CardCollectionResponse>("/api/v1/card-collection", Ct);
+        var seen = await _fx.CreateAuthenticatedClient(other).GetFromJsonAsync<CardCollectionResponse>($"/api/v1/card-collection?userId={me}", Ct);
+        var empty = await _fx.CreateAuthenticatedClient(other).GetFromJsonAsync<CardCollectionResponse>("/api/v1/card-collection", Ct);
+
+        mine!.UserId.Should().Be(me);
+        mine.Cards.Should().ContainSingle().Which.Should().BeEquivalentTo(new
+        {
+            Season = "T1",
+            Finish = "Pioneira",
+            Status = "Active",
+            Pieces = 1,
+            Levels = 12,
+            Complete = false,
+        });
+        seen.Should().BeEquivalentTo(mine);
+        empty!.Cards.Single().Pieces.Should().Be(0);
     }
 }

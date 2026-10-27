@@ -145,6 +145,10 @@ public static class SeasonPassRules
             .OrderBy(s => s.StartsAt)
             .ToList();
 
+    /// <summary>Upcoming, Active or Ended at <paramref name="now"/>.</summary>
+    public static string Status(Season season, DateTimeOffset now) =>
+        now < season.StartsAt ? "Upcoming" : now < season.EndsAt ? "Active" : "Ended";
+
     /// <summary>The season to show: the one being played, else the next one, else the last one that ended.</summary>
     public static Season? Current(IReadOnlyList<Season> seasons, DateTimeOffset now) =>
         seasons.FirstOrDefault(s => now >= s.StartsAt && now < s.EndsAt)
