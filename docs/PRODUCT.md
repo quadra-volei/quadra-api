@@ -88,9 +88,10 @@ examples: `docs/DECISIONS.md` #84 to #86 and `PlayerSkillCalculator`.
 
 - Ranking points per recurring match (DECISIONS #95): attendance +10, +8 per game won (at most 3 counted), +4 per MVP vote received, MVP of the day +20 (only with 3+ votes). Stats from the sheet do not count.
 - The level number (DECISIONS #57) still uses attendance +10, win +15, MVP +25 over the whole history.
+- Season pass (DECISIONS #98): the same ranking points, counted inside the season and at most 60 a week, fill 12 levels of 20 points. Each level is a piece of the season's card (paid track); levels 3, 6 and 9 also give a card title (free track); the complete card is a finish only who completed it can equip. Whoever does not complete it keeps the card with pieces missing.
 - 3 consecutive matches streak: bonus +20 — **not in the MVP** (see `SCOPE.md`)
 - First match as DropIn in a new group: +5 — **not in the MVP**
 
 ## Monetization (validation only, no implementation in MVP)
 
-Freemium with premium plan ~R$9.90/month. Billing is NOT in the MVP. The free/premium distinction exists only as a stub interface that always answers "free".
+Freemium with premium plan ~R$9.90/month. Billing is NOT in the MVP. The free/premium distinction exists only as a stub interface that always answers "free"; the season pass's paid track is open to everyone by configuration until billing exists (DECISIONS #98).

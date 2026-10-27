@@ -1,12 +1,14 @@
 using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Quadra.Infrastructure.Storage;
 using Quadra.Modules.Profile.Application;
 using Quadra.Modules.Profile.Entities;
 using Quadra.Modules.Profile.Persistence;
+using Quadra.Shared.Contracts;
 
 namespace Quadra.Modules.Profile.CardStyle;
 
@@ -23,8 +25,12 @@ public static class CardTitles
     };
 }
 
-/// <param name="Finish"><c>Prisma</c>, <c>Ion</c> or <c>Eclipse</c>.</param>
-/// <param name="Title">A code from <see cref="CardTitles"/>, or null for the app's default.</param>
+/// <summary>The caller tried to equip a season pass finish or title they have not unlocked (DECISIONS #98).</summary>
+public sealed class SeasonRewardLockedException()
+    : Exception("Complete the season pass level that gives this finish or title to equip it.");
+
+/// <param name="Finish"><c>Prisma</c>, <c>Ion</c>, <c>Eclipse</c> or a season pass finish (<c>Pioneira</c>).</param>
+/// <param name="Title">A code from <see cref="CardTitles"/> or a season pass title, or null for the app's default.</param>
 /// <param name="PhotoObjectKey">Key from the photo upload-url endpoint, or null to use the profile photo.</param>
 public sealed record UpdateCardStyleRequest(string? Finish, string? Title, string? PhotoObjectKey);
 
@@ -37,15 +43,16 @@ public sealed class UpdateCardStyleRequestValidator : AbstractValidator<UpdateCa
     /// <summary>Root-context-data key under which the controller supplies the caller id.</summary>
     public const string CallerIdKey = "CallerId";
 
-    public UpdateCardStyleRequestValidator()
+    public UpdateCardStyleRequestValidator(ISeasonRewardReader seasonRewards)
     {
         RuleFor(x => x.Finish)
             .NotEmpty()
             .Must(f => Enum.TryParse<CardFinish>(f, ignoreCase: false, out _) && !int.TryParse(f, out _))
-            .WithMessage("Finish must be Prisma, Ion or Eclipse.");
+            .WithMessage("Finish must be Prisma, Ion, Eclipse or a season pass finish.");
 
+        // Whether a season title is the caller's is checked when saving (CardStyleHandler).
         RuleFor(x => x.Title)
-            .Must(t => t is null || CardTitles.All.Contains(t))
+            .Must(t => t is null || CardTitles.All.Contains(t) || seasonRewards.SeasonTitles.Contains(t))
             .WithMessage("Title must be one of the card titles.");
 
         RuleFor(x => x.PhotoObjectKey).Custom((key, context) =>
@@ -72,16 +79,23 @@ public sealed class CardStyleHandler
 {
     private readonly ProfileDbContext _context;
     private readonly IProfilePhotoStorage _photoStorage;
+    private readonly ISeasonRewardReader _seasonRewards;
     private readonly TimeProvider _timeProvider;
 
-    public CardStyleHandler(ProfileDbContext context, IProfilePhotoStorage photoStorage, TimeProvider timeProvider)
+    public CardStyleHandler(
+        ProfileDbContext context,
+        IProfilePhotoStorage photoStorage,
+        ISeasonRewardReader seasonRewards,
+        TimeProvider timeProvider)
     {
         _context = context;
         _photoStorage = photoStorage;
+        _seasonRewards = seasonRewards;
         _timeProvider = timeProvider;
     }
 
     /// <summary>Saves the caller's card style; null when the caller has no profile.</summary>
+    /// <exception cref="SeasonRewardLockedException">A season pass finish or title the caller has not unlocked.</exception>
     public async Task<PlayerCardStyleResponse?> SaveAsync(
         Guid callerId,
         UpdateCardStyleRequest request,
@@ -91,6 +105,14 @@ public sealed class CardStyleHandler
         if (profile is null)
         {
             return null;
+        }
+
+        // A pass's finish or title is equipped only by who unlocked it. What is already on the card
+        // stays, so changing the title never takes the finish away (and the other way round).
+        if (await IsLockedAsync(callerId, request.Finish, profile.CardFinish.ToString(), _seasonRewards.SeasonFinishes, cancellationToken)
+            || await IsLockedAsync(callerId, request.Title, profile.CardTitle, _seasonRewards.SeasonTitles, cancellationToken))
+        {
+            throw new SeasonRewardLockedException();
         }
 
         // The validator has already checked the finish; this parse cannot fail.
@@ -103,6 +125,17 @@ public sealed class CardStyleHandler
 
         return await MapAsync(profile, includePrivate: true, _photoStorage, cancellationToken);
     }
+
+    private async Task<bool> IsLockedAsync(
+        Guid callerId,
+        string? code,
+        string? equipped,
+        IReadOnlySet<string> seasonCodes,
+        CancellationToken cancellationToken) =>
+        code is not null
+        && code != equipped
+        && seasonCodes.Contains(code)
+        && !await _seasonRewards.HasUnlockedAsync(callerId, code, cancellationToken);
 
     public static async Task<PlayerCardStyleResponse> MapAsync(
         PlayerProfile profile,
@@ -168,7 +201,14 @@ public sealed class CardStyleController : ControllerBase
             return ValidationProblem(ModelState);
         }
 
-        var result = await _handler.SaveAsync(callerId, request, cancellationToken);
-        return result is null ? NotFound() : Ok(result);
+        try
+        {
+            var result = await _handler.SaveAsync(callerId, request, cancellationToken);
+            return result is null ? NotFound() : Ok(result);
+        }
+        catch (SeasonRewardLockedException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails { Detail = ex.Message });
+        }
     }
 }
