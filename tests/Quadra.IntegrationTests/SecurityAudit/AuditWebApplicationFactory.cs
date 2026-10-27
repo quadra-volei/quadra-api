@@ -57,6 +57,9 @@ public sealed class AuditWebApplicationFactory : IAsyncLifetime
                 ["ConnectionStrings:Default"] = _postgres.GetConnectionString(),
                 ["Places:Provider"] = "None",
                 ["Matches:WindowSweepSeconds"] = "0",
+                // The season pass is being played, with room for four capped weeks before today.
+                ["SeasonPass:Seasons:T1:StartsOn"] = $"{DateOnly.FromDateTime(DateTime.UtcNow.AddHours(-3)).AddDays(-35):yyyy-MM-dd}",
+                ["SeasonPass:Seasons:T1:EndsOn"] = $"{DateOnly.FromDateTime(DateTime.UtcNow.AddHours(-3)).AddDays(60):yyyy-MM-dd}",
             };
             foreach (var queue in new[]
                      {

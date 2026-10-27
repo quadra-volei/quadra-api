@@ -60,6 +60,14 @@ public static class GamificationModuleExtensions
         // MVP premium check — a stub returning free tier for every player (no billing in the MVP).
         services.AddScoped<IPremiumStatusReader, FreeTierPremiumStatusReader>();
 
+        // Season pass (DECISIONS #98): the seasons' dates and the paid track switch come from configuration.
+        services.AddOptions<SeasonPassOptions>()
+            .BindConfiguration(SeasonPassOptions.SectionName)
+            .Validate(o => o.IsValid(), "SeasonPass:Seasons: unknown season code, a season that ends before it starts, or overlapping seasons.")
+            .ValidateOnStart();
+        services.AddScoped<SeasonPassHandler>();
+        services.AddScoped<ISeasonRewardReader>(sp => sp.GetRequiredService<SeasonPassHandler>());
+
         // TimeProvider.System — register only if not already registered.
         services.TryAddSingleton(TimeProvider.System);
 

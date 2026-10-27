@@ -127,4 +127,20 @@ public sealed class PointTransactionRepository : IPointTransactionRepository
             .OrderByDescending(g => g.Max(t => t.MatchDateTime))
             .Select(g => g.Key)
             .ToListAsync(cancellationToken);
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<DatedPoints>> GetPointsAsync(
+        Guid userId,
+        DateTimeOffset since,
+        DateTimeOffset until,
+        CancellationToken cancellationToken)
+    {
+        var sinceUtc = since.ToUniversalTime(); // Npgsql writes only UTC offsets
+        var untilUtc = until.ToUniversalTime();
+        return await _context.PointTransactions
+            .AsNoTracking()
+            .Where(t => t.UserId == userId && t.MatchDateTime >= sinceUtc && t.MatchDateTime < untilUtc)
+            .Select(t => new DatedPoints(t.MatchDateTime, t.Points))
+            .ToListAsync(cancellationToken);
+    }
 }

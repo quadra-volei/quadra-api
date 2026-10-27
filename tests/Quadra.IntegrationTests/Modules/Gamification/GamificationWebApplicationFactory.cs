@@ -52,6 +52,9 @@ public sealed class GamificationWebApplicationFactory : IAsyncLifetime
                     config.AddInMemoryCollection(new Dictionary<string, string?>
                     {
                         ["ConnectionStrings:Default"] = _postgres.GetConnectionString(),
+                        // The season pass is being played, with room for four capped weeks before today.
+                        ["SeasonPass:Seasons:T1:StartsOn"] = $"{DateOnly.FromDateTime(DateTime.UtcNow.AddHours(-3)).AddDays(-35):yyyy-MM-dd}",
+                        ["SeasonPass:Seasons:T1:EndsOn"] = $"{DateOnly.FromDateTime(DateTime.UtcNow.AddHours(-3)).AddDays(60):yyyy-MM-dd}",
                         // SQS — required by AddMatchesModule fail-fast
                         ["Aws:Sqs:MatchCreatedQueueUrl"] = "http://localhost:4566/000000000000/match-created",
                         ["Aws:Sqs:MatchStatusChangedQueueUrl"] = "http://localhost:4566/000000000000/match-status-changed",
