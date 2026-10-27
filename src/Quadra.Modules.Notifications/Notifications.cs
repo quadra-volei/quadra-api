@@ -38,6 +38,10 @@ public sealed class Notification
     public DateTimeOffset CreatedAt { get; init; }
 
     public DateTimeOffset? ReadAt { get; set; }
+
+    /// <summary>When the user cleared it from the list. Kept, not deleted, so its dedup key still
+    /// stops a repeated trigger (the reminder sweep) from sending it again.</summary>
+    public DateTimeOffset? DeletedAt { get; set; }
 }
 
 /// <summary>An Expo push token of one of the user's phones.</summary>
@@ -98,6 +102,7 @@ public sealed class NotificationsDbContext : DbContext
         n.Property(x => x.DedupKey).HasColumnName("dedup_key").HasMaxLength(120).IsRequired();
         n.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
         n.Property(x => x.ReadAt).HasColumnName("read_at");
+        n.Property(x => x.DeletedAt).HasColumnName("deleted_at");
         n.HasIndex(x => new { x.UserId, x.DedupKey }).IsUnique().HasDatabaseName("ux_notifications_user_dedup");
         n.HasIndex(x => new { x.UserId, x.CreatedAt }).HasDatabaseName("ix_notifications_user_created");
 
@@ -265,7 +270,7 @@ public sealed class NotificationsHandler
     public async Task<NotificationPageResponse> ListAsync(Guid userId, DateTimeOffset? before, int limit, CancellationToken cancellationToken)
     {
         var take = Math.Clamp(limit, 1, MaxPageSize);
-        var query = _db.Notifications.AsNoTracking().Where(n => n.UserId == userId);
+        var query = _db.Notifications.AsNoTracking().Where(n => n.UserId == userId && n.DeletedAt == null);
         if (before is { } cursor)
         {
             var cursorUtc = cursor.ToUniversalTime();
@@ -285,13 +290,13 @@ public sealed class NotificationsHandler
     }
 
     public async Task<int> CountUnreadAsync(Guid userId, CancellationToken cancellationToken) =>
-        await _db.Notifications.CountAsync(n => n.UserId == userId && n.ReadAt == null, cancellationToken);
+        await _db.Notifications.CountAsync(n => n.UserId == userId && n.ReadAt == null && n.DeletedAt == null, cancellationToken);
 
     /// <returns>false when the user has no such notification.</returns>
     public async Task<bool> MarkReadAsync(Guid userId, Guid id, CancellationToken cancellationToken)
     {
         var now = _timeProvider.GetUtcNow();
-        if (!await _db.Notifications.AnyAsync(n => n.Id == id && n.UserId == userId, cancellationToken))
+        if (!await _db.Notifications.AnyAsync(n => n.Id == id && n.UserId == userId && n.DeletedAt == null, cancellationToken))
         {
             return false;
         }
@@ -306,8 +311,26 @@ public sealed class NotificationsHandler
     {
         var now = _timeProvider.GetUtcNow();
         return _db.Notifications
-            .Where(n => n.UserId == userId && n.ReadAt == null)
+            .Where(n => n.UserId == userId && n.ReadAt == null && n.DeletedAt == null)
             .ExecuteUpdateAsync(s => s.SetProperty(n => n.ReadAt, (DateTimeOffset?)now), cancellationToken);
+    }
+
+    /// <returns>false when the user has no such notification (or already cleared it).</returns>
+    public async Task<bool> DeleteAsync(Guid userId, Guid id, CancellationToken cancellationToken)
+    {
+        var now = _timeProvider.GetUtcNow();
+        var cleared = await _db.Notifications
+            .Where(n => n.Id == id && n.UserId == userId && n.DeletedAt == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(n => n.DeletedAt, (DateTimeOffset?)now), cancellationToken);
+        return cleared > 0;
+    }
+
+    public Task DeleteAllAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var now = _timeProvider.GetUtcNow();
+        return _db.Notifications
+            .Where(n => n.UserId == userId && n.DeletedAt == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(n => n.DeletedAt, (DateTimeOffset?)now), cancellationToken);
     }
 
     /// <summary>A token belongs to one account: the phone's last login takes it.</summary>
@@ -414,6 +437,31 @@ public sealed class NotificationsController : ControllerBase
         }
 
         await _handler.MarkAllReadAsync(userId, cancellationToken);
+        return NoContent();
+    }
+
+    /// <summary>DELETE /api/v1/notifications/{id} — clears one from the caller's list.</summary>
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        if (!TryGetCallerId(out var userId))
+        {
+            return Unauthorized();
+        }
+
+        return await _handler.DeleteAsync(userId, id, cancellationToken) ? NoContent() : NotFound();
+    }
+
+    /// <summary>DELETE /api/v1/notifications — clears the caller's whole list.</summary>
+    [HttpDelete]
+    public async Task<IActionResult> DeleteAll(CancellationToken cancellationToken)
+    {
+        if (!TryGetCallerId(out var userId))
+        {
+            return Unauthorized();
+        }
+
+        await _handler.DeleteAllAsync(userId, cancellationToken);
         return NoContent();
     }
 
