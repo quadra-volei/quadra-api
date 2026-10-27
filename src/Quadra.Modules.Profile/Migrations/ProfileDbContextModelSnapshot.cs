@@ -364,6 +364,23 @@ namespace Quadra.Modules.Profile.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("share_activity");
 
+                    b.Property<DateTimeOffset?>("TourEndedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("tour_ended_at");
+
+                    b.Property<int?>("TourLastStep")
+                        .HasColumnType("integer")
+                        .HasColumnName("tour_last_step");
+
+                    b.Property<string>("TourOutcome")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("tour_outcome");
+
+                    b.Property<int?>("TourVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("tour_version");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
