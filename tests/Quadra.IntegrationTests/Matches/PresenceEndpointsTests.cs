@@ -462,10 +462,29 @@ public sealed class PresenceEndpointsTests : IClassFixture<MatchesWebApplication
     }
 
     /// <summary>
-    /// Covers: DELETE returns 409 when match is not in Draft status.
+    /// Covers: the organizer removes players until the game starts (DECISIONS #100); once it is
+    /// in progress, DELETE returns 409.
     /// </summary>
     [Fact]
-    public async Task DELETE_presences_on_non_Draft_match_returns_409()
+    public async Task DELETE_presences_once_the_game_started_returns_409()
+    {
+        await ResetAsync();
+        var matchId = await CreateMatchAsync(OrganizerUserId);
+        await ForceMatchStatusAsync(matchId, MatchStatus.InProgress);
+
+        var playerId = Guid.NewGuid();
+        await AddPresenceDirectlyAsync(matchId, playerId, PlayerType.Regular);
+
+        var client = _fx.CreateAuthenticatedClient(OrganizerUserId);
+        var response = await client.DeleteAsync(
+            $"/api/v1/matches/{matchId}/presences/{playerId}", TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    /// <summary>The organizer removes a confirmed player while confirmations are open.</summary>
+    [Fact]
+    public async Task DELETE_presences_on_an_Open_match_removes_the_player()
     {
         await ResetAsync();
         var matchId = await CreateMatchAsync(OrganizerUserId);
@@ -478,7 +497,7 @@ public sealed class PresenceEndpointsTests : IClassFixture<MatchesWebApplication
         var response = await client.DeleteAsync(
             $"/api/v1/matches/{matchId}/presences/{playerId}", TestContext.Current.CancellationToken);
 
-        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
