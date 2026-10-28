@@ -34,4 +34,6 @@ public sealed record MatchResponse(
     decimal? PriceMonthly = null,
     IReadOnlyList<int>? RecurrenceDays = null,
     string? CoverUrl = null,
-    bool FreeTeams = false);   // no fixed teams (DECISIONS #86)
+    bool FreeTeams = false,   // no fixed teams (DECISIONS #86)
+    string? Gender = null,    // Mixed | Male | Female; null when not declared
+    string? Surface = null);  // Beach | Court; null when not declared

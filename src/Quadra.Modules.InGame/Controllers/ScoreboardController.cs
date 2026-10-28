@@ -211,10 +211,17 @@ public sealed class ScoreboardController : ControllerBase
     }
 
     /// <summary>POST /api/v1/matches/{matchId}/scoreboard/end</summary>
-    /// <summary>DELETE /api/v1/matches/{matchId}/scoreboard/sets/{setNumber}/points/last — undo the last point.</summary>
+    /// <summary>
+    /// DELETE /api/v1/matches/{matchId}/scoreboard/sets/{setNumber}/points/last — undo the last
+    /// point; with <c>?teamId=</c>, take one point off that team.
+    /// </summary>
     [HttpDelete("sets/{setNumber:int}/points/last")]
-    public Task<ActionResult<ScoreboardResponse>> UndoPoint(Guid matchId, int setNumber, CancellationToken cancellationToken) =>
-        RunSetOperationAsync(callerId => _undoPointHandler.HandleAsync(matchId, setNumber, callerId, cancellationToken));
+    public Task<ActionResult<ScoreboardResponse>> UndoPoint(
+        Guid matchId,
+        int setNumber,
+        [FromQuery] Guid? teamId,
+        CancellationToken cancellationToken) =>
+        RunSetOperationAsync(callerId => _undoPointHandler.HandleAsync(matchId, setNumber, callerId, cancellationToken, teamId));
 
     /// <summary>POST /api/v1/matches/{matchId}/scoreboard/sets/{setNumber}/end — end the set early; the leader takes it.</summary>
     [HttpPost("sets/{setNumber:int}/end")]

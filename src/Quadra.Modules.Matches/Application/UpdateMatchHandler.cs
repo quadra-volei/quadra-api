@@ -96,7 +96,10 @@ public sealed class UpdateMatchHandler
                 PriceMonthly: request.PriceMonthly,
                 RecurrenceDays: request.RecurrenceDays,
                 CoverObjectKey: cover,
-                FreeTeams: request.FreeTeams),
+                FreeTeams: request.FreeTeams,
+                Visibility: request.Visibility is null ? null : Enum.Parse<MatchVisibility>(request.Visibility, ignoreCase: true),
+                Gender: request.Gender is null ? null : Enum.Parse<MatchGender>(request.Gender, ignoreCase: true),
+                Surface: request.Surface is null ? null : Enum.Parse<MatchSurface>(request.Surface, ignoreCase: true)),
             _timeProvider.GetUtcNow());
         if (relink)
         {

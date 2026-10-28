@@ -59,6 +59,12 @@ public sealed class Match
     /// <summary>Skill level the match is aimed at. Null when not declared.</summary>
     public MatchLevel? Level { get; private set; }
 
+    /// <summary>Men's, women's or mixed. Null when not declared (matches created before it).</summary>
+    public MatchGender? Gender { get; private set; }
+
+    /// <summary>Beach or court. Null when not declared (matches created before it).</summary>
+    public MatchSurface? Surface { get; private set; }
+
     /// <summary>Planned playing time in minutes. Null when not declared.</summary>
     public short? DurationMinutes { get; private set; }
 
@@ -239,6 +245,8 @@ public sealed class Match
             Status = MatchStatus.Draft,
             Format = settings.Format,
             Level = settings.Level,
+            Gender = settings.Gender,
+            Surface = settings.Surface,
             DurationMinutes = settings.DurationMinutes.HasValue ? (short)settings.DurationMinutes.Value : null,
             GamePoints = (short)(settings.GamePoints ?? DefaultGamePoints),
             FreeTeams = settings.FreeTeams,
@@ -313,8 +321,9 @@ public sealed class Match
     }
 
     /// <summary>
-    /// Organizer edit of the match details. Type (one-off / recurring), visibility and invite mode
-    /// stay as created. Moving the date moves the confirmation window by the same amount.
+    /// Organizer edit of the match details. The type (one-off / recurring) stays as created. A
+    /// match made private gets an invite code (the invite link carries it); made open, it loses
+    /// it. Moving the date moves the confirmation window by the same amount.
     /// Only while <see cref="MatchStatus.Draft"/> or <see cref="MatchStatus.Open"/>; the caller
     /// checks that the slots still fit who has confirmed and that the game has not started.
     /// </summary>
@@ -347,6 +356,14 @@ public sealed class Match
         Price = edit.Price;
         Format = edit.Format;
         Level = edit.Level;
+        Gender = edit.Gender ?? Gender;
+        Surface = edit.Surface ?? Surface;
+        if (edit.Visibility is { } visibility && visibility != Visibility)
+        {
+            Visibility = visibility;
+            InviteMode = visibility == MatchVisibility.Private ? MatchInviteMode.Code : null;
+            InviteCode = visibility == MatchVisibility.Private ? GenerateInviteCode() : null;
+        }
         DurationMinutes = edit.DurationMinutes.HasValue ? (short)edit.DurationMinutes.Value : null;
         GamePoints = edit.GamePoints.HasValue ? (short)edit.GamePoints.Value : GamePoints;
         FreeTeams = edit.FreeTeams ?? FreeTeams;

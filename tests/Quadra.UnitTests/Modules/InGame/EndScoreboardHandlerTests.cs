@@ -131,6 +131,41 @@ public sealed class EndScoreboardHandlerTests
         scoreboard.Sets.First(s => s.SetNumber == 2).WinnerTeamId.Should().BeNull("an abandoned set has no winner");
     }
 
+    /// <summary>
+    /// Ending the match mid-game: the team leading the game on court takes it (was a game with no
+    /// winner, "Empate 17-15" on the summary), and so the match.
+    /// </summary>
+    [Fact]
+    public async Task HandleAsync_gives_the_unfinished_game_to_the_team_leading_it()
+    {
+        var matchId = Guid.NewGuid();
+        var scoreboard = SetupInProgress(matchId);
+        var set = scoreboard.Sets.First(s => s.SetNumber == 1);
+        for (var i = 0; i < 17; i++) set.AddPoint(TeamB, TeamA, TeamB);
+        for (var i = 0; i < 15; i++) set.AddPoint(TeamA, TeamA, TeamB);
+
+        var response = await CreateSut().HandleAsync(matchId, Organizer, CancellationToken.None);
+
+        set.WinnerTeamId.Should().Be(TeamB);
+        response.WinnerTeamId.Should().Be(TeamB);
+    }
+
+    /// <summary>Taking points back by team: as many as needed, never below zero.</summary>
+    [Fact]
+    public void RemovePoint_takes_points_off_the_chosen_team_down_to_zero()
+    {
+        var set = ScoreboardSet.Create(Guid.NewGuid(), Guid.NewGuid(), 1, false, FixedNow, TeamA, TeamB);
+        set.AddPoint(TeamA, TeamA, TeamB);
+        set.AddPoint(TeamA, TeamA, TeamB);
+        set.AddPoint(TeamB, TeamA, TeamB);
+
+        set.RemovePoint(TeamA, TeamA, TeamB).Should().BeTrue();
+        set.RemovePoint(TeamA, TeamA, TeamB).Should().BeTrue();
+        set.RemovePoint(TeamA, TeamA, TeamB).Should().BeFalse();
+        set.TeamAPoints.Should().Be(0);
+        set.TeamBPoints.Should().Be(1);
+    }
+
     /// <summary>Covers: F1.4 "match state" — forced end with equal sets won leaves the winner null.</summary>
     [Fact]
     public async Task HandleAsync_ends_with_null_winner_when_sets_equal()

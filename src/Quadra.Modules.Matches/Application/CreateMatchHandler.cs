@@ -76,12 +76,14 @@ public sealed class CreateMatchHandler
                 Visibility: command.Visibility is null
                     ? MatchVisibility.Open
                     : Enum.Parse<MatchVisibility>(command.Visibility, ignoreCase: true),
-                InviteMode: command.InviteMode is null
-                    ? null
-                    : Enum.Parse<MatchInviteMode>(command.InviteMode, ignoreCase: true),
+                // Every private match is joined by its invite code (link): "Somente convidados"
+                // left the organizer no way to bring a player in, so the invite never worked.
+                InviteMode: MatchInviteMode.Code,
                 PriceMonthly: command.PriceMonthly,
                 RecurrenceDays: command.RecurrenceDays,
-                CoverObjectKey: command.CoverObjectKey));
+                CoverObjectKey: command.CoverObjectKey,
+                Gender: command.Gender is null ? null : Enum.Parse<MatchGender>(command.Gender, ignoreCase: true),
+                Surface: command.Surface is null ? null : Enum.Parse<MatchSurface>(command.Surface, ignoreCase: true)));
 
         if (arenaId is not null)
         {

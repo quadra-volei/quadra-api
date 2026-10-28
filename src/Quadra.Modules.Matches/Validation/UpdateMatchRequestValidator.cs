@@ -52,6 +52,21 @@ public sealed class UpdateMatchRequestValidator : AbstractValidator<UpdateMatchR
             .WithMessage("Format must be one of: 2X2, 4X4, 6X6.")
             .When(x => x.Format is not null);
 
+        RuleFor(x => x.Gender)
+            .Must(g => Enum.TryParse<MatchGender>(g, ignoreCase: true, out _) && !int.TryParse(g, out _))
+            .WithMessage("Gender must be one of: Mixed, Male, Female.")
+            .When(x => x.Gender is not null);
+
+        RuleFor(x => x.Surface)
+            .Must(s => Enum.TryParse<MatchSurface>(s, ignoreCase: true, out _) && !int.TryParse(s, out _))
+            .WithMessage("Surface must be one of: Beach, Court.")
+            .When(x => x.Surface is not null);
+
+        RuleFor(x => x.Visibility)
+            .Must(v => Enum.TryParse<MatchVisibility>(v, ignoreCase: true, out _) && !int.TryParse(v, out _))
+            .WithMessage("Visibility must be 'Open' or 'Private'.")
+            .When(x => x.Visibility is not null);
+
         RuleFor(x => x.Level)
             .Must(l => ValidLevels.Contains(l!))
             .WithMessage("Level must be one of: Beginner, Intermediate, Advanced.")

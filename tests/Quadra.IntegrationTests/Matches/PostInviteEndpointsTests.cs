@@ -91,8 +91,8 @@ public sealed class PostInviteEndpointsTests : IClassFixture<MatchesWebApplicati
         card.GetProperty("kind").GetString().Should().Be("MatchCreated");
         card.GetProperty("text").ValueKind.Should().Be(JsonValueKind.Null);
         card.GetProperty("match").GetProperty("name").GetString().Should().Be("Racha da Galera");
-        (await second.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("id").GetGuid()
-            .Should().Be(card.GetProperty("id").GetGuid());
+        // Sharing again posts nothing: 409, so the app says it is already on the feed (DECISIONS #100).
+        second.StatusCode.Should().Be(HttpStatusCode.Conflict);
         // A confirmed player may invite with their own words, not share the match itself.
         (await _fx.CreateAuthenticatedClient(player).PostAsJsonAsync("/api/v1/posts", new { matchId }, Ct))
             .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);

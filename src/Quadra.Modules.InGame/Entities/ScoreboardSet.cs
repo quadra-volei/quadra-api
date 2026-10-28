@@ -123,6 +123,29 @@ public sealed class ScoreboardSet
     }
 
     /// <summary>
+    /// Takes one point off <paramref name="teamId"/> (the organizer picks the team, as many times
+    /// as needed). False when that team has no point or does not play this set.
+    /// </summary>
+    public bool RemovePoint(Guid teamId, Guid teamAId, Guid teamBId)
+    {
+        if (teamId == teamAId && TeamAPoints > 0)
+        {
+            TeamAPoints--;
+        }
+        else if (teamId == teamBId && TeamBPoints > 0)
+        {
+            TeamBPoints--;
+        }
+        else
+        {
+            return false;
+        }
+
+        LastPointTeamId = null;
+        return true;
+    }
+
+    /// <summary>
     /// Marks the set as finished. <paramref name="winnerTeamId"/> is <c>null</c> for an abandoned set
     /// (forced early game end).
     /// </summary>

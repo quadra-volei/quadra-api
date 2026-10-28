@@ -20,6 +20,21 @@ public enum MatchInviteMode
     Guests,
 }
 
+/// <summary>Who the match is for: men's, women's or mixed volleyball.</summary>
+public enum MatchGender
+{
+    Mixed,
+    Male,
+    Female,
+}
+
+/// <summary>Where it is played: beach (sand) or an indoor / hard court.</summary>
+public enum MatchSurface
+{
+    Beach,
+    Court,
+}
+
 /// <summary>Skill level a match is aimed at (frontend S11 "Nível").</summary>
 public enum MatchLevel
 {
