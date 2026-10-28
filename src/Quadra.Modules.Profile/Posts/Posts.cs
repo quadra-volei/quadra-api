@@ -230,8 +230,8 @@ public sealed class CreatePostRequestValidator : AbstractValidator<CreatePostReq
 public enum CreatePostFailure
 {
     /// <summary>
-    /// The organizer already shared this match: the card there is returned, nothing is created
-    /// (answered 200 instead of 201 so the app can say so).
+    /// The organizer already shared this match: nothing is created (409, so the app can say the
+    /// match is already on the Rede instead of posting it again).
     /// </summary>
     AlreadyShared,
 
@@ -618,7 +618,9 @@ public sealed class PostsController : ControllerBase
         return failure switch
         {
             null => StatusCode(StatusCodes.Status201Created, post),
-            CreatePostFailure.AlreadyShared => Ok(post),
+            CreatePostFailure.AlreadyShared => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                detail: "This match is already on the feed."),
             CreatePostFailure.TooMany => Problem(
                 statusCode: StatusCodes.Status429TooManyRequests,
                 detail: "Too many posts today. Try again tomorrow."),
