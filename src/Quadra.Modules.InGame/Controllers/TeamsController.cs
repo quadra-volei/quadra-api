@@ -101,11 +101,29 @@ public sealed class TeamsController : ControllerBase
         }
     }
 
-    /// <summary>PUT /api/v1/matches/{matchId}/teams/{teamId}/members/{playerId}</summary>
+    /// <summary>
+    /// PUT /api/v1/matches/{matchId}/teams/{teamId}/members/{playerId} — moves a member to the
+    /// team, or puts a confirmed player from the bench into it.
+    /// </summary>
     [HttpPut("{teamId:guid}/members/{playerId:guid}")]
-    public async Task<ActionResult<TeamsResponse>> MovePlayer(
+    public Task<ActionResult<TeamsResponse>> MovePlayer(
         Guid matchId,
         Guid teamId,
+        Guid playerId,
+        CancellationToken cancellationToken) =>
+        MoveAsync(matchId, teamId, playerId, cancellationToken);
+
+    /// <summary>DELETE /api/v1/matches/{matchId}/teams/members/{playerId} — sends a member to the bench.</summary>
+    [HttpDelete("members/{playerId:guid}")]
+    public Task<ActionResult<TeamsResponse>> BenchPlayer(
+        Guid matchId,
+        Guid playerId,
+        CancellationToken cancellationToken) =>
+        MoveAsync(matchId, null, playerId, cancellationToken);
+
+    private async Task<ActionResult<TeamsResponse>> MoveAsync(
+        Guid matchId,
+        Guid? teamId,
         Guid playerId,
         CancellationToken cancellationToken)
     {

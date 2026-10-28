@@ -51,4 +51,6 @@ public sealed record CreateMatchRequest(
     int? ConfirmationOpensHoursBefore = null,
     string? CoverObjectKey = null,
     string? PlaceId = null,
-    Guid? ArenaId = null);
+    Guid? ArenaId = null,
+    string? Gender = null,
+    string? Surface = null);

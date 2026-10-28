@@ -24,4 +24,10 @@ public interface ITeamRepository
     /// <paramref name="memberId"/> to <paramref name="targetTeamId"/>.
     /// </summary>
     Task MovePlayerAsync(Guid memberId, Guid targetTeamId, CancellationToken cancellationToken);
+
+    /// <summary>Puts a player on the bench into a team (a new member row).</summary>
+    Task AddMemberAsync(TeamMember member, CancellationToken cancellationToken);
+
+    /// <summary>Takes a member out of their team: they go back to the bench.</summary>
+    Task RemoveMemberAsync(Guid memberId, CancellationToken cancellationToken);
 }

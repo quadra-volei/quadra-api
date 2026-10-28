@@ -132,6 +132,16 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .HasDefaultValue(MatchVisibility.Open)
             .IsRequired();
 
+        builder.Property(m => m.Gender)
+            .HasColumnName("gender")
+            .HasMaxLength(16)
+            .HasConversion<string?>();
+
+        builder.Property(m => m.Surface)
+            .HasColumnName("surface")
+            .HasMaxLength(16)
+            .HasConversion<string?>();
+
         builder.Property(m => m.InviteMode)
             .HasColumnName("invite_mode")
             .HasMaxLength(16)

@@ -143,7 +143,9 @@ public sealed class MatchesController : ControllerBase
             ConfirmationOpensHoursBefore: request.ConfirmationOpensHoursBefore,
             CoverObjectKey: string.IsNullOrWhiteSpace(request.CoverObjectKey) ? null : request.CoverObjectKey,
             PlaceId: request.PlaceId,
-            ArenaId: request.ArenaId);
+            ArenaId: request.ArenaId,
+            Gender: request.Gender,
+            Surface: request.Surface);
 
         try
         {

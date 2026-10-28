@@ -229,6 +229,12 @@ public sealed class CreatePostRequestValidator : AbstractValidator<CreatePostReq
 
 public enum CreatePostFailure
 {
+    /// <summary>
+    /// The organizer already shared this match: the card there is returned, nothing is created
+    /// (answered 200 instead of 201 so the app can say so).
+    /// </summary>
+    AlreadyShared,
+
     /// <summary>Over <see cref="PostsHandler.DailyLimit"/> posts in 24 hours.</summary>
     TooMany,
 
@@ -313,7 +319,7 @@ public sealed class PostsHandler
             if (shared is not null)
             {
                 var author = await PostAuthors.LoadAsync(_context, _photoStorage, [callerId], cancellationToken);
-                return (await MapAsync(shared, author[callerId], callerId, 0, false, 0, cancellationToken), null);
+                return (await MapAsync(shared, author[callerId], callerId, 0, false, 0, cancellationToken), CreatePostFailure.AlreadyShared);
             }
 
             post = Post.CreateMatchShare(callerId, matchId, invite.Name, invite.DateTime, now);
@@ -612,6 +618,7 @@ public sealed class PostsController : ControllerBase
         return failure switch
         {
             null => StatusCode(StatusCodes.Status201Created, post),
+            CreatePostFailure.AlreadyShared => Ok(post),
             CreatePostFailure.TooMany => Problem(
                 statusCode: StatusCodes.Status429TooManyRequests,
                 detail: "Too many posts today. Try again tomorrow."),

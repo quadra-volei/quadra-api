@@ -37,7 +37,9 @@ public static class MatchMapper
             InviteMode: m.InviteMode?.ToString(),
             PriceMonthly: m.PriceMonthly,
             RecurrenceDays: m.RecurrenceDays,
-            FreeTeams: m.FreeTeams);
+            FreeTeams: m.FreeTeams,
+            Gender: m.Gender?.ToString(),
+            Surface: m.Surface?.ToString());
 
     public static MatchPlayerResponse ToPlayer(PlayerSummary summary) =>
         new(

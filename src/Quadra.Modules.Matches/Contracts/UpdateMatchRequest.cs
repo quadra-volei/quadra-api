@@ -2,7 +2,7 @@ namespace Quadra.Modules.Matches.Contracts;
 
 /// <summary>
 /// Request body for <c>PUT /api/v1/matches/{id}</c>: the whole editable part of the match, as
-/// the edit form holds it. Type, visibility and invite mode are not editable.
+/// the edit form holds it. The type is not editable; null visibility, gender or surface keep the current one.
 /// </summary>
 /// <param name="PriceMonthly">Recurring matches only; ignored for a one-off.</param>
 /// <param name="RecurrenceDays">Recurring matches only; empty or null keeps the current days.</param>
@@ -31,4 +31,7 @@ public sealed record UpdateMatchRequest(
     string? CoverObjectKey = null,
     bool? FreeTeams = null,   // null keeps the current mode
     string? PlaceId = null,
-    Guid? ArenaId = null);
+    Guid? ArenaId = null,
+    string? Visibility = null,
+    string? Gender = null,
+    string? Surface = null);

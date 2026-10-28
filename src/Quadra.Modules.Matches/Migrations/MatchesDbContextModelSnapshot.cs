@@ -95,6 +95,11 @@ namespace Quadra.Modules.Matches.Migrations
                         .HasColumnType("smallint")
                         .HasColumnName("game_points");
 
+                    b.Property<string>("Gender")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("gender");
+
                     b.Property<Guid?>("GroupId")
                         .HasColumnType("uuid")
                         .HasColumnName("group_id");
@@ -160,6 +165,11 @@ namespace Quadra.Modules.Matches.Migrations
                         .HasColumnType("character varying(24)")
                         .HasDefaultValue("Draft")
                         .HasColumnName("status");
+
+                    b.Property<string>("Surface")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("surface");
 
                     b.Property<string>("Type")
                         .IsRequired()
