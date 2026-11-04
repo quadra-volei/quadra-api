@@ -63,7 +63,7 @@ public static class GamificationModuleExtensions
         // Season pass (DECISIONS #98): the seasons' dates and the paid track switch come from configuration.
         services.AddOptions<SeasonPassOptions>()
             .BindConfiguration(SeasonPassOptions.SectionName)
-            .Validate(o => o.IsValid(), "SeasonPass:Seasons: unknown season code, a season that ends before it starts, or overlapping seasons.")
+            .Validate(o => o.IsValid(), "SeasonPass: unknown season code, a season that ends before it starts, overlapping seasons, or a TestLevels entry that is not a user id with a level from 0 to 12.")
             .ValidateOnStart();
         services.AddScoped<SeasonPassHandler>();
         services.AddScoped<ISeasonRewardReader>(sp => sp.GetRequiredService<SeasonPassHandler>());

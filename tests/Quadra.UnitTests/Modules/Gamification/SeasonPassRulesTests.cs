@@ -33,6 +33,30 @@ public sealed class SeasonPassRulesTests
     }
 
     [Fact]
+    public void A_test_level_lifts_the_progress_but_never_lowers_it()
+    {
+        var real = new SeasonProgress(46, 2, 20, At(11, 9, 0));
+
+        SeasonPassRules.WithTestLevel(real, 12).Should().Be(new SeasonProgress(240, 12, 20, At(11, 9, 0)));
+        SeasonPassRules.WithTestLevel(real, 6).Should().Be(new SeasonProgress(120, 6, 20, At(11, 9, 0)));
+        SeasonPassRules.WithTestLevel(real, 1).Should().Be(real);
+        SeasonPassRules.WithTestLevel(real, 0).Should().Be(real);
+    }
+
+    [Fact]
+    public void Test_levels_are_read_by_user_id_and_checked()
+    {
+        var id = Guid.NewGuid();
+        var options = new SeasonPassOptions { TestLevels = { [id.ToString()] = 6 } };
+
+        options.TestLevel(id).Should().Be(6);
+        options.TestLevel(Guid.NewGuid()).Should().Be(0);
+        options.IsValid().Should().BeTrue();
+        new SeasonPassOptions { TestLevels = { ["renan"] = 6 } }.IsValid().Should().BeFalse();
+        new SeasonPassOptions { TestLevels = { [id.ToString()] = 13 } }.IsValid().Should().BeFalse();
+    }
+
+    [Fact]
     public void A_week_runs_from_Monday_to_Sunday_in_Brasilia()
     {
         SeasonPassRules.WeekStart(At(11, 8, 23)).Should().Be(At(11, 2, 0));

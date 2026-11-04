@@ -16,10 +16,26 @@ public sealed class SeasonPassOptions
     /// <summary>By code of <see cref="SeasonPassRules.Catalog"/>. A season in the catalog without dates is not shown.</summary>
     public Dictionary<string, SeasonDates> Seasons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Test accounts only (DECISIONS #101): a minimum pass level by user id, so the test environment can
+    /// show a pass half way or complete before anyone could earn it. Set only on <c>quadra-api-dev</c>
+    /// (<c>SeasonPass__TestLevels__&lt;userId&gt;=12</c>); never in production. Real points above it still count.
+    /// </summary>
+    public Dictionary<string, int> TestLevels { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The test level set for <paramref name="userId"/>, or 0.</summary>
+    public int TestLevel(Guid userId) =>
+        TestLevels.FirstOrDefault(t => Guid.TryParse(t.Key, out var id) && id == userId).Value;
+
     /// <summary>Every code is in the catalog, ends after it starts and the seasons do not overlap.</summary>
     public bool IsValid()
     {
         if (Seasons.Any(s => !SeasonPassRules.Catalog.ContainsKey(s.Key) || s.Value.EndsOn <= s.Value.StartsOn))
+        {
+            return false;
+        }
+
+        if (TestLevels.Any(t => !Guid.TryParse(t.Key, out _) || t.Value < 0 || t.Value > SeasonPassRules.Levels))
         {
             return false;
         }
@@ -126,6 +142,15 @@ public static class SeasonPassRules
         var next = Local(week.DateTime.AddDays(7));
         return new SeasonProgress(total, level, Math.Max(weeks.GetValueOrDefault(week), 0), next < season.EndsAt ? next : season.EndsAt);
     }
+
+    /// <summary>
+    /// A test account's progress (DECISIONS #101): at least <paramref name="testLevel"/>, with the points
+    /// that level takes. Real progress above it wins; the week being played is the real one.
+    /// </summary>
+    public static SeasonProgress WithTestLevel(SeasonProgress progress, int testLevel) =>
+        testLevel <= progress.Level
+            ? progress
+            : progress with { Level = testLevel, Points = Math.Max(progress.Points, testLevel * PointsPerLevel) };
 
     /// <summary>00:00 of the Monday that starts the Brasília week of <paramref name="moment"/>.</summary>
     public static DateTimeOffset WeekStart(DateTimeOffset moment)
