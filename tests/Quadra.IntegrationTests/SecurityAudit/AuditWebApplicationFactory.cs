@@ -43,6 +43,8 @@ public sealed class AuditWebApplicationFactory : IAsyncLifetime
         await sp.GetRequiredService<InGameDbContext>().Database.MigrateAsync();
         await sp.GetRequiredService<ProfileDbContext>().Database.MigrateAsync();
         await sp.GetRequiredService<GamificationDbContext>().Database.MigrateAsync();
+        // Account export and deletion also cover the ads (Geo, DECISIONS #102).
+        await sp.GetRequiredService<Quadra.Modules.Geo.Persistence.GeoDbContext>().Database.MigrateAsync();
     }
 
     /// <summary>A host on the same database with another environment and extra settings.</summary>

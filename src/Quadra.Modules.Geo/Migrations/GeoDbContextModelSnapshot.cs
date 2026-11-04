@@ -24,6 +24,170 @@ namespace Quadra.Modules.Geo.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "postgis");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Quadra.Modules.Geo.Ads.Ad", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("AdvertiserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("advertiser_id");
+
+                    b.Property<string>("Body")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("body");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateOnly>("EndsOn")
+                        .HasColumnType("date")
+                        .HasColumnName("ends_on");
+
+                    b.Property<string>("LinkKind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("link_kind");
+
+                    b.Property<string>("LinkValue")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("link_value");
+
+                    b.Property<Point>("Location")
+                        .IsRequired()
+                        .HasColumnType("geography (point, 4326)")
+                        .HasColumnName("location");
+
+                    b.Property<DateTimeOffset?>("PaidAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paid_at");
+
+                    b.Property<string>("PaymentReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("payment_reference");
+
+                    b.Property<string>("PhotoObjectKey")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("photo_object_key");
+
+                    b.Property<string>("Placement")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("placement");
+
+                    b.Property<int>("PriceCents")
+                        .HasColumnType("integer")
+                        .HasColumnName("price_cents");
+
+                    b.Property<int>("RadiusKm")
+                        .HasColumnType("integer")
+                        .HasColumnName("radius_km");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("rejection_reason");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by");
+
+                    b.Property<DateOnly>("StartsOn")
+                        .HasColumnType("date")
+                        .HasColumnName("starts_on");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("title");
+
+                    b.Property<int>("Weeks")
+                        .HasColumnType("integer")
+                        .HasColumnName("weeks");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AdvertiserId")
+                        .HasDatabaseName("ix_ads_advertiser_id");
+
+                    b.HasIndex("Location")
+                        .HasDatabaseName("ix_ads_location");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Location"), "gist");
+
+                    b.HasIndex("Status", "Placement", "StartsOn")
+                        .HasDatabaseName("ix_ads_status_placement_starts");
+
+                    b.ToTable("ads", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_ads_ends_on", "ends_on = starts_on + 7 * weeks");
+
+                            t.HasCheckConstraint("ck_ads_link_kind", "link_kind IN ('None', 'Arena', 'WhatsApp', 'Url')");
+
+                            t.HasCheckConstraint("ck_ads_paid", "status NOT IN ('InReview', 'Approved') OR paid_at IS NOT NULL");
+
+                            t.HasCheckConstraint("ck_ads_placement", "placement IN ('Home', 'Map', 'Opening')");
+
+                            t.HasCheckConstraint("ck_ads_price", "price_cents > 0");
+
+                            t.HasCheckConstraint("ck_ads_radius", "radius_km BETWEEN 1 AND 50");
+
+                            t.HasCheckConstraint("ck_ads_status", "status IN ('AwaitingPayment', 'InReview', 'Approved', 'Rejected', 'Cancelled')");
+
+                            t.HasCheckConstraint("ck_ads_weeks", "weeks BETWEEN 1 AND 12");
+                        });
+                });
+
+            modelBuilder.Entity("Quadra.Modules.Geo.Ads.AdView", b =>
+                {
+                    b.Property<Guid>("AdId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ad_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateOnly>("Day")
+                        .HasColumnType("date")
+                        .HasColumnName("day");
+
+                    b.Property<string>("Kind")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("kind");
+
+                    b.HasKey("AdId", "UserId", "Day", "Kind");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_ad_views_user_id");
+
+                    b.ToTable("ad_views", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_ad_views_kind", "kind IN ('Impression', 'Click')");
+                        });
+                });
+
             modelBuilder.Entity("Quadra.Modules.Geo.Arenas.Arena", b =>
                 {
                     b.Property<Guid>("Id")
@@ -288,6 +452,15 @@ namespace Quadra.Modules.Geo.Migrations
                     b.HasKey("Key");
 
                     b.ToTable("venue_areas", (string)null);
+                });
+
+            modelBuilder.Entity("Quadra.Modules.Geo.Ads.AdView", b =>
+                {
+                    b.HasOne("Quadra.Modules.Geo.Ads.Ad", null)
+                        .WithMany()
+                        .HasForeignKey("AdId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Quadra.Modules.Geo.Arenas.Arena", b =>
