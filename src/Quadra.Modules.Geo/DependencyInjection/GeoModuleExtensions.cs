@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Quadra.Infrastructure.Persistence;
+using Quadra.Modules.Geo.Ads;
 using Quadra.Modules.Geo.Application;
 using Quadra.Modules.Geo.Arenas;
 using Quadra.Modules.Geo.Contracts;
@@ -114,6 +115,16 @@ public static class GeoModuleExtensions
         services.AddScoped<ArenaCuration>();
         services.AddScoped<IValidator<CurationDecisionRequest>, CurationDecisionRequestValidator>();
         services.AddScoped<IValidator<DiscoverCandidatesRequest>, DiscoverCandidatesRequestValidator>();
+
+        // Self-service ads (DECISIONS #102).
+        services.AddOptions<AdsOptions>().BindConfiguration(AdsOptions.SectionName);
+        services.AddScoped<AdsHandler>();
+        services.AddScoped<IPersonalDataStore, AdsPersonalData>();
+        services.AddScoped<IValidator<AdOfferQuery>, AdOfferQueryValidator>();
+        services.AddScoped<IValidator<ServeAdQuery>, ServeAdQueryValidator>();
+        services.AddScoped<IValidator<CreateAdRequest>, CreateAdRequestValidator>();
+        services.AddScoped<IValidator<ReviewAdRequest>, ReviewAdRequestValidator>();
+        services.AddScoped<IValidator<MarkAdPaidRequest>, MarkAdPaidRequestValidator>();
 
         // TimeProvider.System — register only if not already registered by another module.
         services.TryAddSingleton(TimeProvider.System);
