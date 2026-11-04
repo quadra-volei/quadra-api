@@ -110,8 +110,13 @@ public sealed class SeasonPassHandler : ISeasonRewardReader
         return false;
     }
 
-    private async Task<SeasonProgress> ProgressAsync(Guid userId, Season season, DateTimeOffset now, CancellationToken cancellationToken) =>
-        SeasonPassRules.Progress(season, await _points.GetPointsAsync(userId, season.StartsAt, season.EndsAt, cancellationToken), now);
+    private async Task<SeasonProgress> ProgressAsync(Guid userId, Season season, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var progress = SeasonPassRules.Progress(season, await _points.GetPointsAsync(userId, season.StartsAt, season.EndsAt, cancellationToken), now);
+
+        // Test accounts (DECISIONS #101): only for a season already started.
+        return now >= season.StartsAt ? SeasonPassRules.WithTestLevel(progress, _options.TestLevel(userId)) : progress;
+    }
 
     private async Task<bool> IsPremiumAsync(Guid userId, CancellationToken cancellationToken) =>
         _options.PremiumForEveryone || await _premium.IsPremiumAsync(userId, cancellationToken);
