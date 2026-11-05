@@ -41,7 +41,7 @@ public sealed class PointTransaction
     public DateTimeOffset CreatedAt { get; private set; }
 
     /// <summary>
-    /// Awarded by a one-off match (DECISIONS #103): it counts for the season pass but stays out of
+    /// Awarded by a one-off match (DECISIONS #104): it counts for the season pass but stays out of
     /// every ranking. Its <see cref="GroupId"/> is the match itself.
     /// </summary>
     public bool OneOff { get; private set; }

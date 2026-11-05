@@ -222,7 +222,7 @@ public sealed class MatchMobileFlowEndpointsTests : IClassFixture<MatchesWebAppl
         var before = await DetailAsync(matchId, player);
         before.GetProperty("canJoin").GetBoolean().Should().BeTrue();
         before.GetProperty("myPresence").ValueKind.Should().Be(JsonValueKind.Null);
-        before.GetProperty("confirmedCount").GetInt32().Should().Be(1, "the organizer starts confirmed (DECISIONS #103)");
+        before.GetProperty("confirmedCount").GetInt32().Should().Be(1, "the organizer starts confirmed (DECISIONS #104)");
 
         (await ConfirmAsync(matchId, organizer)).StatusCode.Should().Be(HttpStatusCode.OK);
         (await ConfirmAsync(matchId, player)).StatusCode.Should().Be(HttpStatusCode.OK);
@@ -317,7 +317,7 @@ public sealed class MatchMobileFlowEndpointsTests : IClassFixture<MatchesWebAppl
         var matchId = (await CreateAsync(organizer, MobilePayload(maxPlayers: 2))).GetProperty("id").GetGuid();
         var organizerClient = _fx.CreateAuthenticatedClient(organizer);
         var url = $"/api/v1/matches/{matchId}/guests";
-        // The organizer starts confirmed (DECISIONS #103); here they only organize.
+        // The organizer starts confirmed (DECISIONS #104); here they only organize.
         (await organizerClient.PutAsJsonAsync($"/api/v1/matches/{matchId}/presences/me", new { status = "Declined" }, Ct))
             .StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -392,7 +392,7 @@ public sealed class MatchMobileFlowEndpointsTests : IClassFixture<MatchesWebAppl
         items[0].GetProperty("confirmedCount").GetInt32().Should().Be(3, "the organizer, me and one guest");
         items[0].GetProperty("openSlots").GetInt32().Should().Be(1);
         items[1].GetProperty("isOrganizer").GetBoolean().Should().BeTrue();
-        items[1].GetProperty("myStatus").GetString().Should().Be("Confirmed", "the organizer starts confirmed (DECISIONS #103)");
+        items[1].GetProperty("myStatus").GetString().Should().Be("Confirmed", "the organizer starts confirmed (DECISIONS #104)");
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

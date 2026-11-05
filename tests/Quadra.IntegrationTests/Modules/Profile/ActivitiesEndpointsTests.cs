@@ -222,7 +222,7 @@ public sealed class ActivitiesEndpointsTests : IClassFixture<AuditWebApplication
         }, Ct), HttpStatusCode.Created);
         var matchId = match.GetProperty("id").GetGuid();
         var b = $"/api/v1/matches/{matchId}";
-        // The organizer starts confirmed (DECISIONS #103); here they only organize.
+        // The organizer starts confirmed (DECISIONS #104); here they only organize.
         await Read(await organizer.Client.PutAsJsonAsync($"{b}/presences/me", new { status = "Declined" }, Ct));
         var code = open ? null : (await Read(await organizer.Client.GetAsync($"{b}/detail", Ct))).GetProperty("inviteCode").GetString();
         foreach (var player in players)

@@ -6,7 +6,7 @@ using Quadra.Shared.Contracts;
 namespace Quadra.Api.Background;
 
 /// <summary>
-/// Closes matches nobody closed (DECISIONS #103). A match still neither cancelled nor summarized
+/// Closes matches nobody closed (DECISIONS #104). A match still neither cancelled nor summarized
 /// <c>Matches:AbandonAfterHours</c> (default 12) after its time is closed on the organizer's behalf:
 /// never started → cancelled (a recurring group still gets its next game, #89); started → the game
 /// is ended, the MVP voting closed and the summary generated (which also schedules the next game,

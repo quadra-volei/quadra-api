@@ -120,7 +120,7 @@ public sealed class UpdateMyPresenceHandler
         }
 
         // Confirming again changes nothing: on a full match it used to count the caller's own slot
-        // and put them on the waiting list (DECISIONS #103).
+        // and put them on the waiting list (DECISIONS #104).
         if (presence?.Status == PresenceStatus.Confirmed)
         {
             return presence;

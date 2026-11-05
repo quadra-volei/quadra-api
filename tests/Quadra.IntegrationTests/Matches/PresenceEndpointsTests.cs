@@ -144,7 +144,7 @@ public sealed class PresenceEndpointsTests : IClassFixture<MatchesWebApplication
         var declined = body.GetProperty("declined");
         var waitingList = body.GetProperty("waitingList");
 
-        confirmed.GetArrayLength().Should().Be(2, "the organizer starts confirmed (DECISIONS #103)");
+        confirmed.GetArrayLength().Should().Be(2, "the organizer starts confirmed (DECISIONS #104)");
         pending.GetArrayLength().Should().Be(1);
         declined.GetArrayLength().Should().Be(1);
         waitingList.GetArrayLength().Should().Be(1);

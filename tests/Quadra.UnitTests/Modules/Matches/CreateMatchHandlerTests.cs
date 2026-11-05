@@ -66,7 +66,7 @@ public sealed class CreateMatchHandlerTests
     // ─── Normal flow ─────────────────────────────────────────────────────────
 
     /// <summary>
-    /// DECISIONS #103: whoever creates the match starts confirmed in a regular slot.
+    /// DECISIONS #104: whoever creates the match starts confirmed in a regular slot.
     /// </summary>
     [Fact]
     public async Task HandleAsync_confirms_the_organizer()

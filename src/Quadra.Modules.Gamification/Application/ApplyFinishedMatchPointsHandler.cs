@@ -62,7 +62,7 @@ public sealed class ApplyFinishedMatchPointsHandler : IMatchPointsWriter
         }
 
         // 2. Recompute each affected player's standing from the immutable ledger. A one-off match
-        //    has no group ranking (its points only feed the season pass, DECISIONS #103).
+        //    has no group ranking (its points only feed the season pass, DECISIONS #104).
         var affectedUserIds = points.OneOff ? [] : awards.Select(a => a.UserId).Distinct();
         foreach (var userId in affectedUserIds)
         {

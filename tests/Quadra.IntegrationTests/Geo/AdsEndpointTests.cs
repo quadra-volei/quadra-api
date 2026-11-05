@@ -12,7 +12,7 @@ namespace Quadra.IntegrationTests.Geo;
 
 /// <summary>
 /// Self-service ads (DECISIONS #102) through the real endpoints: a player creates an ad at the
-/// server's price; it shows to nobody until the team marks it paid and approves it; then the players
+/// server's price; it shows to nobody until the team approves it (recording the payment received by hand); then the players
 /// around its point see it, and each view and tap counts once per player and day. Only the owner
 /// sees or cancels their ad, and only the team reaches the admin routes.
 /// </summary>
@@ -49,7 +49,7 @@ public sealed class AdsEndpointTests : IClassFixture<MatchesWebApplicationFactor
     };
 
     [Fact]
-    public async Task An_ad_goes_on_the_air_only_after_payment_and_approval()
+    public async Task An_ad_goes_on_the_air_only_after_the_team_approves_it()
     {
         await ResetAsync();
         var advertiser = _fx.CreateAuthenticatedClient(Guid.NewGuid());
@@ -68,19 +68,19 @@ public sealed class AdsEndpointTests : IClassFixture<MatchesWebApplicationFactor
         ad.GetProperty("phase").GetString().Should().Be("AwaitingPayment");
         ad.GetProperty("priceCents").GetInt32().Should().Be(5900, "the server sets the price");
 
-        // Unpaid: nobody sees it, and the team cannot review it yet.
+        // Not approved yet: nobody sees it.
         (await viewer.GetAsync(Serve("Home"), Ct)).StatusCode.Should().Be(HttpStatusCode.NoContent);
-        (await admin.PostAsJsonAsync($"/api/v1/admin/ads/{id}/review", new { approve = true }, Ct))
-            .StatusCode.Should().Be(HttpStatusCode.Conflict);
 
-        // Paid but not approved: still nobody.
-        (await admin.PostAsJsonAsync($"/api/v1/admin/ads/{id}/paid", new { note = "pix 123" }, Ct)).StatusCode.Should().Be(HttpStatusCode.OK);
-        (await viewer.GetAsync(Serve("Home"), Ct)).StatusCode.Should().Be(HttpStatusCode.NoContent);
-        (await advertiser.DeleteAsync($"/api/v1/ads/{id}", Ct)).StatusCode.Should().Be(HttpStatusCode.Conflict, "a paid ad is not cancelled in the app");
-
-        // Approved: on the air around its point, not far away, not in another placement.
+        // One step: approving records the payment the team received by hand and puts it on the air
+        // around its point, not far away, not in another placement.
         var approved = await Read(await admin.PostAsJsonAsync($"/api/v1/admin/ads/{id}/review", new { approve = true }, Ct));
         approved.GetProperty("phase").GetString().Should().Be("Live");
+        (await admin.PostAsJsonAsync($"/api/v1/admin/ads/{id}/review", new { approve = true }, Ct))
+            .StatusCode.Should().Be(HttpStatusCode.Conflict, "an approved ad is not reviewed again");
+        (await advertiser.DeleteAsync($"/api/v1/ads/{id}", Ct)).StatusCode.Should().Be(HttpStatusCode.Conflict, "a paid ad is not cancelled in the app");
+        var team = (await Read(await admin.GetAsync("/api/v1/admin/ads?status=Approved", Ct))).EnumerateArray()
+            .Single(a => a.GetProperty("ad").GetProperty("id").GetGuid() == id);
+        team.GetProperty("paymentReference").GetString().Should().StartWith("manual:");
         var served = await Read(await viewer.GetAsync(Serve("Home"), Ct));
         served.GetProperty("id").GetGuid().Should().Be(id);
         served.GetProperty("linkValue").GetString().Should().Be("5511999998888");
@@ -112,7 +112,6 @@ public sealed class AdsEndpointTests : IClassFixture<MatchesWebApplicationFactor
         (await Read(await stranger.GetAsync("/api/v1/ads/mine", Ct))).GetArrayLength().Should().Be(0);
         (await stranger.DeleteAsync($"/api/v1/ads/{id}", Ct)).StatusCode.Should().Be(HttpStatusCode.NotFound);
         (await stranger.GetAsync("/api/v1/admin/ads", Ct)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        (await stranger.PostAsJsonAsync($"/api/v1/admin/ads/{id}/paid", new { }, Ct)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
         (await stranger.PostAsJsonAsync($"/api/v1/admin/ads/{id}/review", new { approve = true }, Ct)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
         (await stranger.PostAsJsonAsync($"/api/v1/ads/{id}/views", new { kind = "Impression" }, Ct))
             .StatusCode.Should().Be(HttpStatusCode.NotFound, "an ad not on the air counts nothing");
@@ -121,6 +120,60 @@ public sealed class AdsEndpointTests : IClassFixture<MatchesWebApplicationFactor
         (await owner.DeleteAsync($"/api/v1/ads/{id}", Ct)).StatusCode.Should().Be(HttpStatusCode.NoContent);
         (await Read(await owner.GetAsync("/api/v1/ads/mine", Ct))).EnumerateArray().Single()
             .GetProperty("phase").GetString().Should().Be("Cancelled");
+    }
+
+    [Fact]
+    public async Task A_refused_ad_never_counts_as_paid_and_never_shows()
+    {
+        await ResetAsync();
+        var owner = _fx.CreateAuthenticatedClient(Guid.NewGuid());
+        var viewer = _fx.CreateAuthenticatedClient(Guid.NewGuid());
+        var admin = AdminClient();
+        var id = (await Read(await owner.PostAsJsonAsync("/api/v1/ads", NewAd(), Ct))).GetProperty("id").GetGuid();
+
+        (await admin.PostAsJsonAsync($"/api/v1/admin/ads/{id}/review", new { approve = false }, Ct))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest, "a refusal needs a reason");
+        var refused = await Read(await admin.PostAsJsonAsync($"/api/v1/admin/ads/{id}/review", new { approve = false, reason = "Imagem fora das regras" }, Ct));
+        refused.GetProperty("phase").GetString().Should().Be("Rejected");
+        refused.GetProperty("rejectionReason").GetString().Should().Be("Imagem fora das regras");
+        (await viewer.GetAsync(Serve("Home"), Ct)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var team = (await Read(await admin.GetAsync("/api/v1/admin/ads", Ct))).EnumerateArray()
+            .Single(a => a.GetProperty("ad").GetProperty("id").GetGuid() == id);
+        team.GetProperty("paymentReference").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task Advertisers_in_the_same_space_take_turns()
+    {
+        await ResetAsync();
+        var admin = AdminClient();
+        var viewer = _fx.CreateAuthenticatedClient(Guid.NewGuid());
+        var ids = new List<Guid>();
+        for (var i = 0; i < 3; i++)
+        {
+            var id = (await Read(await _fx.CreateAuthenticatedClient(Guid.NewGuid()).PostAsJsonAsync("/api/v1/ads", NewAd(), Ct)))
+                .GetProperty("id").GetGuid();
+            await Read(await admin.PostAsJsonAsync($"/api/v1/admin/ads/{id}/review", new { approve = true }, Ct));
+            ids.Add(id);
+        }
+
+        // Each time the viewer sees one, the next request brings an advertiser they have not seen today.
+        var seen = new List<Guid>();
+        for (var i = 0; i < 3; i++)
+        {
+            var served = (await Read(await viewer.GetAsync(Serve("Home"), Ct))).GetProperty("id").GetGuid();
+            (await viewer.PostAsJsonAsync($"/api/v1/ads/{served}/views", new { kind = "Impression" }, Ct)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+            seen.Add(served);
+        }
+
+        seen.Should().BeEquivalentTo(ids, "three advertisers in the same space take turns");
+
+        // Once the viewer saw them all, the one shown least today comes next.
+        var other = _fx.CreateAuthenticatedClient(Guid.NewGuid());
+        (await other.PostAsJsonAsync($"/api/v1/ads/{ids[0]}/views", new { kind = "Impression" }, Ct)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await other.PostAsJsonAsync($"/api/v1/ads/{ids[1]}/views", new { kind = "Impression" }, Ct)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await Read(await viewer.GetAsync(Serve("Home"), Ct))).GetProperty("id").GetGuid().Should().Be(ids[2]);
     }
 
     [Fact]

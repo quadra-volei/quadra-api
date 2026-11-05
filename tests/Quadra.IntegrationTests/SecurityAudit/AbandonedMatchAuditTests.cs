@@ -11,7 +11,7 @@ using Quadra.Modules.Matches.Persistence;
 namespace Quadra.IntegrationTests.SecurityAudit;
 
 /// <summary>
-/// DECISIONS #103: whoever creates a match starts confirmed, and a match nobody closed is closed
+/// DECISIONS #104: whoever creates a match starts confirmed, and a match nobody closed is closed
 /// by the sweep once it is <c>Matches:AbandonAfterHours</c> past its time: cancelled when never
 /// started, ended and summarized when left on the scoreboard. Recent matches are left alone.
 /// </summary>

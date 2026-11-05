@@ -332,7 +332,7 @@ public sealed class InProcessEventsEndToEndTests : IClassFixture<InProcessEvents
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         var id = (await response.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("id").GetGuid();
 
-        // The organizer starts confirmed (DECISIONS #103); here they only organize.
+        // The organizer starts confirmed (DECISIONS #104); here they only organize.
         using (var scope = _fx.Factory.Services.CreateScope())
         {
             await scope.ServiceProvider.GetRequiredService<MatchesDbContext>().Presences

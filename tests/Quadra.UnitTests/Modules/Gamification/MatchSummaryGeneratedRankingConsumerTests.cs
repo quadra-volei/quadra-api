@@ -65,7 +65,7 @@ public sealed class MatchSummaryGeneratedRankingConsumerTests
                 MvpVotesByPlayer: new Dictionary<Guid, int> { [PlayerA1] = 3, [PlayerB1] = 2 }));
 
     /// <summary>
-    /// DECISIONS #103: a OneOff match's points are written marked <c>OneOff</c>, so they count for
+    /// DECISIONS #104: a OneOff match's points are written marked <c>OneOff</c>, so they count for
     /// the season pass and stay out of the rankings.
     /// </summary>
     [Fact]

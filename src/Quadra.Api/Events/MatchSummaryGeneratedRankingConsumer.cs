@@ -12,7 +12,7 @@ namespace Quadra.Api.Events;
 /// <see cref="FinishedMatchPoints"/> (grouping key + type via <see cref="IMatchGroupReader"/>; each
 /// participant's team + win/loss via <see cref="IMatchResultReader"/>) and hands it to the
 /// Gamification-owned <see cref="IMatchPointsWriter"/>. A OneOff match's points are marked so they
-/// count for the season pass and stay out of the rankings (DECISIONS #103).
+/// count for the season pass and stay out of the rankings (DECISIONS #104).
 /// Idempotent under at-least-once delivery.
 /// </summary>
 public sealed class MatchSummaryGeneratedRankingConsumer : IEventHandler<MatchSummaryGenerated>
@@ -48,7 +48,7 @@ public sealed class MatchSummaryGeneratedRankingConsumer : IEventHandler<MatchSu
         }
 
         // Rankings only count recurring matches (SCOPE F2.3); a one-off match's points go to the
-        // ledger marked OneOff, so they count for the season pass only (DECISIONS #103).
+        // ledger marked OneOff, so they count for the season pass only (DECISIONS #104).
         var oneOff = !string.Equals(group.Type, "Recurring", StringComparison.Ordinal);
 
         var result = await _matchResultReader.GetMatchResultAsync(@event.MatchId, cancellationToken);

@@ -96,7 +96,7 @@ public sealed class CreateMatchHandler
         await _repository.AddAsync(match, cancellationToken);
 
         // Whoever creates the match plays in it: they start confirmed in a regular slot and can
-        // still step out with "Não vou jogar" (DECISIONS #103).
+        // still step out with "Não vou jogar" (DECISIONS #104).
         var organizerPresence = MatchPresence.Create(match.Id, match.OrganizerId, PlayerType.Regular, now);
         organizerPresence.Confirm(now);
         await _presenceRepository.AddAsync(organizerPresence, cancellationToken);

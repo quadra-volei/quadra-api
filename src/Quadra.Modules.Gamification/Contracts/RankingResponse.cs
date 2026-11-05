@@ -78,4 +78,4 @@ public sealed record MatchPointsResponse(
     int GamesWon,
     int Votes,
     bool Mvp,
-    bool OneOff = false);   // a one-off match: the points count for the season pass only (#103)
+    bool OneOff = false);   // a one-off match: the points count for the season pass only (#104)

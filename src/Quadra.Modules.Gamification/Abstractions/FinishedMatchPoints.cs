@@ -13,7 +13,7 @@ public sealed record FinishedMatchPoints(
     IReadOnlyList<FinishedMatchPlayerPoints> Players,   // all participants who played
     DateTimeOffset FinishedAt,
     int MvpTotalVotes = 0,        // ballots cast; the MVP bonus needs PointRules.MvpMinVotes
-    bool OneOff = false);         // a one-off match: counts for the season pass, not for rankings (#103)
+    bool OneOff = false);         // a one-off match: counts for the season pass, not for rankings (#104)
 
 /// <summary>One participant's outcome within a finished match.</summary>
 public sealed record FinishedMatchPlayerPoints(

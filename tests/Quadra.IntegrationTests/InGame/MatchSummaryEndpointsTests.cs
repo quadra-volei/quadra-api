@@ -325,7 +325,7 @@ public sealed class MatchSummaryEndpointsTests : IClassFixture<InGameWebApplicat
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         var id = body.GetProperty("id").GetGuid();
 
-        // The organizer starts confirmed (DECISIONS #103); here they only organize.
+        // The organizer starts confirmed (DECISIONS #104); here they only organize.
         using (var scope = _fx.Factory.Services.CreateScope())
         {
             await scope.ServiceProvider.GetRequiredService<MatchesDbContext>().Presences

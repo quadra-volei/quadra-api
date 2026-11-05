@@ -138,7 +138,7 @@ public static class AuthModuleExtensions
         }));
 
         // login/sms-otp only runs with the fixed-code fake: with Firebase the route answers 410
-        // (Twilio Verify was removed, DECISIONS #103).
+        // (Twilio Verify was removed, DECISIONS #104).
         services.AddSingleton<IPhoneVerificationService, FakePhoneVerificationService>();
 
         // EF persistence — connection string comes from the standard ConnectionStrings:Auth slot,
