@@ -342,8 +342,6 @@ public sealed record AdViewRequest(string? Kind);
 
 public sealed record AdminAdResponse(Guid? AdvertiserId, string? PaymentReference, AdResponse Ad);
 
-public sealed record MarkAdPaidRequest(string? Note);
-
 public sealed record ReviewAdRequest(bool Approve, string? Reason);
 
 // ── Validation ─────────────────────────────────────────────────────────────
@@ -402,14 +400,6 @@ public sealed class ReviewAdRequestValidator : AbstractValidator<ReviewAdRequest
     {
         RuleFor(x => x.Reason).MaximumLength(Ad.ReasonMaxLength);
         When(x => !x.Approve, () => RuleFor(x => x.Reason).NotEmpty().WithMessage("Say why the ad was refused."));
-    }
-}
-
-public sealed class MarkAdPaidRequestValidator : AbstractValidator<MarkAdPaidRequest>
-{
-    public MarkAdPaidRequestValidator()
-    {
-        RuleFor(x => x.Note).MaximumLength(150);
     }
 }
 
@@ -593,14 +583,28 @@ public sealed class AdsHandler
         return true;
     }
 
-    /// <summary>One ad on the air around the viewer for the placement, picked at random; null when none.</summary>
-    public async Task<ServedAdResponse?> ServeAsync(ServeAdQuery query, CancellationToken cancellationToken)
+    /// <summary>
+    /// One ad on the air around the viewer for the placement; null when none. Several advertisers in the
+    /// same space take turns: first an ad this viewer has not seen today, then the one shown least today
+    /// (so each advertiser gets a fair share of views), then at random.
+    /// </summary>
+    public async Task<ServedAdResponse?> ServeAsync(Guid viewerId, ServeAdQuery query, CancellationToken cancellationToken)
     {
         var today = Today;
         var point = At(query.Lat, query.Lon);
         var ad = await LiveAds(today)
             .Where(a => a.Placement == query.Placement && a.Location.IsWithinDistance(point, a.RadiusKm * 1000d))
-            .OrderBy(_ => EF.Functions.Random())
+            .Select(a => new
+            {
+                Ad = a,
+                SeenByViewer = _db.AdViews.Any(v =>
+                    v.AdId == a.Id && v.UserId == viewerId && v.Day == today && v.Kind == AdViewKinds.Impression),
+                ShownToday = _db.AdViews.Count(v => v.AdId == a.Id && v.Day == today && v.Kind == AdViewKinds.Impression),
+            })
+            .OrderBy(x => x.SeenByViewer)
+            .ThenBy(x => x.ShownToday)
+            .ThenBy(_ => EF.Functions.Random())
+            .Select(x => x.Ad)
             .FirstOrDefaultAsync(cancellationToken);
         if (ad is null)
         {
@@ -647,28 +651,11 @@ public sealed class AdsHandler
         return ads.Zip(responses, (ad, response) => new AdminAdResponse(ad.AdvertiserId, ad.PaymentReference, response)).ToList();
     }
 
-    /// <summary>The team confirms a payment received (until store payment exists). Null when there is no such ad.</summary>
-    public async Task<AdResponse?> MarkPaidAsync(Guid adminId, Guid adId, string? note, CancellationToken cancellationToken)
-    {
-        var ad = await _db.Ads.SingleOrDefaultAsync(a => a.Id == adId, cancellationToken);
-        if (ad is null)
-        {
-            return null;
-        }
-
-        if (ad.Status != AdStatuses.AwaitingPayment)
-        {
-            throw new AdConflictException("Only an ad awaiting payment can be marked as paid.");
-        }
-
-        ad.Status = AdStatuses.InReview;
-        ad.PaidAt = _clock.GetUtcNow();
-        ad.PaymentReference = string.IsNullOrWhiteSpace(note) ? $"manual:{adminId}" : $"manual:{adminId}:{note.Trim()}";
-        await _db.SaveChangesAsync(cancellationToken);
-        return (await ToResponsesAsync([ad], cancellationToken))[0];
-    }
-
-    /// <summary>The team approves or refuses a paid ad. Null when there is no such ad.</summary>
+    /// <summary>
+    /// The team approves or refuses an ad in one step. While store payment is not wired, approving an
+    /// ad still awaiting payment also records the payment the team received by hand
+    /// (<c>manual:&lt;admin&gt;</c>), so nothing goes on the air without <c>paid_at</c>. Null when there is no such ad.
+    /// </summary>
     public async Task<AdResponse?> ReviewAsync(Guid adminId, Guid adId, ReviewAdRequest request, CancellationToken cancellationToken)
     {
         var ad = await _db.Ads.SingleOrDefaultAsync(a => a.Id == adId, cancellationToken);
@@ -677,14 +664,21 @@ public sealed class AdsHandler
             return null;
         }
 
-        if (ad.Status != AdStatuses.InReview)
+        if (ad.Status is not (AdStatuses.AwaitingPayment or AdStatuses.InReview))
         {
-            throw new AdConflictException("Only a paid ad waiting for review can be reviewed.");
+            throw new AdConflictException("Only an ad awaiting payment or review can be reviewed.");
+        }
+
+        var now = _clock.GetUtcNow();
+        if (request.Approve && ad.PaidAt is null)
+        {
+            ad.PaidAt = now;
+            ad.PaymentReference = $"manual:{adminId}";
         }
 
         ad.Status = request.Approve ? AdStatuses.Approved : AdStatuses.Rejected;
         ad.RejectionReason = request.Approve ? null : request.Reason!.Trim();
-        ad.ReviewedAt = _clock.GetUtcNow();
+        ad.ReviewedAt = now;
         ad.ReviewedBy = adminId;
         await _db.SaveChangesAsync(cancellationToken);
         return (await ToResponsesAsync([ad], cancellationToken))[0];
@@ -898,7 +892,12 @@ public sealed class AdsController : ControllerBase
             return problem;
         }
 
-        var ad = await _handler.ServeAsync(query, cancellationToken);
+        if (!TryGetCallerId(out var callerId))
+        {
+            return Unauthorized();
+        }
+
+        var ad = await _handler.ServeAsync(callerId, query, cancellationToken);
         return ad is null ? NoContent() : Ok(ad);
     }
 
@@ -926,32 +925,7 @@ public sealed class AdsController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<AdminAdResponse>>> ListForTeam([FromQuery] string? status, CancellationToken cancellationToken) =>
         Ok(await _handler.ListForTeamAsync(status, cancellationToken));
 
-    /// <summary>POST /api/v1/admin/ads/{id}/paid — the team confirms the payment.</summary>
-    [HttpPost("api/v1/admin/ads/{id:guid}/paid")]
-    [Authorize(Policy = AuthPolicies.Admin)]
-    public async Task<ActionResult<AdResponse>> MarkPaid(
-        Guid id,
-        [FromBody] MarkAdPaidRequest request,
-        [FromServices] IValidator<MarkAdPaidRequest> validator,
-        CancellationToken cancellationToken)
-    {
-        if (await InvalidAsync(validator, request, cancellationToken) is { } problem)
-        {
-            return problem;
-        }
-
-        try
-        {
-            var ad = await _handler.MarkPaidAsync(CallerId(), id, request.Note, cancellationToken);
-            return ad is null ? NotFound() : Ok(ad);
-        }
-        catch (AdConflictException ex)
-        {
-            return Conflict(new ProblemDetails { Detail = ex.Message });
-        }
-    }
-
-    /// <summary>POST /api/v1/admin/ads/{id}/review — the team approves or refuses a paid ad.</summary>
+    /// <summary>POST /api/v1/admin/ads/{id}/review — the team approves (recording the manual payment) or refuses an ad.</summary>
     [HttpPost("api/v1/admin/ads/{id:guid}/review")]
     [Authorize(Policy = AuthPolicies.Admin)]
     public async Task<ActionResult<AdResponse>> Review(
