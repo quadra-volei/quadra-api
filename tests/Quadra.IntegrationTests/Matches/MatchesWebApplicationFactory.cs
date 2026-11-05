@@ -55,14 +55,6 @@ public sealed class MatchesWebApplicationFactory : IAsyncLifetime
                     {
                         // Database — both modules share the same container
                         ["ConnectionStrings:Default"] = _postgres.GetConnectionString(),
-                        // SQS (required by AddMatchesModule fail-fast)
-                        ["Aws:Sqs:MatchCreatedQueueUrl"] = "http://localhost:4566/000000000000/match-created",
-                        ["Aws:Sqs:MatchStatusChangedQueueUrl"] = "http://localhost:4566/000000000000/match-status-changed",
-                        ["Aws:Sqs:PresenceConfirmedQueueUrl"] = "http://localhost:4566/000000000000/presence-confirmed",
-                        ["Aws:Sqs:MatchWindowOpenedQueueUrl"] = "http://localhost:4566/000000000000/match-window-opened",
-                        ["Aws:Sqs:MatchWindowClosedQueueUrl"] = "http://localhost:4566/000000000000/match-window-closed",
-                        // SQS (required by AddInGameModule fail-fast — registered in Program.cs)
-                        ["Aws:Sqs:TeamsFormedQueueUrl"] = "http://localhost:4566/000000000000/teams-formed",
                     });
                 });
 

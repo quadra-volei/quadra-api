@@ -26,23 +26,6 @@ public static class InGameModuleExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        // Fail-fast: SQS queue URLs must be configured before the app starts.
-        _ = configuration["Aws:Sqs:TeamsFormedQueueUrl"]
-            ?? throw new InvalidOperationException(
-                "Configuration key 'Aws:Sqs:TeamsFormedQueueUrl' is required but was not found.");
-
-        _ = configuration["Aws:Sqs:MatchStartedQueueUrl"]
-            ?? throw new InvalidOperationException(
-                "Configuration key 'Aws:Sqs:MatchStartedQueueUrl' is required but was not found.");
-
-        _ = configuration["Aws:Sqs:MatchEndedQueueUrl"]
-            ?? throw new InvalidOperationException(
-                "Configuration key 'Aws:Sqs:MatchEndedQueueUrl' is required but was not found.");
-
-        _ = configuration["Aws:Sqs:MvpAwardedQueueUrl"]
-            ?? throw new InvalidOperationException(
-                "Configuration key 'Aws:Sqs:MvpAwardedQueueUrl' is required but was not found.");
-
         // EF DbContext — reads from ConnectionStrings:InGame, falling back to ConnectionStrings:Default.
         services.AddDbContext<InGameDbContext>((sp, builder) =>
         {

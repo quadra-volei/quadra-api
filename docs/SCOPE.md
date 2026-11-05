@@ -59,8 +59,7 @@ Needs code:
 - **A recurring group stops** when a game is never summarized: only a summary or a cancellation
   creates the next game (DECISIONS #64, #89).
 - **Event retry**: a failed in-process handler is logged and not retried (no outbox).
-- **Cleanup**: the `Aws:Sqs:*` settings are still required at startup although nothing is
-  sent; the `StackExchange.Redis` package and the `Quadra.Workers.*` projects are unused.
+- **Cleanup**: the `StackExchange.Redis` package and the `Quadra.Workers.*` projects are unused.
 
 ## Out of the MVP
 

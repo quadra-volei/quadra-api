@@ -114,8 +114,8 @@ the workspace root `.claude/`, also outside git: start Claude from the workspace
 - Do not write secrets, keys, passwords or connection strings in any file. They live in the
   Render dashboard.
 - Do not bring back AWS-only pieces (Cognito, SQS, ECS workers) or add Redis, MongoDB or a
-  queue. The `Aws:Sqs:*` settings and the Redis packages still present are leftovers, not a
-  direction.
+  queue. The Redis packages and the `Quadra.Workers.*` projects still present are leftovers,
+  not a direction.
 - Do not add a NuGet package, change the stack or add a feature listed as out of the MVP
   without asking.
 - Do not generate more than the next game of a recurring group: it is created only when the
