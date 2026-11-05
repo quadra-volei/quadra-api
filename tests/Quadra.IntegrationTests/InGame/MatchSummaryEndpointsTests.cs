@@ -323,7 +323,17 @@ public sealed class MatchSummaryEndpointsTests : IClassFixture<InGameWebApplicat
         var response = await client.PostAsJsonAsync("/api/v1/matches", BuildMatchPayload(), TestContext.Current.CancellationToken);
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
-        return body.GetProperty("id").GetGuid();
+        var id = body.GetProperty("id").GetGuid();
+
+        // The organizer starts confirmed (DECISIONS #104); here they only organize.
+        using (var scope = _fx.Factory.Services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<MatchesDbContext>().Presences
+                .Where(p => p.MatchId == id && p.PlayerId == OrganizerUserId)
+                .ExecuteDeleteAsync(TestContext.Current.CancellationToken);
+        }
+
+        return id;
     }
 
     private async Task AddConfirmedPresenceAsync(Guid matchId, Guid playerId)

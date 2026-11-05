@@ -22,9 +22,10 @@ public sealed class CreateMatchHandlerTests
     private readonly IEventPublisher _eventPublisher = Substitute.For<IEventPublisher>();
     private readonly TimeProvider _timeProvider = new FixedTimeProvider(FixedNow);
     private readonly IArenaReader _arenas = Substitute.For<IArenaReader>();
+    private readonly IPresenceRepository _presences = Substitute.For<IPresenceRepository>();
 
     private CreateMatchHandler CreateSut() =>
-        new(_repository, _eventPublisher, _timeProvider, MatchTestSupport.Synchronizer(_repository, _timeProvider), new MatchArenaResolver(_arenas));
+        new(_repository, _eventPublisher, _timeProvider, MatchTestSupport.Synchronizer(_repository, _timeProvider), new MatchArenaResolver(_arenas), _presences);
 
     private static CreateMatchCommand BuildValidOneOffCommand(Guid? organizerId = null) =>
         new(
@@ -63,6 +64,25 @@ public sealed class CreateMatchHandlerTests
             WindowClosesAt: FixedNow.AddDays(6));
 
     // ─── Normal flow ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// DECISIONS #104: whoever creates the match starts confirmed in a regular slot.
+    /// </summary>
+    [Fact]
+    public async Task HandleAsync_confirms_the_organizer()
+    {
+        var organizerId = Guid.NewGuid();
+        var command = BuildValidOneOffCommand(organizerId);
+
+        var result = await CreateSut().HandleAsync(command, CancellationToken.None);
+
+        await _presences.Received(1).AddAsync(
+            Arg.Is<MatchPresence>(p => p.MatchId == result.Id
+                && p.PlayerId == organizerId
+                && p.PlayerType == PlayerType.Regular
+                && p.Status == PresenceStatus.Confirmed),
+            Arg.Any<CancellationToken>());
+    }
 
     /// <summary>
     /// Covers: AC-1 — handler returns a Match with Status=Draft for a valid OneOff command.

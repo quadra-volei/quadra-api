@@ -105,25 +105,6 @@ public sealed class AuthOptionsValidatorTests
     }
 
     /// <summary>
-    /// Covers FA.3: Twilio requires AccountSid, AuthToken and VerifyServiceSid.
-    /// </summary>
-    [Fact]
-    public void Twilio_provider_requires_all_credentials()
-    {
-        var validator = new PhoneVerificationOptionsValidator(Environment("Production"));
-        var options = new PhoneVerificationOptions
-        {
-            Provider = PhoneVerificationOptions.ProviderTwilio,
-            Twilio = new TwilioVerifyOptions { AccountSid = "AC123", AuthToken = "token" },
-        };
-
-        validator.Validate(null, options).Failed.Should().BeTrue();
-
-        options.Twilio.VerifyServiceSid = "VA123";
-        validator.Validate(null, options).Succeeded.Should().BeTrue();
-    }
-
-    /// <summary>
     /// Covers FA.3: an unknown provider name fails startup.
     /// </summary>
     [Fact]

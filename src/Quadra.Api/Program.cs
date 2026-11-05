@@ -46,6 +46,8 @@ builder.Services.AddHostedService<MatchWindowSweeper>();
 builder.Services.AddSingleton<MatchReminderSweeper>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<MatchReminderSweeper>());
 builder.Services.AddHostedService<VenueCacheSweeper>();
+builder.Services.AddSingleton<AbandonedMatchSweeper>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<AbandonedMatchSweeper>());
 builder.Services.AddOpenApi();
 
 var app = builder.Build();

@@ -72,7 +72,17 @@ public sealed class TeamsEndpointsTests : IClassFixture<InGameWebApplicationFact
         var response = await client.PostAsJsonAsync("/api/v1/matches", payload, TestContext.Current.CancellationToken);
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
-        return body.GetProperty("id").GetGuid();
+        var id = body.GetProperty("id").GetGuid();
+
+        // The organizer starts confirmed (DECISIONS #104); here they only organize.
+        using (var scope = _fx.Factory.Services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<MatchesDbContext>().Presences
+                .Where(p => p.MatchId == id && p.PlayerId == organizerId)
+                .ExecuteDeleteAsync(TestContext.Current.CancellationToken);
+        }
+
+        return id;
     }
 
     /// <summary>Adds a confirmed presence directly in the DB.</summary>

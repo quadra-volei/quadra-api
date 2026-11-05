@@ -34,6 +34,12 @@ public interface IMatchRepository
     Task<IReadOnlyList<Match>> ListWindowDueAsync(DateTimeOffset now, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Matches scheduled before <paramref name="before"/> that were neither cancelled nor ended (no
+    /// summary): abandoned, either never started or left on the scoreboard. Oldest first, capped at 50.
+    /// </summary>
+    Task<IReadOnlyList<Match>> ListAbandonedAsync(DateTimeOffset before, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Matches starting at or after <paramref name="since"/>, neither cancelled nor ended, that
     /// <paramref name="playerId"/> organizes, is on the presence list of (not declined) or waits
     /// for. Soonest first, capped at 50.

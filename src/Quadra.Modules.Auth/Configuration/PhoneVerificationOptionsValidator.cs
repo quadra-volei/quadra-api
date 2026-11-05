@@ -5,7 +5,7 @@ namespace Quadra.Modules.Auth.Configuration;
 
 /// <summary>
 /// Enforces the <c>Auth:PhoneVerification</c> settings at application startup: a known provider,
-/// complete Twilio credentials when Twilio is selected, and no fake provider in Production.
+/// the Firebase project when Firebase is selected, and no fake provider in Production.
 /// </summary>
 public sealed class PhoneVerificationOptionsValidator : IValidateOptions<PhoneVerificationOptions>
 {
@@ -40,19 +40,9 @@ public sealed class PhoneVerificationOptionsValidator : IValidateOptions<PhoneVe
                 : ValidateOptionsResult.Success;
         }
 
-        if (options.UsesTwilio)
-        {
-            var twilio = options.Twilio;
-            return string.IsNullOrWhiteSpace(twilio.AccountSid)
-                || string.IsNullOrWhiteSpace(twilio.AuthToken)
-                || string.IsNullOrWhiteSpace(twilio.VerifyServiceSid)
-                ? ValidateOptionsResult.Fail(
-                    "Auth:PhoneVerification:Twilio:AccountSid, AuthToken and VerifyServiceSid are required.")
-                : ValidateOptionsResult.Success;
-        }
 
         return ValidateOptionsResult.Fail(
-            $"Auth:PhoneVerification:Provider must be '{PhoneVerificationOptions.ProviderTwilio}', '{PhoneVerificationOptions.ProviderFirebase}' "
+            $"Auth:PhoneVerification:Provider must be '{PhoneVerificationOptions.ProviderFirebase}' "
             + $"or '{PhoneVerificationOptions.ProviderFake}'.");
     }
 }

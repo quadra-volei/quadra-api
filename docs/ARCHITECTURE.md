@@ -6,14 +6,15 @@ Cognito, Redis) is in `docs/archive/ARCHITECTURE-aws-original.md` for reference 
 ## Shape
 
 One ASP.NET Core process (API + SignalR hub) and one PostgreSQL/PostGIS database.
-Hosted test environment: a Docker container on Render (free plan, `Staging`) plus Neon.
+Hosted: Docker containers on Render plus Neon. `quadra-api-prd` follows `main`
+(`api.quadra-volei.app`); `quadra-api-dev` follows `dev` (`api-dev.quadra-volei.app`, used by the test APKs).
 The free plan sleeps when idle, so the first request after a pause can take up to a minute.
 
 External services, all behind interfaces and all optional at startup except the database:
 
 | Service | Used for | Interface / setting |
 | --- | --- | --- |
-| Twilio Verify | SMS code | `IPhoneVerificationService`, `Auth:PhoneVerification` |
+| Firebase Phone Auth | Phone login (the app sends the SMS, the API validates the Firebase ID token) | `IPhoneVerificationService`, `Auth:PhoneVerification` (`Provider=Firebase`; the Twilio Verify provider is unused) |
 | Google Identity | Validating Google ID tokens | `Auth:Google` |
 | Cloudflare R2 (S3-compatible) | Profile and post photos by signed URL | `Aws:S3` |
 | Google Places / Photon | Address search; arena discovery (Google only) | `IPlaceSearchService`, `IVenueSource`, `Places` |

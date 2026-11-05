@@ -305,7 +305,7 @@ public sealed class InProcessEventsEndToEndTests : IClassFixture<InProcessEvents
         return await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
     }
 
-    private static async Task<Guid> CreateRecurringMatchAsync(LoggedInPlayer organizer)
+    private async Task<Guid> CreateRecurringMatchAsync(LoggedInPlayer organizer)
     {
         var dateTime = DateTimeOffset.UtcNow.AddDays(30);
         var response = await organizer.Client.PostAsJsonAsync(
@@ -330,7 +330,17 @@ public sealed class InProcessEventsEndToEndTests : IClassFixture<InProcessEvents
             },
             Ct);
         response.StatusCode.Should().Be(HttpStatusCode.Created);
-        return (await response.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("id").GetGuid();
+        var id = (await response.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("id").GetGuid();
+
+        // The organizer starts confirmed (DECISIONS #104); here they only organize.
+        using (var scope = _fx.Factory.Services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<MatchesDbContext>().Presences
+                .Where(p => p.MatchId == id && p.PlayerId == organizer.UserId)
+                .ExecuteDeleteAsync(Ct);
+        }
+
+        return id;
     }
 
     private async Task AddConfirmedPresenceAsync(Guid matchId, Guid playerId)

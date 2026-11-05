@@ -15,14 +15,17 @@ public sealed class CreateMatchHandler
     private readonly TimeProvider _timeProvider;
     private readonly MatchWindowSynchronizer _windowSynchronizer;
     private readonly MatchArenaResolver _arenaResolver;
+    private readonly IPresenceRepository _presenceRepository;
 
     public CreateMatchHandler(
         IMatchRepository repository,
         IEventPublisher eventPublisher,
         TimeProvider timeProvider,
         MatchWindowSynchronizer windowSynchronizer,
-        MatchArenaResolver arenaResolver)
+        MatchArenaResolver arenaResolver,
+        IPresenceRepository presenceRepository)
     {
+        _presenceRepository = presenceRepository;
         _windowSynchronizer = windowSynchronizer;
         _arenaResolver = arenaResolver;
         _repository = repository;
@@ -91,6 +94,12 @@ public sealed class CreateMatchHandler
         }
 
         await _repository.AddAsync(match, cancellationToken);
+
+        // Whoever creates the match plays in it: they start confirmed in a regular slot and can
+        // still step out with "Não vou jogar" (DECISIONS #104).
+        var organizerPresence = MatchPresence.Create(match.Id, match.OrganizerId, PlayerType.Regular, now);
+        organizerPresence.Confirm(now);
+        await _presenceRepository.AddAsync(organizerPresence, cancellationToken);
 
         var @event = new MatchCreated(
             MatchId: match.Id,
