@@ -64,15 +64,6 @@ public sealed class AuditWebApplicationFactory : IAsyncLifetime
                 ["SeasonPass:Seasons:T1:StartsOn"] = $"{DateOnly.FromDateTime(DateTime.UtcNow.AddHours(-3)).AddDays(-35):yyyy-MM-dd}",
                 ["SeasonPass:Seasons:T1:EndsOn"] = $"{DateOnly.FromDateTime(DateTime.UtcNow.AddHours(-3)).AddDays(60):yyyy-MM-dd}",
             };
-            foreach (var queue in new[]
-                     {
-                         "MatchCreated", "MatchStatusChanged", "PresenceConfirmed", "MatchWindowOpened", "MatchWindowClosed",
-                         "MatchSummaryGenerated", "TeamsFormed", "MatchStarted", "MatchEnded", "MvpAwarded",
-                     })
-            {
-                settings[$"Aws:Sqs:{queue}QueueUrl"] = $"http://unused/{queue}";
-            }
-
             foreach (var (key, value) in overrides)
             {
                 settings[key] = value;

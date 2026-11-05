@@ -28,38 +28,6 @@ public static class MatchesModuleExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        // Fail-fast: SQS queue URLs must be configured before the app starts.
-        var matchCreatedQueue = configuration["Aws:Sqs:MatchCreatedQueueUrl"]
-            ?? throw new InvalidOperationException(
-                "Configuration key 'Aws:Sqs:MatchCreatedQueueUrl' is required but was not found.");
-
-        var matchStatusChangedQueue = configuration["Aws:Sqs:MatchStatusChangedQueueUrl"]
-            ?? throw new InvalidOperationException(
-                "Configuration key 'Aws:Sqs:MatchStatusChangedQueueUrl' is required but was not found.");
-
-        var presenceConfirmedQueue = configuration["Aws:Sqs:PresenceConfirmedQueueUrl"]
-            ?? throw new InvalidOperationException(
-                "Configuration key 'Aws:Sqs:PresenceConfirmedQueueUrl' is required but was not found.");
-
-        var matchWindowOpenedQueue = configuration["Aws:Sqs:MatchWindowOpenedQueueUrl"]
-            ?? throw new InvalidOperationException(
-                "Configuration key 'Aws:Sqs:MatchWindowOpenedQueueUrl' is required but was not found.");
-
-        var matchWindowClosedQueue = configuration["Aws:Sqs:MatchWindowClosedQueueUrl"]
-            ?? throw new InvalidOperationException(
-                "Configuration key 'Aws:Sqs:MatchWindowClosedQueueUrl' is required but was not found.");
-
-        var matchSummaryGeneratedQueue = configuration["Aws:Sqs:MatchSummaryGeneratedQueueUrl"]
-            ?? throw new InvalidOperationException(
-                "Configuration key 'Aws:Sqs:MatchSummaryGeneratedQueueUrl' is required but was not found.");
-
-        _ = matchCreatedQueue;          // validated above; consumed by the SQS publisher (future spec)
-        _ = matchStatusChangedQueue;    // validated above; consumed by the SQS publisher (future spec)
-        _ = presenceConfirmedQueue;     // validated above; consumed by the SQS publisher (future spec)
-        _ = matchWindowOpenedQueue;     // validated above; consumed by the SQS publisher (future spec)
-        _ = matchWindowClosedQueue;     // validated above; consumed by the SQS publisher (future spec)
-        _ = matchSummaryGeneratedQueue; // validated above; consumed by the SQS publisher (future spec)
-
         // EF DbContext — reads from ConnectionStrings:Matches, falling back to ConnectionStrings:Default.
         services.AddDbContext<MatchesDbContext>((sp, builder) =>
         {

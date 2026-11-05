@@ -87,24 +87,3 @@ services:
       - key: Places__GoogleApiKey
         sync: false
 
-      # Still required at startup by the modules, but unused: events are handled in-process.
-      - key: Aws__Sqs__MatchCreatedQueueUrl
-        value: http://unused/match-created
-      - key: Aws__Sqs__MatchStatusChangedQueueUrl
-        value: http://unused/match-status-changed
-      - key: Aws__Sqs__PresenceConfirmedQueueUrl
-        value: http://unused/presence-confirmed
-      - key: Aws__Sqs__MatchWindowOpenedQueueUrl
-        value: http://unused/match-window-opened
-      - key: Aws__Sqs__MatchWindowClosedQueueUrl
-        value: http://unused/match-window-closed
-      - key: Aws__Sqs__MatchSummaryGeneratedQueueUrl
-        value: http://unused/match-summary-generated
-      - key: Aws__Sqs__TeamsFormedQueueUrl
-        value: http://unused/teams-formed
-      - key: Aws__Sqs__MatchStartedQueueUrl
-        value: http://unused/match-started
-      - key: Aws__Sqs__MatchEndedQueueUrl
-        value: http://unused/match-ended
-      - key: Aws__Sqs__MvpAwardedQueueUrl
-        value: http://unused/mvp-awarded
