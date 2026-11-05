@@ -80,7 +80,7 @@ public sealed class PointTransactionRepository : IPointTransactionRepository
         var sinceUtc = since.ToUniversalTime(); // Npgsql writes only UTC offsets
         var untilUtc = until.ToUniversalTime();
         var query = _context.PointTransactions.AsNoTracking()
-            .Where(t => t.MatchDateTime >= sinceUtc && t.MatchDateTime < untilUtc);
+            .Where(t => !t.OneOff && t.MatchDateTime >= sinceUtc && t.MatchDateTime < untilUtc);
         if (groupId is { } group)
         {
             query = query.Where(t => t.GroupId == group);
@@ -122,7 +122,7 @@ public sealed class PointTransactionRepository : IPointTransactionRepository
     public async Task<IReadOnlyList<Guid>> GetGroupIdsAsync(Guid userId, CancellationToken cancellationToken) =>
         await _context.PointTransactions
             .AsNoTracking()
-            .Where(t => t.UserId == userId)
+            .Where(t => t.UserId == userId && !t.OneOff)
             .GroupBy(t => t.GroupId)
             .OrderByDescending(g => g.Max(t => t.MatchDateTime))
             .Select(g => g.Key)

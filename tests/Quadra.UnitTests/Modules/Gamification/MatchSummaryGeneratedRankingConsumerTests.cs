@@ -65,21 +65,20 @@ public sealed class MatchSummaryGeneratedRankingConsumerTests
                 MvpVotesByPlayer: new Dictionary<Guid, int> { [PlayerA1] = 3, [PlayerB1] = 2 }));
 
     /// <summary>
-    /// Covers AC-7 (OneOff, Worker side): when the match is OneOff the consumer awards no points —
-    /// <see cref="IMatchPointsWriter"/> is never invoked, so no ledger/standing rows can be written.
+    /// DECISIONS #104: a OneOff match's points are written marked <c>OneOff</c>, so they count for
+    /// the season pass and stay out of the rankings.
     /// </summary>
     [Fact]
-    public async Task Handle_oneoff_match_does_not_write_any_points()
+    public async Task Handle_oneoff_match_writes_points_marked_one_off()
     {
         GivenGroup("OneOff");
+        GivenResult();
         var sut = CreateSut();
 
         await sut.HandleAsync(Event(mvp: PlayerA1), TestContext.Current.CancellationToken);
 
-        await _writer.DidNotReceiveWithAnyArgs()
-            .ApplyFinishedMatchPointsAsync(Arg.Any<FinishedMatchPoints>(), Arg.Any<CancellationToken>());
-        await _results.DidNotReceiveWithAnyArgs()
-            .GetMatchResultAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await _writer.Received(1).ApplyFinishedMatchPointsAsync(
+            Arg.Is<FinishedMatchPoints>(p => p.OneOff), Arg.Any<CancellationToken>());
     }
 
     /// <summary>

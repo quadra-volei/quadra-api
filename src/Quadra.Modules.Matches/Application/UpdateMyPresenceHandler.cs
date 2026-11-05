@@ -119,6 +119,13 @@ public sealed class UpdateMyPresenceHandler
             return presence;
         }
 
+        // Confirming again changes nothing: on a full match it used to count the caller's own slot
+        // and put them on the waiting list (DECISIONS #104).
+        if (presence?.Status == PresenceStatus.Confirmed)
+        {
+            return presence;
+        }
+
         var confirmedCount = await _presenceRepository.CountConfirmedAsync(matchId, playerType, cancellationToken);
         var guestCount = await _guestRepository.CountByMatchAsync(matchId, cancellationToken);
 

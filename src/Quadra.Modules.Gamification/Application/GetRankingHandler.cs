@@ -162,7 +162,8 @@ public sealed class GetRankingHandler
             Sum(IsMvp, t => t.Points),
             Sum(IsWin, t => t.Quantity),
             Sum(t => t.Reason == PointReason.MvpVote, t => t.Quantity),
-            rows.Any(t => t.Reason == PointReason.Mvp));
+            rows.Any(t => t.Reason == PointReason.Mvp),
+            rows[0].OneOff);
     }
 
     /// <summary>

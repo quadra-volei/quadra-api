@@ -124,7 +124,6 @@ public static class GeoModuleExtensions
         services.AddScoped<IValidator<ServeAdQuery>, ServeAdQueryValidator>();
         services.AddScoped<IValidator<CreateAdRequest>, CreateAdRequestValidator>();
         services.AddScoped<IValidator<ReviewAdRequest>, ReviewAdRequestValidator>();
-        services.AddScoped<IValidator<MarkAdPaidRequest>, MarkAdPaidRequestValidator>();
 
         // TimeProvider.System — register only if not already registered by another module.
         services.TryAddSingleton(TimeProvider.System);
