@@ -46,14 +46,11 @@ Carta do Jogador = PlayerCard · Janela de Confirmação = ConfirmationWindow.
 
 Needs configuration only (no code):
 
-- **Twilio Verify**. Until then the hosted API accepts the fixed code for any phone number,
-  so the app must not be shared outside the team.
 - **Google login**: the OAuth client IDs.
 - **Apple login**: code path exists, disabled until an Apple client ID is configured.
 
 Needs code:
 
-- **Push on the phone** needs the app side (`expo-notifications`, waiting for Johny's OK on the package) and FCM credentials in EAS; the API already stores tokens and sends through Expo Push (DECISIONS #77).
 - **Summary of a game with rotating teams** does not record which pair played each set
   (DECISIONS #30).
 - **A recurring group stops** when a game is never summarized: only a summary or a cancellation
