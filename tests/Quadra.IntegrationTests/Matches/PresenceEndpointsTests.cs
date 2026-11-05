@@ -144,12 +144,12 @@ public sealed class PresenceEndpointsTests : IClassFixture<MatchesWebApplication
         var declined = body.GetProperty("declined");
         var waitingList = body.GetProperty("waitingList");
 
-        confirmed.GetArrayLength().Should().Be(1);
+        confirmed.GetArrayLength().Should().Be(2, "the organizer starts confirmed (DECISIONS #103)");
         pending.GetArrayLength().Should().Be(1);
         declined.GetArrayLength().Should().Be(1);
         waitingList.GetArrayLength().Should().Be(1);
 
-        body.GetProperty("confirmedCount").GetInt32().Should().Be(1);
+        body.GetProperty("confirmedCount").GetInt32().Should().Be(2);
         body.GetProperty("regularSlots").GetInt32().Should().Be(2);
         body.GetProperty("dropInSlots").GetInt32().Should().Be(2); // maxPlayers(4) - regularSlots(2)
 

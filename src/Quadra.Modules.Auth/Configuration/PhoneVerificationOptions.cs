@@ -9,19 +9,16 @@ public sealed class PhoneVerificationOptions
 {
     public const string SectionName = "Auth:PhoneVerification";
 
-    public const string ProviderTwilio = "Twilio";
     public const string ProviderFake = "Fake";
     public const string ProviderFirebase = "Firebase";
 
     /// <summary>
-    /// <c>Twilio</c> (real SMS through Twilio Verify), <c>Firebase</c> (the app verifies the phone with
+    /// <c>Firebase</c> (the app verifies the phone with
     /// Firebase Phone Auth and sends its ID token to <c>login/firebase-phone</c>; <c>login/sms-otp</c> is
     /// then off) or <c>Fake</c> (fixed code, no SMS;
     /// refused in Production).
     /// </summary>
-    public string Provider { get; set; } = ProviderTwilio;
-
-    public TwilioVerifyOptions Twilio { get; set; } = new();
+    public string Provider { get; set; } = ProviderFirebase;
 
     public FakePhoneVerificationOptions Fake { get; set; } = new();
 
@@ -32,25 +29,6 @@ public sealed class PhoneVerificationOptions
 
     public bool UsesFirebase =>
         string.Equals(Provider, ProviderFirebase, StringComparison.OrdinalIgnoreCase);
-
-    public bool UsesTwilio =>
-        string.Equals(Provider, ProviderTwilio, StringComparison.OrdinalIgnoreCase);
-}
-
-/// <summary>
-/// Twilio Verify credentials. The Verify Service itself (code length = 6, expiry, SMS template)
-/// is configured in the Twilio console.
-/// </summary>
-public sealed class TwilioVerifyOptions
-{
-    public string AccountSid { get; set; } = string.Empty;
-
-    public string AuthToken { get; set; } = string.Empty;
-
-    /// <summary>
-    /// SID of the Verify Service (starts with <c>VA</c>).
-    /// </summary>
-    public string VerifyServiceSid { get; set; } = string.Empty;
 }
 
 /// <summary>

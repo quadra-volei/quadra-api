@@ -78,6 +78,21 @@ public sealed class MatchRepository : IMatchRepository
         return (items, totalCount);
     }
 
+    public async Task<IReadOnlyList<Match>> ListAbandonedAsync(
+        DateTimeOffset before,
+        CancellationToken cancellationToken)
+    {
+        var beforeUtc = before.ToUniversalTime(); // Npgsql writes only UTC offsets
+        return await _context.Matches
+            .AsNoTracking()
+            .Where(m => m.DateTime < beforeUtc
+                && m.Status != MatchStatus.Cancelled
+                && m.Status != MatchStatus.Ended)
+            .OrderBy(m => m.DateTime)
+            .Take(50)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Match>> ListWindowDueAsync(
         DateTimeOffset now,
         CancellationToken cancellationToken)

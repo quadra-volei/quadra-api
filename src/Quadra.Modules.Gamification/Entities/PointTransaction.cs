@@ -40,6 +40,12 @@ public sealed class PointTransaction
 
     public DateTimeOffset CreatedAt { get; private set; }
 
+    /// <summary>
+    /// Awarded by a one-off match (DECISIONS #103): it counts for the season pass but stays out of
+    /// every ranking. Its <see cref="GroupId"/> is the match itself.
+    /// </summary>
+    public bool OneOff { get; private set; }
+
     /// <summary>Factory method — the only way to create a new ledger row. A row is immutable thereafter.</summary>
     public static PointTransaction Create(
         Guid userId,
@@ -49,7 +55,8 @@ public sealed class PointTransaction
         int points,
         DateTimeOffset matchDateTime,
         DateTimeOffset awardedAt,
-        int quantity = 1)
+        int quantity = 1,
+        bool oneOff = false)
     {
         return new PointTransaction
         {
@@ -60,6 +67,7 @@ public sealed class PointTransaction
             Reason = reason,
             Points = points,
             Quantity = quantity,
+            OneOff = oneOff,
             MatchDateTime = matchDateTime,
             AwardedAt = awardedAt,
             // CreatedAt is left at its CLR default so the database applies its now() default.

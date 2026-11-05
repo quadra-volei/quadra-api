@@ -18,7 +18,7 @@ public enum PhoneVerificationResult
 /// <summary>
 /// Delivers and checks the SMS one-time code that proves ownership of a phone number. The
 /// provider owns the code itself (generation, expiry, attempt limits); the API never sees or
-/// stores it. Implementations: Twilio Verify and a fixed-code fake for development and tests.
+/// stores it. Implementation: a fixed-code fake for development and tests (real phones log in through Firebase).
 /// </summary>
 public interface IPhoneVerificationService
 {
