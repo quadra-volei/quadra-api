@@ -22,8 +22,9 @@ treat it as current and do not read it by default.
 - Auth: **own JWT** (HS256 access token + rotating refresh token stored hashed), Google ID
   token validated server-side, phone login through **Firebase Phone Auth** (the app sends the SMS,
   the API validates the Firebase ID token; `Auth:PhoneVerification:Provider=Firebase` in the
-  hosted environments, DECISIONS #78). The Twilio Verify and fixed-code providers behind
-  `IPhoneVerificationService` are still in the code but unused (the fake is refused in Production)
+  hosted environments, DECISIONS #78). The fixed-code `Fake` provider behind
+  `IPhoneVerificationService` is for development and tests only (refused in Production); Twilio
+  Verify was removed (DECISIONS #104)
 - Events: **in-process** (`IEventPublisher` → `InProcessEventPublisher` → `IEventHandler<T>` in
   `src/Quadra.Api/Events`). No queue, no worker process
 - Real-time: SignalR hub `/hubs/match`, single instance, no backplane
@@ -114,8 +115,7 @@ the workspace root `.claude/`, also outside git: start Claude from the workspace
 - Do not write secrets, keys, passwords or connection strings in any file. They live in the
   Render dashboard.
 - Do not bring back AWS-only pieces (Cognito, SQS, ECS workers) or add Redis, MongoDB or a
-  queue. The Redis packages still present are a leftover,
-  not a direction.
+  queue (DECISIONS #107).
 - Do not add a NuGet package, change the stack or add a feature listed as out of the MVP
   without asking.
 - Do not generate more than the next game of a recurring group: it is created only when the

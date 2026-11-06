@@ -229,7 +229,7 @@ public sealed class TeamsEndpointsTests : IClassFixture<InGameWebApplicationFact
     /// produces two teams with all confirmed players assigned,
     /// team names are "Time Azul" and "Time Limão",
     /// all player IDs appear in the response.
-    /// Also verifies the TeamsFormed SQS event is published.
+    /// Also verifies the TeamsFormed event is published.
     /// </summary>
     [Fact]
     public async Task POST_draft_with_valid_closed_match_returns_200_with_two_teams_and_all_players()
@@ -356,7 +356,7 @@ public sealed class TeamsEndpointsTests : IClassFixture<InGameWebApplicationFact
     }
 
     /// <summary>
-    /// Covers: F1.3 — TeamsFormed SQS event is published after a successful draft.
+    /// Covers: F1.3 — TeamsFormed event is published after a successful draft.
     /// </summary>
     [Fact]
     public async Task POST_draft_publishes_TeamsFormed_event_with_correct_matchId()

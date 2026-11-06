@@ -2,8 +2,8 @@ namespace Quadra.Shared.Events.Matches;
 
 /// <summary>
 /// Integration event published by the Matches module after a new match row is committed.
-/// Declared consumers: <c>Quadra.Modules.Notifications</c>, <c>Quadra.Workers.Background</c>.
-/// At-least-once delivery — consumers must be idempotent.
+/// No handler today.
+/// Handlers must be idempotent.
 /// </summary>
 public sealed record MatchCreated(
     Guid MatchId,

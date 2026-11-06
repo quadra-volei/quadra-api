@@ -11,7 +11,6 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.8" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite" Version="10.0.1" />
-    <PackageReference Include="StackExchange.Redis" Version="2.13.1" />
   </ItemGroup>
 
   <ItemGroup>

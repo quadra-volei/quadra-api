@@ -55,7 +55,6 @@ Needs code:
 - **Summary of a game with rotating teams** does not record which pair played each set
   (DECISIONS #30).
 - **Event retry**: a failed in-process handler is logged and not retried (no outbox).
-- **Cleanup**: the `StackExchange.Redis` package is unused (the `Quadra.Workers.*` placeholders were removed, DECISIONS #106).
 
 ## Out of the MVP
 

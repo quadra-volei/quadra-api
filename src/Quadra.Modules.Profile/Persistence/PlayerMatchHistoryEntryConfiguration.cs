@@ -79,7 +79,7 @@ public sealed class PlayerMatchHistoryEntryConfiguration : IEntityTypeConfigurat
             .IsRequired()
             .HasDefaultValueSql("now()");
 
-        // A match appears once per player — idempotency guard for at-least-once SQS delivery.
+        // A match appears once per player — idempotency guard if the event is handled twice.
         builder.HasIndex(h => new { h.UserId, h.MatchId })
             .IsUnique()
             .HasDatabaseName("uq_player_match_history_user_match");

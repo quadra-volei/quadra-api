@@ -17,7 +17,7 @@ namespace Quadra.IntegrationTests.Matches;
 /// Covers acceptance criteria:
 ///   - AC-P1: GET /api/v1/matches/{id}/presences returns presences partitioned into
 ///             Confirmed, Pending, Declined lists plus WaitingList.
-///   - AC-P2: OpenMatchWindowHandler publishes MatchWindowOpened SQS event after Draft → Open.
+///   - AC-P2: OpenMatchWindowHandler publishes MatchWindowOpened event after Draft → Open.
 ///   - AC-P3: When a player confirms and all slots are taken, a row is inserted in waiting_list
 ///             and the response returns HTTP 409 with the waiting list position.
 ///   - AC-P4: After windowClosesAt, a DropIn player who confirms when all original DropInSlots
@@ -234,7 +234,7 @@ public sealed class PresenceEndpointsTests : IClassFixture<MatchesWebApplication
 
     /// <summary>
     /// Covers: AC-P2 — After a match transitions from Draft to Open via OpenMatchWindowHandler,
-    /// the MatchWindowOpened SQS event is published with the correct payload.
+    /// the MatchWindowOpened event is published with the correct payload.
     ///
     /// We invoke the handler directly (it's scoped in DI) to simulate what the Background Worker
     /// would call. The integration test verifies the event is received by the substitute publisher
