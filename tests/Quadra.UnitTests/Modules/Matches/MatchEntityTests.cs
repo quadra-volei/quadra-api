@@ -276,4 +276,29 @@ public sealed class MatchEntityTests
 
         act.Should().Throw<InvalidMatchStatusTransitionException>();
     }
+
+    // Editing the visibility: private gets an invite code (the link carries it), open loses it.
+    [Fact]
+    public void Update_making_a_match_private_gives_it_an_invite_code_and_open_removes_it()
+    {
+        var match = CreateDraftMatch();
+        MatchEdit Edit(MatchVisibility visibility) => new(
+            match.Name, null, match.Address, match.Location.Y, match.Location.X, match.DateTime,
+            match.MaxPlayers, match.RegularSlots, null, null, null, null, null, null, null, null,
+            Visibility: visibility, Gender: MatchGender.Female, Surface: MatchSurface.Beach);
+
+        match.Update(Edit(MatchVisibility.Private), Now);
+
+        match.Visibility.Should().Be(MatchVisibility.Private);
+        match.InviteMode.Should().Be(MatchInviteMode.Code);
+        match.InviteCode.Should().HaveLength(8);
+        match.AllowsSelfEnrollment(Guid.NewGuid(), match.InviteCode).Should().BeTrue();
+        match.Gender.Should().Be(MatchGender.Female);
+        match.Surface.Should().Be(MatchSurface.Beach);
+
+        match.Update(Edit(MatchVisibility.Open), Now);
+
+        match.InviteMode.Should().BeNull();
+        match.InviteCode.Should().BeNull();
+    }
 }

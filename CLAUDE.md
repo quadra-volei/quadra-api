@@ -20,9 +20,11 @@ treat it as current and do not read it by default.
 - .NET 10 / C# 14, ASP.NET Core with **Controllers** (no Minimal APIs)
 - EF Core 10 on **PostgreSQL + PostGIS** (Neon in the hosted environment)
 - Auth: **own JWT** (HS256 access token + rotating refresh token stored hashed), Google ID
-  token validated server-side, SMS OTP behind `IPhoneVerificationService` (Twilio Verify over
-  `HttpClient`; fake provider with a fixed 6-digit code until Twilio is configured, refused in
-  Production)
+  token validated server-side, phone login through **Firebase Phone Auth** (the app sends the SMS,
+  the API validates the Firebase ID token; `Auth:PhoneVerification:Provider=Firebase` in the
+  hosted environments, DECISIONS #78). The fixed-code `Fake` provider behind
+  `IPhoneVerificationService` is for development and tests only (refused in Production); Twilio
+  Verify was removed (DECISIONS #104)
 - Events: **in-process** (`IEventPublisher` → `InProcessEventPublisher` → `IEventHandler<T>` in
   `src/Quadra.Api/Events`). No queue, no worker process
 - Real-time: SignalR hub `/hubs/match`, single instance, no backplane
@@ -32,8 +34,8 @@ treat it as current and do not read it by default.
 - FluentValidation, manual DTO mapping (no AutoMapper), Serilog JSON
 - Tests: xUnit + FluentAssertions + NSubstitute; integration with WebApplicationFactory +
   Testcontainers (real Postgres)
-- Hosting: one Docker container on Render (`Dockerfile` + `render.yaml`), environment
-  `Staging`, redeployed on every push to `main`; migrations run on startup
+- Hosting: Docker on Render (`Dockerfile` + `render.yaml`): `quadra-api-prd` redeploys on every
+  push to `main`, `quadra-api-dev` (the test API of the preview APKs) on every push to `dev`; migrations run on startup only with `Database:MigrateOnStartup=true`
 
 ## Layout
 
@@ -41,7 +43,6 @@ treat it as current and do not read it by default.
 src/Quadra.Api/                 host, Program.cs, Events/ (cross-module event handlers)
 src/Quadra.Modules.<Name>/      Auth, Matches, InGame, Profile, Geo, Gamification, Realtime
 src/Quadra.Modules.Notifications/  in-app notifications + Expo Push (one file, Notifications.cs)
-src/Quadra.Workers.*/           empty placeholders, not deployed
 src/Quadra.Shared/              events and cross-module interfaces
 src/Quadra.Infrastructure/      EF helpers, event publisher, photo storage
 tests/Quadra.UnitTests/  tests/Quadra.IntegrationTests/
@@ -67,7 +68,7 @@ dotnet ef database update --startup-project ../Quadra.Api
 - Start every change from `dev` and merge it back into `dev`. Never commit straight to `dev`
   or `main`.
 - `dev` collects the merged changes; a PR from `dev` into `main` releases them. A push to
-  `main` redeploys the hosted API. Build and tests must pass before merging; GitHub Actions
+  `main` redeploys production; a push to `dev` redeploys the test API. Build and tests must pass before merging; GitHub Actions
   (`.github/workflows/ci.yml`) runs them, integration tests included, on every PR into `dev` or `main`.
 - Commit messages in Portuguese, `tipo(modulo): resumo` (as in `git log`).
 
@@ -114,8 +115,7 @@ the workspace root `.claude/`, also outside git: start Claude from the workspace
 - Do not write secrets, keys, passwords or connection strings in any file. They live in the
   Render dashboard.
 - Do not bring back AWS-only pieces (Cognito, SQS, ECS workers) or add Redis, MongoDB or a
-  queue. The `Aws:Sqs:*` settings and the Redis packages still present are leftovers, not a
-  direction.
+  queue (DECISIONS #107).
 - Do not add a NuGet package, change the stack or add a feature listed as out of the MVP
   without asking.
 - Do not generate more than the next game of a recurring group: it is created only when the

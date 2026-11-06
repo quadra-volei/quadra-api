@@ -2,7 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 using Quadra.IntegrationTests.SecurityAudit;
+using Quadra.Modules.Gamification.Abstractions;
 
 namespace Quadra.IntegrationTests.Modules.Profile;
 
@@ -65,6 +67,41 @@ public sealed class CardStyleEndpointsTests : IClassFixture<AuditWebApplicationF
             Route, new { finish = "Prisma", photoObjectKey = $"profiles/{victim.Id}/photo/x.jpg" }, Ct);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task A_season_pass_title_and_finish_are_equipped_only_once_unlocked()
+    {
+        var owner = await _fx.LoginAsync();
+        var title = new { finish = "Prisma", title = "SEMPRE_PRESENTE" };
+        var finish = new { finish = "Pioneira", title = (string?)null };
+
+        (await owner.Client.PutAsJsonAsync(Route, title, Ct)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await owner.Client.PutAsJsonAsync(Route, finish, Ct)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        // Four weeks over the cap (62 points each): 240 points, the pass's last level.
+        using (var scope = _fx.Factory.Services.CreateScope())
+        {
+            var writer = scope.ServiceProvider.GetRequiredService<IMatchPointsWriter>();
+            for (var week = 0; week < 4; week++)
+            {
+                var when = DateTimeOffset.UtcNow.AddDays(-7 * week);
+                await writer.ApplyFinishedMatchPointsAsync(
+                    new FinishedMatchPoints(
+                        Guid.NewGuid(),
+                        Guid.NewGuid(),
+                        when,
+                        owner.Id,
+                        [new FinishedMatchPlayerPoints(owner.Id, GamesWon: 3, MvpVotes: 2)],
+                        when,
+                        MvpTotalVotes: 3),
+                    Ct);
+            }
+        }
+
+        (await owner.Client.PutAsJsonAsync(Route, title, Ct)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await owner.Client.PutAsJsonAsync(Route, finish, Ct)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await StyleOf(owner, "/api/v1/profiles/me")).GetProperty("finish").GetString().Should().Be("Pioneira");
     }
 
     [Fact]

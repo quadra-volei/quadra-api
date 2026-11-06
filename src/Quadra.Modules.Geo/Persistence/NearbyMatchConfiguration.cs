@@ -52,5 +52,8 @@ public sealed class NearbyMatchConfiguration : IEntityTypeConfiguration<NearbyMa
 
         builder.Property(m => m.Level)
             .HasColumnName("level");
+
+        builder.Property(m => m.ArenaId)
+            .HasColumnName("arena_id");
     }
 }

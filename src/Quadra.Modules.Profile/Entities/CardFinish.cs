@@ -11,4 +11,7 @@ public enum CardFinish
 
     /// <summary>Dark background, gold frame.</summary>
     Eclipse,
+
+    /// <summary>The whole card of the first season pass (T1): only who completed it may equip it (DECISIONS #98).</summary>
+    Pioneira,
 }

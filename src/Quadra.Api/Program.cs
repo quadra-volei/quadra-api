@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Quadra.Api;
 using Quadra.Api.Background;
 using Quadra.Api.Events;
+using Quadra.Api.Observability;
+using Quadra.Infrastructure.Messaging;
 using Quadra.Modules.Auth.DependencyInjection;
 using Quadra.Modules.Auth.Persistence;
 using Quadra.Modules.Gamification.DependencyInjection;
@@ -42,10 +44,19 @@ builder.Services.AddNotificationsModule(builder.Configuration);
 
 // Live match updates over SignalR. Registered after the modules: it replaces their no-op notifier.
 builder.Services.AddRealtimeModule();
+
+// Observability (Sentry): event handlers as spans of the request that published them, each
+// sweeper pass as a "job" transaction (optional cron check-in), and slow EF queries in the log.
+builder.Services.AddSingleton<IEventHandlerTracing, SentryEventHandlerTracing>();
+builder.Services.AddSingleton<JobMonitor>();
+builder.Services.AddHostedService<SlowQueryLogger>();
+
 builder.Services.AddHostedService<MatchWindowSweeper>();
 builder.Services.AddSingleton<MatchReminderSweeper>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<MatchReminderSweeper>());
 builder.Services.AddHostedService<VenueCacheSweeper>();
+builder.Services.AddSingleton<AbandonedMatchSweeper>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<AbandonedMatchSweeper>());
 builder.Services.AddOpenApi();
 
 var app = builder.Build();

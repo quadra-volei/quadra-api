@@ -30,7 +30,7 @@ public sealed class NoVenueSource : IVenueSource
 }
 
 /// <summary>
-/// Fills the arena cache for the area the map shows (DECISIONS #82): each grid cell not searched in
+/// Fills the candidate cache for an area the team asks for (curation, DECISIONS #82, #94): each grid cell not searched in
 /// the last <see cref="RefreshAfter"/> is searched on Google (ids only, free), and the arenas whose
 /// coordinates are missing or old get them again (the cheapest details call). Google's terms allow
 /// caching coordinates for 30 days: <see cref="PurgeExpiredAsync"/> deletes them after
@@ -44,12 +44,12 @@ public sealed class VenueDiscovery
     /// <summary>Coordinates older than this are deleted (Google allows 30 days).</summary>
     public static readonly TimeSpan MaxAge = TimeSpan.FromDays(29);
 
-    /// <summary>Zoomed out further than this, the map shows cached arenas only.</summary>
+    /// <summary>The widest area searched at once.</summary>
     public const double MaxRadiusKm = 10;
 
     /// <summary>
-    /// Cells searched per request, so a first look at a new city stays quick.
-    /// ponytail: searched inside the map request; move to a background queue if the first look is slow.
+    /// Cells searched per request, so a search answers quickly and its cost stays bounded; asking
+    /// again searches the next ones. ponytail: inside the request; a background job if a city at once matters.
     /// </summary>
     public const int MaxCellsPerRequest = 4;
 
@@ -76,11 +76,12 @@ public sealed class VenueDiscovery
         _logger = logger;
     }
 
-    public async Task DiscoverAroundAsync(double latitude, double longitude, double radiusKm, CancellationToken cancellationToken)
+    /// <summary>Searches the stale cells around a point; returns how many were searched (0: none left, or no Google).</summary>
+    public async Task<int> DiscoverAroundAsync(double latitude, double longitude, double radiusKm, CancellationToken cancellationToken)
     {
         if (_source is NoVenueSource || radiusKm > MaxRadiusKm)
         {
-            return;
+            return 0;
         }
 
         var now = _timeProvider.GetUtcNow();
@@ -92,19 +93,23 @@ public sealed class VenueDiscovery
             .Select(a => a.Key)
             .ToListAsync(cancellationToken);
 
+        var searched = 0;
         foreach (var cell in cells.Where(c => !fresh.Contains(c.Key)).Take(MaxCellsPerRequest))
         {
             try
             {
                 await DiscoverCellAsync(cell, now, cancellationToken);
+                searched++;
             }
             catch (PlaceSearchUnavailableException ex)
             {
-                // The map still shows what is cached; the cell is tried again next time.
+                // What is cached stays; the cell is tried again next time.
                 _logger.LogWarning(ex, "Arena discovery stopped at cell {Cell}.", cell.Key);
-                return;
+                break;
             }
         }
+
+        return searched;
     }
 
     /// <summary>Deletes coordinates older than <see cref="MaxAge"/>. Returns how many arenas went.</summary>

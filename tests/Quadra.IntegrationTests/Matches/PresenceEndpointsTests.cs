@@ -17,7 +17,7 @@ namespace Quadra.IntegrationTests.Matches;
 /// Covers acceptance criteria:
 ///   - AC-P1: GET /api/v1/matches/{id}/presences returns presences partitioned into
 ///             Confirmed, Pending, Declined lists plus WaitingList.
-///   - AC-P2: OpenMatchWindowHandler publishes MatchWindowOpened SQS event after Draft → Open.
+///   - AC-P2: OpenMatchWindowHandler publishes MatchWindowOpened event after Draft → Open.
 ///   - AC-P3: When a player confirms and all slots are taken, a row is inserted in waiting_list
 ///             and the response returns HTTP 409 with the waiting list position.
 ///   - AC-P4: After windowClosesAt, a DropIn player who confirms when all original DropInSlots
@@ -144,12 +144,12 @@ public sealed class PresenceEndpointsTests : IClassFixture<MatchesWebApplication
         var declined = body.GetProperty("declined");
         var waitingList = body.GetProperty("waitingList");
 
-        confirmed.GetArrayLength().Should().Be(1);
+        confirmed.GetArrayLength().Should().Be(2, "the organizer starts confirmed (DECISIONS #104)");
         pending.GetArrayLength().Should().Be(1);
         declined.GetArrayLength().Should().Be(1);
         waitingList.GetArrayLength().Should().Be(1);
 
-        body.GetProperty("confirmedCount").GetInt32().Should().Be(1);
+        body.GetProperty("confirmedCount").GetInt32().Should().Be(2);
         body.GetProperty("regularSlots").GetInt32().Should().Be(2);
         body.GetProperty("dropInSlots").GetInt32().Should().Be(2); // maxPlayers(4) - regularSlots(2)
 
@@ -234,7 +234,7 @@ public sealed class PresenceEndpointsTests : IClassFixture<MatchesWebApplication
 
     /// <summary>
     /// Covers: AC-P2 — After a match transitions from Draft to Open via OpenMatchWindowHandler,
-    /// the MatchWindowOpened SQS event is published with the correct payload.
+    /// the MatchWindowOpened event is published with the correct payload.
     ///
     /// We invoke the handler directly (it's scoped in DI) to simulate what the Background Worker
     /// would call. The integration test verifies the event is received by the substitute publisher
@@ -462,10 +462,29 @@ public sealed class PresenceEndpointsTests : IClassFixture<MatchesWebApplication
     }
 
     /// <summary>
-    /// Covers: DELETE returns 409 when match is not in Draft status.
+    /// Covers: the organizer removes players until the game starts (DECISIONS #100); once it is
+    /// in progress, DELETE returns 409.
     /// </summary>
     [Fact]
-    public async Task DELETE_presences_on_non_Draft_match_returns_409()
+    public async Task DELETE_presences_once_the_game_started_returns_409()
+    {
+        await ResetAsync();
+        var matchId = await CreateMatchAsync(OrganizerUserId);
+        await ForceMatchStatusAsync(matchId, MatchStatus.InProgress);
+
+        var playerId = Guid.NewGuid();
+        await AddPresenceDirectlyAsync(matchId, playerId, PlayerType.Regular);
+
+        var client = _fx.CreateAuthenticatedClient(OrganizerUserId);
+        var response = await client.DeleteAsync(
+            $"/api/v1/matches/{matchId}/presences/{playerId}", TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    /// <summary>The organizer removes a confirmed player while confirmations are open.</summary>
+    [Fact]
+    public async Task DELETE_presences_on_an_Open_match_removes_the_player()
     {
         await ResetAsync();
         var matchId = await CreateMatchAsync(OrganizerUserId);
@@ -478,7 +497,7 @@ public sealed class PresenceEndpointsTests : IClassFixture<MatchesWebApplication
         var response = await client.DeleteAsync(
             $"/api/v1/matches/{matchId}/presences/{playerId}", TestContext.Current.CancellationToken);
 
-        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────

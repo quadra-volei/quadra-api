@@ -299,7 +299,7 @@ public sealed class UpdateMyPresenceHandlerTests
 
     /// <summary>
     /// Covers: F1.2 — Confirming a Regular when slots are available persists Confirmed status
-    /// and publishes PresenceConfirmed SQS event.
+    /// and publishes PresenceConfirmed event.
     /// </summary>
     [Fact]
     public async Task HandleAsync_Regular_confirm_when_slot_available_returns_Confirmed_and_publishes_event()

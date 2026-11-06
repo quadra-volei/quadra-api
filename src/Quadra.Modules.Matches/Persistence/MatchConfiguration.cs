@@ -132,6 +132,16 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .HasDefaultValue(MatchVisibility.Open)
             .IsRequired();
 
+        builder.Property(m => m.Gender)
+            .HasColumnName("gender")
+            .HasMaxLength(16)
+            .HasConversion<string?>();
+
+        builder.Property(m => m.Surface)
+            .HasColumnName("surface")
+            .HasMaxLength(16)
+            .HasConversion<string?>();
+
         builder.Property(m => m.InviteMode)
             .HasColumnName("invite_mode")
             .HasMaxLength(16)
@@ -157,6 +167,13 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
 
         builder.HasIndex(m => m.GroupId)
             .HasDatabaseName("ix_matches_group_id");
+
+        // No HasOne: the arena is a Geo table. Its foreign key comes from the Geo migration.
+        builder.Property(m => m.ArenaId)
+            .HasColumnName("arena_id");
+
+        builder.HasIndex(m => m.ArenaId)
+            .HasDatabaseName("ix_matches_arena_id");
 
         builder.HasIndex(m => m.OrganizerId)
             .HasDatabaseName("ix_matches_organizer_id");

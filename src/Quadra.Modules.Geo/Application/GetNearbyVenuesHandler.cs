@@ -7,9 +7,10 @@ using Quadra.Modules.Geo.Venues;
 namespace Quadra.Modules.Geo.Application;
 
 /// <summary>
-/// The arenas on the map (DECISIONS #82): fills the cache for the area first
-/// (<see cref="VenueDiscovery"/>), then lists the arenas with today's public games. A game belongs to
-/// the closest arena within <see cref="VenueRadiusMeters"/> of its location.
+/// The arenas on the map of apps from before the map refactor (DECISIONS #82): the cached Google
+/// candidates with today's public games, a game belonging to the closest one within
+/// <see cref="VenueRadiusMeters"/>. Reads the cache only: Google is searched when the team asks
+/// for an area (curation, DECISIONS #94), never on a user's request. Retired with the minimum version.
 /// </summary>
 public sealed class GetNearbyVenuesHandler
 {
@@ -24,21 +25,17 @@ public sealed class GetNearbyVenuesHandler
     private static readonly TimeZoneInfo Brasilia = TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
 
     private readonly GeoDbContext _db;
-    private readonly VenueDiscovery _discovery;
     private readonly TimeProvider _timeProvider;
 
-    public GetNearbyVenuesHandler(GeoDbContext db, VenueDiscovery discovery, TimeProvider timeProvider)
+    public GetNearbyVenuesHandler(GeoDbContext db, TimeProvider timeProvider)
     {
         _db = db;
-        _discovery = discovery;
         _timeProvider = timeProvider;
     }
 
     public async Task<NearbyVenuesResponse> HandleAsync(NearbyMatchesQuery query, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(query);
-
-        await _discovery.DiscoverAroundAsync(query.Lat, query.Lon, query.RadiusKm, cancellationToken);
 
         var now = _timeProvider.GetUtcNow();
         var point = new Point(query.Lon, query.Lat) { SRID = 4326 };

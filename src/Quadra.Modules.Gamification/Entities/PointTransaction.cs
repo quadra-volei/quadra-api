@@ -2,7 +2,7 @@ namespace Quadra.Modules.Gamification.Entities;
 
 /// <summary>
 /// One immutable, append-only ledger row recording a single point award for a finished match.
-/// It is both the audit trail and the idempotency guard for at-least-once SQS delivery: rows are
+/// It is both the audit trail and the idempotency guard if the event is handled twice: rows are
 /// inserted idempotently on <c>(user_id, match_id, reason)</c> and never mutated. The materialized
 /// <c>group_rankings</c> standing is recomputed (summed) from these rows, never incremented blindly.
 /// </summary>
@@ -29,6 +29,9 @@ public sealed class PointTransaction
 
     public int Points { get; private set; }
 
+    /// <summary>What the points stand for: games won or votes received; 1 for the other reasons.</summary>
+    public int Quantity { get; private set; } = 1;
+
     /// <summary>Snapshot of the triggering match's date/time; ordering key within a group.</summary>
     public DateTimeOffset MatchDateTime { get; private set; }
 
@@ -36,6 +39,12 @@ public sealed class PointTransaction
     public DateTimeOffset AwardedAt { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
+
+    /// <summary>
+    /// Awarded by a one-off match (DECISIONS #104): it counts for the season pass but stays out of
+    /// every ranking. Its <see cref="GroupId"/> is the match itself.
+    /// </summary>
+    public bool OneOff { get; private set; }
 
     /// <summary>Factory method — the only way to create a new ledger row. A row is immutable thereafter.</summary>
     public static PointTransaction Create(
@@ -45,7 +54,9 @@ public sealed class PointTransaction
         PointReason reason,
         int points,
         DateTimeOffset matchDateTime,
-        DateTimeOffset awardedAt)
+        DateTimeOffset awardedAt,
+        int quantity = 1,
+        bool oneOff = false)
     {
         return new PointTransaction
         {
@@ -55,6 +66,8 @@ public sealed class PointTransaction
             MatchId = matchId,
             Reason = reason,
             Points = points,
+            Quantity = quantity,
+            OneOff = oneOff,
             MatchDateTime = matchDateTime,
             AwardedAt = awardedAt,
             // CreatedAt is left at its CLR default so the database applies its now() default.

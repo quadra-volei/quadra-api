@@ -55,10 +55,11 @@ public sealed class FollowsHandler : Quadra.Shared.Contracts.IFollowingReader
     }
 
     /// <inheritdoc/>
-    public async Task<IReadOnlyList<Guid>> GetFollowingIdsAsync(Guid userId, CancellationToken cancellationToken) =>
+    public async Task<IReadOnlyList<Guid>> GetNetworkIdsAsync(Guid userId, CancellationToken cancellationToken) =>
         await _context.Follows.AsNoTracking()
-            .Where(f => f.FollowerId == userId)
-            .Select(f => f.FollowedId)
+            .Where(f => f.FollowerId == userId || f.FollowedId == userId)
+            .Select(f => f.FollowerId == userId ? f.FollowedId : f.FollowerId)
+            .Distinct()
             .ToListAsync(cancellationToken);
 
     /// <returns>The connections of <paramref name="userId"/>, or null when there is no such player.</returns>

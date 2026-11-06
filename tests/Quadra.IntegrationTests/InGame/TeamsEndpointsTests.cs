@@ -72,7 +72,17 @@ public sealed class TeamsEndpointsTests : IClassFixture<InGameWebApplicationFact
         var response = await client.PostAsJsonAsync("/api/v1/matches", payload, TestContext.Current.CancellationToken);
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
-        return body.GetProperty("id").GetGuid();
+        var id = body.GetProperty("id").GetGuid();
+
+        // The organizer starts confirmed (DECISIONS #104); here they only organize.
+        using (var scope = _fx.Factory.Services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<MatchesDbContext>().Presences
+                .Where(p => p.MatchId == id && p.PlayerId == organizerId)
+                .ExecuteDeleteAsync(TestContext.Current.CancellationToken);
+        }
+
+        return id;
     }
 
     /// <summary>Adds a confirmed presence directly in the DB.</summary>
@@ -219,7 +229,7 @@ public sealed class TeamsEndpointsTests : IClassFixture<InGameWebApplicationFact
     /// produces two teams with all confirmed players assigned,
     /// team names are "Time Azul" and "Time Limão",
     /// all player IDs appear in the response.
-    /// Also verifies the TeamsFormed SQS event is published.
+    /// Also verifies the TeamsFormed event is published.
     /// </summary>
     [Fact]
     public async Task POST_draft_with_valid_closed_match_returns_200_with_two_teams_and_all_players()
@@ -346,7 +356,7 @@ public sealed class TeamsEndpointsTests : IClassFixture<InGameWebApplicationFact
     }
 
     /// <summary>
-    /// Covers: F1.3 — TeamsFormed SQS event is published after a successful draft.
+    /// Covers: F1.3 — TeamsFormed event is published after a successful draft.
     /// </summary>
     [Fact]
     public async Task POST_draft_publishes_TeamsFormed_event_with_correct_matchId()

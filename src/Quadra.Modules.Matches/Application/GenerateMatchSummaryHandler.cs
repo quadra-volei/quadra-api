@@ -158,6 +158,6 @@ public sealed class GenerateMatchSummaryHandler
         }
 
         // 13. Map and return.
-        return GetMatchSummaryHandler.MapToResponse(summary);
+        return GetMatchSummaryHandler.MapToResponse(summary, result.Teams);
     }
 }

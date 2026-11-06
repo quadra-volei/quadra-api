@@ -57,3 +57,10 @@ public sealed class MatchSlotsBelowConfirmedException : Exception
     public MatchSlotsBelowConfirmedException(int confirmed)
         : base($"There are {confirmed} confirmed players; the slots cannot go below them.") { }
 }
+
+/// <summary>The arena chosen for a game does not exist or is not active. Maps to HTTP 400.</summary>
+public sealed class MatchArenaUnavailableException : Exception
+{
+    public MatchArenaUnavailableException(Guid arenaId)
+        : base($"Arena '{arenaId}' is not an active arena.") { }
+}

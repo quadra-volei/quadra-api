@@ -12,8 +12,9 @@ Carta do Jogador = PlayerCard · Janela de Confirmação = ConfirmationWindow.
 | Area | What exists | Main routes (`/api/v1`) |
 | --- | --- | --- |
 | Auth (FA.1, FA.3) | SMS OTP (6 digits) and Google login; the first valid login creates the user; own JWT + rotating refresh token; logout ends the session; export and delete the account (LGPD, DECISIONS #69) | `auth/login/sms-otp`, `auth/login/google`, `auth/refresh`, `auth/logout`, `auth/me`, `auth/me/export`, `DELETE auth/me` |
-| Match creation (F1.1) | Recurring or one-off match with format, level, duration, prices, visibility (open / private by code / private by guests), confirmations open from creation (an explicit window or "opens N hours before" still accepted); optional cover photo (key from the profile-photo upload, read URL in the detail) | `POST matches`, `GET matches/mine`, `GET matches/{id}/detail` |
+| Match creation (F1.1) | Recurring or one-off match with format, level, duration, prices, visibility (open / private by code / private by guests), confirmations open from creation (an explicit window or "opens N hours before" still accepted); optional cover photo (key from the profile-photo upload, read URL in the detail); the organizer starts confirmed (DECISIONS #104) | `POST matches`, `GET matches/mine`, `GET matches/{id}/detail` |
 | Edit and cancel | The organizer edits the details (not type nor visibility) and cancels until the game starts; slots never below the confirmed players | `PUT matches/{id}`, `DELETE matches/{id}` |
+| Abandoned matches | A match not cancelled nor ended 12 h after its time is closed by a sweep: cancelled if never started, else ended and summarized (DECISIONS #104) | — |
 | Next game of a recurring group | Generating a recurring game's summary creates the group's next game (next week day by frequency, same settings and invite code, same window distance), with everyone who had confirmed as Pending (DECISIONS #64); cancelling one creates it empty, and `endGroup=true` ends the group (DECISIONS #89) | `POST matches/{id}/summary`, `DELETE matches/{id}` |
 | Presence (F1.2) | Confirm / decline, self-enrollment by confirming, Regular vs DropIn slots, waiting list, guests without an account, window opened and closed by the clock | `PUT matches/{id}/presences/me`, `matches/{id}/guests` |
 | Teams (F1.3) | 2 to 4 teams, balanced or random draw, guests drawn in, manual adjustment | `matches/{id}/teams/draft`, `PUT matches/{id}/teams/{teamId}/members/{playerId}` |
@@ -27,11 +28,15 @@ Carta do Jogador = PlayerCard · Janela de Confirmação = ConfirmationWindow.
 | Profile (F2.1) | Name, surname, unique `@handle`, birth date, single position, modality, declared level, derived skills (ACE/BLK/ATK/DEF/GERAL, moved by the recorded actions: DECISIONS #85), recorded actions (total and per match), stats, match history, photo by signed URL; level number from accumulated points (attendance +10, win +15, MVP +25; 10 × n × (n − 1) points for level n) | `profiles/me`, `profiles/handle-availability`, `profiles/me/match-history`, `profiles/me/photo/upload-url` |
 | Player card (F2.2) | Card data after 3 matches; premium flag is a stub that always answers `false` | `profiles/me/card` |
 | Card style | Finish, identity title and card photo chosen by the player, shown to everyone who sees the profile | `PUT profiles/me/card-style`, `cardStyle` on `profiles/me` and `profiles/{id}` |
-| Group ranking (F2.3) | Points per recurring match: attendance +10, win +15, MVP +25, adding up over every game of the group (DECISIONS #64) | `matches/{id}/ranking`, `rankings/mine` |
-| Season ranking | Points from recurring matches played this month (Brasília), among me and who I follow, inside one recurring group, or general (3+ games); optional court position filter; ties share a rank (DECISIONS #63) | `rankings` (`scope`, `groupId`, `position`), `rankings/groups` |
+| First-access tour | How the player left the app's tour (version, completed or skipped, last step seen, when); only the owner reads it (DECISIONS #97) | `PUT profiles/me/tour`, `tour` on `profiles/me` |
+| Group ranking (F2.3) | Points per recurring match: attendance +10, +8 per game won (max 3), +4 per MVP vote, MVP +20 with 3+ votes, adding up over every game of the group (DECISIONS #64, #95) | `matches/{id}/ranking`, `rankings/mine` |
+| Season ranking | Points from recurring matches played in a month (Brasília; any past month by `season`), among me and my network (who I follow and who follows me), inside one recurring group, or general (3+ games); optional court position filter; order by points, MVPs or games won; points split by reason, rank of 7 days ago, who to pass next; what one match gave me (DECISIONS #63, #95) | `rankings` (`scope`, `groupId`, `position`, `season`, `sort`), `rankings/groups`, `rankings/matches/{id}/me` |
+| Season pass | One season at a time, dates from configuration (T1: Nov 2026 to Jan 2027). Progress = the season's points, one-off matches included (they stay out of the rankings, DECISIONS #104), at most 60 a week; 12 levels of 20 points, each a piece of the season's card (paid track, open to everyone while there is no billing); titles at levels 3, 6 and 9 (free track); the finish of the whole card at 12, equipped only once unlocked (DECISIONS #98) | `season-pass`, `PUT profiles/me/card-style` |
+| Self-service ads | A player builds an ad (home banner, map card or opening card; radius 5/10/20 km; 1, 2 or 4 weeks) at the server's price; it shows only after the team approves it (one step that also records the payment received by hand); advertisers in the same space take turns; views and taps counted once per player and day. No store payment yet (DECISIONS #102, #103) | `ads/*`, `admin/ads/*` |
+| Card collection | Every season card of a player, newest first, with the pieces won and whether it is complete; a player sees their own and anyone else's (DECISIONS #99) | `card-collection` (`userId`) |
 | Feedback | Stores the app's feedback form, 20 per user per day | `POST feedback` |
 | Update gate | Minimum and recommended app version from configuration (DECISIONS #74) | `GET app/version` |
-| Notifications | In-app list, unread counter, mark read; push through Expo Push by preference; sent for a waiting list spot, the reminder of a match within 24 h (confirm / see you), MVP voting open, summary ready (DECISIONS #77) | `notifications`, `notifications/unread-count`, `notifications/{id}/read`, `notifications/read-all`, `notifications/push-token`, `notifications/preferences` |
+| Notifications | In-app list, unread counter, mark read, clear one or all (DECISIONS #96); push through Expo Push by preference; sent for a waiting list spot, the reminder of a match within 24 h (confirm / see you), MVP voting open, summary ready (DECISIONS #77) | `notifications`, `notifications/unread-count`, `notifications/{id}/read`, `notifications/read-all`, `DELETE notifications`, `DELETE notifications/{id}`, `notifications/push-token`, `notifications/preferences` |
 | Rede: feed | A post is a text and/or one photo, optionally tied to a finished match the author played or inviting to an open match still to come (organizer or confirmed player); likes; comments; the organizer of an open match still to come can share it as a card with no text (nothing is posted automatically); everyone's posts or only those of the players the caller follows; 20 posts per user per day | `GET posts` (`scope=following`), `POST posts`, `DELETE posts/{id}`, `PUT / DELETE posts/{id}/like`, `GET / POST posts/{id}/comments`, `DELETE posts/{id}/comments/{commentId}` |
 | Rede: follows | One player follows another, with no approval; followers and following counts | `GET / PUT / DELETE profiles/{userId}/follow` |
 | Rede: search | Find players by @handle prefix only, never by name, blocks respected, rate limited (DECISIONS #75) | `GET profiles/search` |
@@ -42,21 +47,14 @@ Carta do Jogador = PlayerCard · Janela de Confirmação = ConfirmationWindow.
 
 Needs configuration only (no code):
 
-- **Twilio Verify**. Until then the hosted API accepts the fixed code for any phone number,
-  so the app must not be shared outside the team.
 - **Google login**: the OAuth client IDs.
 - **Apple login**: code path exists, disabled until an Apple client ID is configured.
 
 Needs code:
 
-- **Push on the phone** needs the app side (`expo-notifications`, waiting for Johny's OK on the package) and FCM credentials in EAS; the API already stores tokens and sends through Expo Push (DECISIONS #77).
 - **Summary of a game with rotating teams** does not record which pair played each set
   (DECISIONS #30).
-- **A recurring group stops** when a game is never summarized: only a summary or a cancellation
-  creates the next game (DECISIONS #64, #89).
 - **Event retry**: a failed in-process handler is logged and not retried (no outbox).
-- **Cleanup**: the `Aws:Sqs:*` settings are still required at startup although nothing is
-  sent; the `StackExchange.Redis` package and the `Quadra.Workers.*` projects are unused.
 
 ## Out of the MVP
 

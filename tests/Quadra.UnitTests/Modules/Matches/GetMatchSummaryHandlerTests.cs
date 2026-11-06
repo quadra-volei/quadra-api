@@ -29,7 +29,9 @@ public sealed class GetMatchSummaryHandlerTests
     private readonly IMatchReader _matchReader = Substitute.For<IMatchReader>();
     private readonly IMatchSummaryRepository _summaryRepository = Substitute.For<IMatchSummaryRepository>();
 
-    private GetMatchSummaryHandler CreateSut() => new(_matchReader, _summaryRepository);
+    private readonly IMatchResultReader _matchResultReader = Substitute.For<IMatchResultReader>();
+
+    private GetMatchSummaryHandler CreateSut() => new(_matchReader, _summaryRepository, _matchResultReader);
 
     // ─── 404: match not found ─────────────────────────────────────────────────
 
@@ -98,6 +100,35 @@ public sealed class GetMatchSummaryHandlerTests
         response.Teams.Select(t => t.Name).Should().ContainInOrder("Team A", "Team B");
         response.Teams[0].PlayerIds.Should().ContainInOrder(P1, P2);
         response.Teams[1].PlayerIds.Should().ContainInOrder(P3, P4);
+    }
+
+    /// <summary>
+    /// A team of guests only (no account, so no player row in the summary) is still listed, in its
+    /// palette place: the app names teams by place, so leaving it out named the winner wrong
+    /// ("Azul venceu 4–3" when Limão won).
+    /// </summary>
+    [Fact]
+    public async Task HandleAsync_keeps_a_team_made_only_of_guests()
+    {
+        var matchId = Guid.NewGuid();
+        var azul = Guid.NewGuid();
+        var limao = Guid.NewGuid();
+        var result = new MatchResult(
+            matchId, "Ended", "SingleGame", azul, limao, 0, 1, limao, Start, End,
+            [new MatchResultSet(1, 3, 4, limao)],
+            [new MatchResultTeam(azul, "Time Azul", []), new MatchResultTeam(limao, "Time Limão", [P1])],
+            "Closed", null, null, 0);
+        _matchReader.FindMatchSummaryAsync(matchId, Arg.Any<CancellationToken>())
+            .Returns(new MatchSummaryProjection(matchId, Guid.NewGuid(), "Ended", DateTimeOffset.UtcNow.AddHours(-2)));
+        _summaryRepository.FindByMatchAsync(matchId, Arg.Any<CancellationToken>())
+            .Returns(MatchSummaryEntity.Generate(matchId, result, generatedBy: Guid.NewGuid(), now: End));
+        _matchResultReader.GetMatchResultAsync(matchId, Arg.Any<CancellationToken>()).Returns(result);
+
+        var response = await CreateSut().HandleAsync(matchId, CancellationToken.None);
+
+        response.Teams.Select(t => t.Name).Should().ContainInOrder("Time Azul", "Time Limão");
+        response.Teams[0].PlayerIds.Should().BeEmpty();
+        response.Teams[1].TeamId.Should().Be(limao);
     }
 
     private static MatchSummaryEntity BuildSummary(Guid matchId)

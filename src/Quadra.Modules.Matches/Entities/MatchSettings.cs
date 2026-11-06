@@ -25,7 +25,9 @@ public sealed record MatchSettings(
     decimal? PriceMonthly = null,
     IReadOnlyList<int>? RecurrenceDays = null,
     string? CoverObjectKey = null,
-    bool FreeTeams = false)
+    bool FreeTeams = false,
+    MatchGender? Gender = null,
+    MatchSurface? Surface = null)
 {
     public static readonly IReadOnlyList<string> Formats = ["2X2", "4X4", "6X6"];
 }

@@ -117,10 +117,13 @@ public sealed record ReportedPostResponse(
 public sealed record ReportResponse(Guid ReporterId, string Reason, string? Details, DateTimeOffset ReportedAt);
 
 /// <summary>Admins of the moderation routes, by account id (Render: Moderation__AdminUserIds__0 …).</summary>
+/// <summary>Response for <c>GET /api/v1/admin/access</c>.</summary>
+public sealed record AdminAccessResponse(bool Admin);
+
 public sealed class ModerationOptions
 {
     public const string SectionName = "Moderation";
-    public const string AdminPolicy = "Admin";
+    public const string AdminPolicy = Quadra.Shared.Authorization.AuthPolicies.Admin;
 
     public Guid[] AdminUserIds { get; set; } = [];
 }
@@ -317,6 +320,17 @@ public sealed class ModerationController : ControllerBase
         }
 
         return await _handler.ReportAsync(callerId, postId, request, cancellationToken) ? NoContent() : NotFound();
+    }
+
+    /// <summary>
+    /// GET /api/v1/admin/access — whether the signed-in account is on the team (any account may ask):
+    /// the app shows the team's screens (arena curation) only then. The routes check it again.
+    /// </summary>
+    [HttpGet("api/v1/admin/access")]
+    public async Task<ActionResult<AdminAccessResponse>> Access([FromServices] IAuthorizationService authorization)
+    {
+        var result = await authorization.AuthorizeAsync(User, HttpContext, ModerationOptions.AdminPolicy);
+        return Ok(new AdminAccessResponse(result.Succeeded));
     }
 
     /// <summary>GET /api/v1/admin/reports — reported posts waiting for the team (admins only).</summary>

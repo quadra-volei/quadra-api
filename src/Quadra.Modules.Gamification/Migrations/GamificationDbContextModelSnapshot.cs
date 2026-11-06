@@ -113,9 +113,21 @@ namespace Quadra.Modules.Gamification.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("match_id");
 
+                    b.Property<bool>("OneOff")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("one_off");
+
                     b.Property<int>("Points")
                         .HasColumnType("integer")
                         .HasColumnName("points");
+
+                    b.Property<int>("Quantity")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("quantity");
 
                     b.Property<string>("Reason")
                         .IsRequired()

@@ -41,6 +41,16 @@ public sealed class PointTransactionConfiguration : IEntityTypeConfiguration<Poi
             .HasColumnName("points")
             .IsRequired();
 
+        builder.Property(t => t.Quantity)
+            .HasColumnName("quantity")
+            .HasDefaultValue(1)
+            .IsRequired();
+
+        builder.Property(t => t.OneOff)
+            .HasColumnName("one_off")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.Property(t => t.MatchDateTime)
             .HasColumnName("match_date_time")
             .IsRequired();

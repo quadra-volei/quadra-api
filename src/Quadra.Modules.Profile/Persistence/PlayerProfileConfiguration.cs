@@ -64,6 +64,20 @@ public sealed class PlayerProfileConfiguration : IEntityTypeConfiguration<Player
         builder.Property(p => p.OnboardingCompletedAt)
             .HasColumnName("onboarding_completed_at");
 
+        builder.Property(p => p.TourVersion)
+            .HasColumnName("tour_version");
+
+        builder.Property(p => p.TourOutcome)
+            .HasColumnName("tour_outcome")
+            .HasConversion<string>()
+            .HasMaxLength(16);
+
+        builder.Property(p => p.TourLastStep)
+            .HasColumnName("tour_last_step");
+
+        builder.Property(p => p.TourEndedAt)
+            .HasColumnName("tour_ended_at");
+
         builder.Property(p => p.PhotoObjectKey)
             .HasColumnName("photo_object_key")
             .HasMaxLength(512);

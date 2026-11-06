@@ -59,6 +59,12 @@ public sealed class Match
     /// <summary>Skill level the match is aimed at. Null when not declared.</summary>
     public MatchLevel? Level { get; private set; }
 
+    /// <summary>Men's, women's or mixed. Null when not declared (matches created before it).</summary>
+    public MatchGender? Gender { get; private set; }
+
+    /// <summary>Beach or court. Null when not declared (matches created before it).</summary>
+    public MatchSurface? Surface { get; private set; }
+
     /// <summary>Planned playing time in minutes. Null when not declared.</summary>
     public short? DurationMinutes { get; private set; }
 
@@ -105,12 +111,19 @@ public sealed class Match
     /// </summary>
     public Guid? GroupId { get; private set; }
 
+    /// <summary>
+    /// The Geo arena this game is played at, or null. The source of truth for the game↔arena link:
+    /// distance may suggest an arena but never sets it. Foreign key to <c>arenas</c>, created by the
+    /// Geo migration (Geo migrates after Matches).
+    /// </summary>
+    public Guid? ArenaId { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
 
     /// <summary>
     /// The next game of this recurring group (DECISIONS #64): a copy of this one (same organizer,
-    /// place, slots, prices, settings and invite code) on <paramref name="dateTime"/>, in Draft, with
+    /// place and arena, slots, prices, settings and invite code) on <paramref name="dateTime"/>, in Draft, with
     /// the confirmation window as far from the game as this one's was (never opening before now).
     /// </summary>
     public Match CreateNext(DateTimeOffset dateTime, DateTimeOffset now)
@@ -232,6 +245,8 @@ public sealed class Match
             Status = MatchStatus.Draft,
             Format = settings.Format,
             Level = settings.Level,
+            Gender = settings.Gender,
+            Surface = settings.Surface,
             DurationMinutes = settings.DurationMinutes.HasValue ? (short)settings.DurationMinutes.Value : null,
             GamePoints = (short)(settings.GamePoints ?? DefaultGamePoints),
             FreeTeams = settings.FreeTeams,
@@ -306,8 +321,9 @@ public sealed class Match
     }
 
     /// <summary>
-    /// Organizer edit of the match details. Type (one-off / recurring), visibility and invite mode
-    /// stay as created. Moving the date moves the confirmation window by the same amount.
+    /// Organizer edit of the match details. The type (one-off / recurring) stays as created. A
+    /// match made private gets an invite code (the invite link carries it); made open, it loses
+    /// it. Moving the date moves the confirmation window by the same amount.
     /// Only while <see cref="MatchStatus.Draft"/> or <see cref="MatchStatus.Open"/>; the caller
     /// checks that the slots still fit who has confirmed and that the game has not started.
     /// </summary>
@@ -323,6 +339,12 @@ public sealed class Match
         WindowOpensAt += shift;
         WindowClosesAt += shift;
 
+        // A game moved elsewhere is no longer at its arena; the caller may link it again.
+        if (Location.X != edit.Longitude || Location.Y != edit.Latitude)
+        {
+            ArenaId = null;
+        }
+
         Name = edit.Name;
         Description = edit.Description;
         Address = edit.Address;
@@ -334,6 +356,14 @@ public sealed class Match
         Price = edit.Price;
         Format = edit.Format;
         Level = edit.Level;
+        Gender = edit.Gender ?? Gender;
+        Surface = edit.Surface ?? Surface;
+        if (edit.Visibility is { } visibility && visibility != Visibility)
+        {
+            Visibility = visibility;
+            InviteMode = visibility == MatchVisibility.Private ? MatchInviteMode.Code : null;
+            InviteCode = visibility == MatchVisibility.Private ? GenerateInviteCode() : null;
+        }
         DurationMinutes = edit.DurationMinutes.HasValue ? (short)edit.DurationMinutes.Value : null;
         GamePoints = edit.GamePoints.HasValue ? (short)edit.GamePoints.Value : GamePoints;
         FreeTeams = edit.FreeTeams ?? FreeTeams;
@@ -349,6 +379,16 @@ public sealed class Match
             }
         }
 
+        UpdatedAt = now;
+    }
+
+    /// <summary>
+    /// Links the game to an active arena, or unlinks it with null. The caller resolves the arena
+    /// (<c>MatchArenaResolver</c>): an organizer's choice or the arena of the picked Google place.
+    /// </summary>
+    public void LinkArena(Guid? arenaId, DateTimeOffset now)
+    {
+        ArenaId = arenaId;
         UpdatedAt = now;
     }
 

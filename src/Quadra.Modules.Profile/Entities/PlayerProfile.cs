@@ -57,6 +57,21 @@ public sealed class PlayerProfile
     /// <summary>A photo just for the card; null means the card shows <see cref="PhotoObjectKey"/>.</summary>
     public string? CardPhotoObjectKey { get; private set; }
 
+    /// <summary>
+    /// Version of the app's first-access tour the player last finished or skipped; null while they
+    /// never went through one. The app shows the tour while this is below its current version.
+    /// </summary>
+    public int? TourVersion { get; private set; }
+
+    /// <summary>How the player left that tour; null with <see cref="TourVersion"/>.</summary>
+    public TourOutcome? TourOutcome { get; private set; }
+
+    /// <summary>The last tour step the player saw (0-based); null with <see cref="TourVersion"/>.</summary>
+    public int? TourLastStep { get; private set; }
+
+    /// <summary>When the player finished or skipped the tour; null with <see cref="TourVersion"/>.</summary>
+    public DateTimeOffset? TourEndedAt { get; private set; }
+
     /// <summary>When onboarding was completed; null while the profile is still the empty shell.</summary>
     public DateTimeOffset? OnboardingCompletedAt { get; private set; }
 
@@ -151,6 +166,19 @@ public sealed class PlayerProfile
         CardFinish = finish;
         CardTitle = title;
         CardPhotoObjectKey = photoObjectKey;
+        UpdatedAt = now;
+    }
+
+    /// <summary>
+    /// Records how the player left the first-access tour. A later call replaces the record: the
+    /// player can watch the tour again from the settings.
+    /// </summary>
+    public void RecordTour(int version, TourOutcome outcome, int lastStep, DateTimeOffset now)
+    {
+        TourVersion = version;
+        TourOutcome = outcome;
+        TourLastStep = lastStep;
+        TourEndedAt = now;
         UpdatedAt = now;
     }
 }

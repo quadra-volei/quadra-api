@@ -104,7 +104,7 @@ public sealed class GroupRankingController : ControllerBase
     }
 
     /// <summary>
-    /// GET /api/v1/rankings?scope=friends|group|general&amp;groupId=&amp;position= — the season
+    /// GET /api/v1/rankings?scope=friends|group|general&amp;groupId=&amp;position=&amp;season=&amp;sort= — the season
     /// ranking. 404 when the group does not exist or the caller may not see it.
     /// </summary>
     [HttpGet("api/v1/rankings")]
@@ -146,6 +146,25 @@ public sealed class GroupRankingController : ControllerBase
         }
 
         return Ok(await handler.ListGroupsAsync(callerId, cancellationToken));
+    }
+
+    /// <summary>
+    /// GET /api/v1/rankings/matches/{matchId}/me — what that match gave the caller. Only the
+    /// caller's own points; 204 when the match gave them none.
+    /// </summary>
+    [HttpGet("api/v1/rankings/matches/{matchId:guid}/me")]
+    public async Task<ActionResult<MatchPointsResponse>> GetMyMatchPoints(
+        Guid matchId,
+        [FromServices] GetRankingHandler handler,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryGetCallerId(out var callerId))
+        {
+            return Unauthorized();
+        }
+
+        var points = await handler.GetMatchPointsAsync(callerId, matchId, cancellationToken);
+        return points is null ? NoContent() : Ok(points);
     }
 
     private bool TryGetCallerId(out Guid callerId)

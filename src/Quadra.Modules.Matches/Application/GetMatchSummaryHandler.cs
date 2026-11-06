@@ -17,13 +17,16 @@ public sealed class GetMatchSummaryHandler
 {
     private readonly IMatchReader _matchReader;
     private readonly IMatchSummaryRepository _summaryRepository;
+    private readonly IMatchResultReader _matchResultReader;
 
     public GetMatchSummaryHandler(
         IMatchReader matchReader,
-        IMatchSummaryRepository summaryRepository)
+        IMatchSummaryRepository summaryRepository,
+        IMatchResultReader matchResultReader)
     {
         _matchReader = matchReader;
         _summaryRepository = summaryRepository;
+        _matchResultReader = matchResultReader;
     }
 
     public async Task<MatchSummaryResponse> HandleAsync(
@@ -38,15 +41,19 @@ public sealed class GetMatchSummaryHandler
         var summary = await _summaryRepository.FindByMatchAsync(matchId, cancellationToken)
             ?? throw new MatchSummaryNotFoundException(matchId);
 
-        // 3. Map and return.
-        return MapToResponse(summary);
+        // 3. Map and return, with the teams of the game (a team of guests only has no player row).
+        var result = await _matchResultReader.GetMatchResultAsync(matchId, cancellationToken);
+        return MapToResponse(summary, result?.Teams);
     }
 
     /// <summary>
     /// Maps a <see cref="MatchSummary"/> aggregate to its response DTO: sets ordered by set number;
-    /// players grouped into teams ordered by team name; player IDs ordered ascending.
+    /// players grouped into teams ordered by team name; player IDs ordered ascending. A team made
+    /// only of guests (no account) has no player row: it comes from <paramref name="gameTeams"/>,
+    /// with no player ids, so the summary never drops a team that won games (the app names and
+    /// colors teams by their place in this list, so a missing team shifted every name).
     /// </summary>
-    internal static MatchSummaryResponse MapToResponse(MatchSummary summary)
+    internal static MatchSummaryResponse MapToResponse(MatchSummary summary, IReadOnlyList<MatchResultTeam>? gameTeams = null)
     {
         var sets = summary.Sets
             .OrderBy(s => s.SetNumber)
@@ -57,14 +64,18 @@ public sealed class GetMatchSummaryHandler
                 WinnerTeamId: s.WinnerTeamId))
             .ToList();
 
-        var teams = summary.Players
+        var withPlayers = summary.Players
             .GroupBy(p => new { p.TeamId, p.TeamName })
-            .OrderBy(g => TeamPalette.Order(g.Key.TeamName))
-            .ThenBy(g => g.Key.TeamName, StringComparer.Ordinal)
             .Select(g => new MatchSummaryTeamResponse(
                 TeamId: g.Key.TeamId,
                 Name: g.Key.TeamName,
-                PlayerIds: g.Select(p => p.PlayerId).OrderBy(id => id).ToList()))
+                PlayerIds: g.Select(p => p.PlayerId).OrderBy(id => id).ToList()));
+        var guestsOnly = (gameTeams ?? [])
+            .Where(t => summary.Players.All(p => p.TeamId != t.TeamId))
+            .Select(t => new MatchSummaryTeamResponse(t.TeamId, t.Name, []));
+        var teams = withPlayers.Concat(guestsOnly)
+            .OrderBy(t => TeamPalette.Order(t.Name))
+            .ThenBy(t => t.Name, StringComparer.Ordinal)
             .ToList();
 
         return new MatchSummaryResponse(

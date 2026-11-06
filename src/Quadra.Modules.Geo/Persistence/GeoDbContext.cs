@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Quadra.Modules.Geo.Ads;
+using Quadra.Modules.Geo.Arenas;
 using Quadra.Modules.Geo.Venues;
 
 namespace Quadra.Modules.Geo.Persistence;
@@ -6,7 +8,8 @@ namespace Quadra.Modules.Geo.Persistence;
 /// <summary>
 /// EF Core DbContext for the Geo module. Reads the Matches-owned <c>matches</c> table (via
 /// <see cref="NearbyMatchRecord"/>, excluded from migrations) under the ARCHITECTURE-sanctioned
-/// SELECT grant, and owns the arena cache: <c>venues</c> and <c>venue_areas</c>.
+/// SELECT grant, and owns the arena cache (<c>venues</c>, <c>venue_areas</c>) and the curated
+/// arenas (<c>arenas</c>, <c>arena_places</c>).
 /// </summary>
 public sealed class GeoDbContext : DbContext
 {
@@ -21,6 +24,14 @@ public sealed class GeoDbContext : DbContext
 
     public DbSet<VenueArea> VenueAreas => Set<VenueArea>();
 
+    public DbSet<Arena> Arenas => Set<Arena>();
+
+    public DbSet<ArenaPlace> ArenaPlaces => Set<ArenaPlace>();
+
+    public DbSet<Ad> Ads => Set<Ad>();
+
+    public DbSet<AdView> AdViews => Set<AdView>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
@@ -30,5 +41,9 @@ public sealed class GeoDbContext : DbContext
         modelBuilder.ApplyConfiguration(new NearbyMatchConfiguration());
         modelBuilder.ApplyConfiguration(new VenueConfiguration());
         modelBuilder.ApplyConfiguration(new VenueAreaConfiguration());
+        modelBuilder.ApplyConfiguration(new ArenaConfiguration());
+        modelBuilder.ApplyConfiguration(new ArenaPlaceConfiguration());
+        modelBuilder.ApplyConfiguration(new AdConfiguration());
+        modelBuilder.ApplyConfiguration(new AdViewConfiguration());
     }
 }

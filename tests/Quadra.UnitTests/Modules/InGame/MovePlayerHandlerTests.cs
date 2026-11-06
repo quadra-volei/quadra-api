@@ -32,6 +32,7 @@ public sealed class MovePlayerHandlerTests
     private readonly ITeamRepository _teamRepository = Substitute.For<ITeamRepository>();
     private readonly IScoreboardRepository _scoreboardRepository = Substitute.For<IScoreboardRepository>();
     private readonly IPlayerLevelReader _playerLevelReader = Substitute.For<IPlayerLevelReader>();
+    private readonly IConfirmedPlayersReader _confirmedPlayers = Substitute.For<IConfirmedPlayersReader>();
 
     private MovePlayerHandler CreateSut() =>
         new(
@@ -39,6 +40,8 @@ public sealed class MovePlayerHandlerTests
             _teamRepository,
             _scoreboardRepository,
             _playerLevelReader,
+            _confirmedPlayers,
+            TimeProvider.System,
             NullLogger<MovePlayerHandler>.Instance);
 
     private void SetupMatch(Guid matchId, Guid organizerId, string status = "Closed")
@@ -286,5 +289,56 @@ public sealed class MovePlayerHandlerTests
 
         result.Should().NotBeNull();
         result.Teams.Should().HaveCount(2);
+    }
+
+    // ─── Bench (who sat out of the draw) ─────────────────────────────────────
+
+    [Fact]
+    public async Task HandleAsync_puts_a_confirmed_player_from_the_bench_into_the_team()
+    {
+        var matchId = Guid.NewGuid();
+        SetupMatch(matchId, OrganizerUserId);
+        var (teamA, teamB, _, _) = BuildTwoTeamsWithPlayers(matchId);
+        _teamRepository.ListByMatchAsync(matchId, Arg.Any<CancellationToken>()).Returns(new List<Team> { teamA, teamB });
+        SetupLevelMapForAnyInput();
+        var benched = Guid.NewGuid();
+        _confirmedPlayers.GetConfirmedPlayerIdsAsync(matchId, Arg.Any<CancellationToken>()).Returns([benched]);
+        _confirmedPlayers.GetGuestIdsAsync(matchId, Arg.Any<CancellationToken>()).Returns([]);
+
+        await CreateSut().HandleAsync(matchId, teamB.Id, benched, OrganizerUserId, CancellationToken.None);
+
+        await _teamRepository.Received(1).AddMemberAsync(
+            Arg.Is<TeamMember>(m => m.PlayerId == benched && m.TeamId == teamB.Id), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task HandleAsync_sends_a_member_to_the_bench_when_no_team_is_given()
+    {
+        var matchId = Guid.NewGuid();
+        SetupMatch(matchId, OrganizerUserId);
+        var (teamA, teamB, player1, _) = BuildTwoTeamsWithPlayers(matchId);
+        _teamRepository.ListByMatchAsync(matchId, Arg.Any<CancellationToken>()).Returns(new List<Team> { teamA, teamB });
+        SetupLevelMapForAnyInput();
+        var memberId = teamA.Members.First(m => m.PlayerId == player1).Id;
+
+        await CreateSut().HandleAsync(matchId, null, player1, OrganizerUserId, CancellationToken.None);
+
+        await _teamRepository.Received(1).RemoveMemberAsync(memberId, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task HandleAsync_refuses_to_put_in_someone_who_is_not_confirmed()
+    {
+        var matchId = Guid.NewGuid();
+        SetupMatch(matchId, OrganizerUserId);
+        var (teamA, teamB, _, _) = BuildTwoTeamsWithPlayers(matchId);
+        _teamRepository.ListByMatchAsync(matchId, Arg.Any<CancellationToken>()).Returns(new List<Team> { teamA, teamB });
+        _confirmedPlayers.GetConfirmedPlayerIdsAsync(matchId, Arg.Any<CancellationToken>()).Returns([]);
+        _confirmedPlayers.GetGuestIdsAsync(matchId, Arg.Any<CancellationToken>()).Returns([]);
+
+        var act = async () => await CreateSut().HandleAsync(matchId, teamA.Id, Guid.NewGuid(), OrganizerUserId, CancellationToken.None);
+
+        await act.Should().ThrowAsync<PlayerNotInTeamException>();
+        await _teamRepository.DidNotReceive().AddMemberAsync(Arg.Any<TeamMember>(), Arg.Any<CancellationToken>());
     }
 }

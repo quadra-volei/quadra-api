@@ -110,6 +110,8 @@ public static class ProfileModuleExtensions
         services.AddScoped<Quadra.Modules.Profile.CardStyle.CardStyleHandler>();
         services.AddScoped<IValidator<Quadra.Modules.Profile.CardStyle.UpdateCardStyleRequest>, Quadra.Modules.Profile.CardStyle.UpdateCardStyleRequestValidator>();
         services.AddScoped<IValidator<Quadra.Modules.Profile.Posts.CreateCommentRequest>, Quadra.Modules.Profile.Posts.CreateCommentRequestValidator>();
+        services.AddScoped<Quadra.Modules.Profile.Tour.TourHandler>();
+        services.AddScoped<IValidator<Quadra.Modules.Profile.Tour.RecordTourRequest>, Quadra.Modules.Profile.Tour.RecordTourRequestValidator>();
 
         // S3-backed profile-photo storage (Infrastructure). Fails fast if the bucket is unconfigured.
         services.AddProfilePhotoStorage(configuration);

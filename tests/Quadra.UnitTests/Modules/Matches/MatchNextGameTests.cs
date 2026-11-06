@@ -86,6 +86,36 @@ public sealed class MatchNextGameTests
     }
 
     [Fact]
+    public void CreateNext_keeps_the_arena_and_an_edit_drops_it_only_when_the_game_moves()
+    {
+        var first = Match.Create(
+            Guid.NewGuid(), "Racha", null, "Rua A", -23.5, -46.6, Tuesday, 12, 12, null,
+            MatchType.Recurring, MatchFrequency.Weekly, 2,
+            windowOpensAt: Tuesday.AddDays(-2), windowClosesAt: Tuesday, now: Tuesday.AddDays(-3));
+        var loose = first.CreateNext(Tuesday.AddDays(7), Tuesday);
+        var arenaId = Guid.NewGuid();
+        typeof(Match).GetProperty(nameof(Match.ArenaId))!.SetValue(first, arenaId);
+        var now = Tuesday.AddHours(3);
+
+        var second = first.CreateNext(Tuesday.AddDays(7), now);
+        var third = second.CreateNext(Tuesday.AddDays(14), now);
+        third.Update(
+            new MatchEdit("Racha novo", null, "Rua B", -23.6, -46.7, Tuesday.AddDays(15), 12, 12, null,
+                null, null, null, null, null, null, null),
+            now);
+
+        loose.ArenaId.Should().BeNull("a game created without an arena has none");
+        second.ArenaId.Should().Be(arenaId);
+        third.ArenaId.Should().BeNull("the edit moved the game, so it left its arena");
+
+        second.Update(
+            new MatchEdit("Racha", null, "Rua A", -23.5, -46.6, Tuesday.AddDays(8), 12, 12, null,
+                null, null, null, null, null, null, null),
+            now);
+        second.ArenaId.Should().Be(arenaId, "an edit at the same spot keeps the arena");
+    }
+
+    [Fact]
     public void CreateNext_never_opens_the_window_before_now()
     {
         var first = Match.Create(

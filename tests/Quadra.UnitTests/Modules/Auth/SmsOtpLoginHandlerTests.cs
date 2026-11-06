@@ -215,7 +215,7 @@ public sealed class SmsOtpLoginHandlerTests
         var existing = User.CreateForPhone(Guid.NewGuid(), Phone, Now);
         _users.FindByPhoneNumberAsync(Phone, Arg.Any<CancellationToken>()).Returns(existing);
         _publisher.PublishAsync(Arg.Any<UserLoggedIn>(), Arg.Any<CancellationToken>())
-            .ThrowsAsync(new InvalidOperationException("sqs down"));
+            .ThrowsAsync(new InvalidOperationException("publisher down"));
 
         var response = await CreateSut()
             .VerifyAsync(Phone, Code, deviceId: null, TestContext.Current.CancellationToken);

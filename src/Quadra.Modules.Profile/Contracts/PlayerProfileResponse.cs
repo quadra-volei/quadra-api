@@ -4,7 +4,8 @@ namespace Quadra.Modules.Profile.Contracts;
 /// A player's profile. <see cref="OnboardingCompleted"/> is false for the empty shell created at
 /// registration; the app sends the player through onboarding until it is true.
 /// <see cref="BirthDate"/> and <see cref="PhotoObjectKey"/> are only returned to the profile's owner
-/// (the key is what the owner sends back on <c>PUT</c> to keep the current photo).
+/// (the key is what the owner sends back on <c>PUT</c> to keep the current photo), and so is
+/// <see cref="Tour"/> (null while the owner never finished or skipped the first-access tour).
 /// </summary>
 public sealed record PlayerProfileResponse(
     Guid UserId,
@@ -26,7 +27,8 @@ public sealed record PlayerProfileResponse(
     DateTimeOffset UpdatedAt,
     bool? ShareActivity = null,
     Quadra.Modules.Profile.CardStyle.PlayerCardStyleResponse? CardStyle = null,
-    PlayerActionsResponse? Actions = null);
+    PlayerActionsResponse? Actions = null,
+    Quadra.Modules.Profile.Tour.PlayerTourResponse? Tour = null);
 
 /// <summary>
 /// Skill ratings (1–99) derived from the declared level and position and moved by the recorded

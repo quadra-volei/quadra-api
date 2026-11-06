@@ -38,6 +38,10 @@ namespace Quadra.Modules.Matches.Migrations
                         .HasColumnType("character varying(300)")
                         .HasColumnName("address");
 
+                    b.Property<Guid?>("ArenaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("arena_id");
+
                     b.Property<string>("CoverObjectKey")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)")
@@ -90,6 +94,11 @@ namespace Quadra.Modules.Matches.Migrations
                     b.Property<short?>("GamePoints")
                         .HasColumnType("smallint")
                         .HasColumnName("game_points");
+
+                    b.Property<string>("Gender")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("gender");
 
                     b.Property<Guid?>("GroupId")
                         .HasColumnType("uuid")
@@ -157,6 +166,11 @@ namespace Quadra.Modules.Matches.Migrations
                         .HasDefaultValue("Draft")
                         .HasColumnName("status");
 
+                    b.Property<string>("Surface")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("surface");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -186,6 +200,9 @@ namespace Quadra.Modules.Matches.Migrations
                         .HasColumnName("window_opens_at");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ArenaId")
+                        .HasDatabaseName("ix_matches_arena_id");
 
                     b.HasIndex("DateTime")
                         .HasDatabaseName("ix_matches_date_time");

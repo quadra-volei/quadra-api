@@ -4,8 +4,8 @@ namespace Quadra.Infrastructure.Messaging;
 
 /// <summary>
 /// Default <see cref="IEventPublisher"/> implementation that logs the event payload and discards it.
-/// Used until the SQS publisher spec is delivered. Production deployments MUST override this
-/// registration with a real publisher.
+/// A module falls back to it only when no publisher is registered (some unit-test hosts); the API
+/// registers <see cref="InProcessEventPublisher"/> before the modules.
 /// </summary>
 public sealed class NoOpEventPublisher : IEventPublisher
 {

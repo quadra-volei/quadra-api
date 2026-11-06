@@ -43,6 +43,8 @@ public sealed class AuditWebApplicationFactory : IAsyncLifetime
         await sp.GetRequiredService<InGameDbContext>().Database.MigrateAsync();
         await sp.GetRequiredService<ProfileDbContext>().Database.MigrateAsync();
         await sp.GetRequiredService<GamificationDbContext>().Database.MigrateAsync();
+        // Account export and deletion also cover the ads (Geo, DECISIONS #102).
+        await sp.GetRequiredService<Quadra.Modules.Geo.Persistence.GeoDbContext>().Database.MigrateAsync();
     }
 
     /// <summary>A host on the same database with another environment and extra settings.</summary>
@@ -57,16 +59,11 @@ public sealed class AuditWebApplicationFactory : IAsyncLifetime
                 ["ConnectionStrings:Default"] = _postgres.GetConnectionString(),
                 ["Places:Provider"] = "None",
                 ["Matches:WindowSweepSeconds"] = "0",
+                ["Matches:AbandonSweepMinutes"] = "0",
+                // The season pass is being played, with room for four capped weeks before today.
+                ["SeasonPass:Seasons:T1:StartsOn"] = $"{DateOnly.FromDateTime(DateTime.UtcNow.AddHours(-3)).AddDays(-35):yyyy-MM-dd}",
+                ["SeasonPass:Seasons:T1:EndsOn"] = $"{DateOnly.FromDateTime(DateTime.UtcNow.AddHours(-3)).AddDays(60):yyyy-MM-dd}",
             };
-            foreach (var queue in new[]
-                     {
-                         "MatchCreated", "MatchStatusChanged", "PresenceConfirmed", "MatchWindowOpened", "MatchWindowClosed",
-                         "MatchSummaryGenerated", "TeamsFormed", "MatchStarted", "MatchEnded", "MvpAwarded",
-                     })
-            {
-                settings[$"Aws:Sqs:{queue}QueueUrl"] = $"http://unused/{queue}";
-            }
-
             foreach (var (key, value) in overrides)
             {
                 settings[key] = value;

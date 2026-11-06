@@ -101,7 +101,8 @@ public sealed class GetProfileHandler
             profile.UpdatedAt,
             includePrivate ? profile.ShareActivity : null,
             cardStyle,
-            PlayerActionsResponse.From(actions));
+            PlayerActionsResponse.From(actions),
+            includePrivate ? Quadra.Modules.Profile.Tour.PlayerTourResponse.From(profile) : null);
     }
 
     public static PlayerStatsResponse MapStats(PlayerStats stats) =>

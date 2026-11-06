@@ -9,12 +9,15 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Quadra.Infrastructure.Persistence;
+using Quadra.Modules.Geo.Ads;
 using Quadra.Modules.Geo.Application;
+using Quadra.Modules.Geo.Arenas;
 using Quadra.Modules.Geo.Contracts;
 using Quadra.Modules.Geo.Persistence;
 using Quadra.Modules.Geo.Places;
 using Quadra.Modules.Geo.Validation;
 using Quadra.Modules.Geo.Venues;
+using Quadra.Shared.Contracts;
 
 namespace Quadra.Modules.Geo.DependencyInjection;
 
@@ -101,6 +104,26 @@ public static class GeoModuleExtensions
                 : sp.GetRequiredService<NoVenueSource>());
         services.AddScoped<VenueDiscovery>();
         services.AddScoped<GetNearbyVenuesHandler>();
+
+        // Curated arenas (DECISIONS #91, #92): Matches links games to them through IArenaReader.
+        services.AddScoped<ArenaReader>();
+        services.AddScoped<IArenaReader>(static sp => sp.GetRequiredService<ArenaReader>());
+        services.AddScoped<GetMapItemsHandler>();
+        services.AddScoped<IValidator<MapItemsQuery>, MapItemsQueryValidator>();
+
+        // The team's arena curation (DECISIONS #94).
+        services.AddScoped<ArenaCuration>();
+        services.AddScoped<IValidator<CurationDecisionRequest>, CurationDecisionRequestValidator>();
+        services.AddScoped<IValidator<DiscoverCandidatesRequest>, DiscoverCandidatesRequestValidator>();
+
+        // Self-service ads (DECISIONS #102).
+        services.AddOptions<AdsOptions>().BindConfiguration(AdsOptions.SectionName);
+        services.AddScoped<AdsHandler>();
+        services.AddScoped<IPersonalDataStore, AdsPersonalData>();
+        services.AddScoped<IValidator<AdOfferQuery>, AdOfferQueryValidator>();
+        services.AddScoped<IValidator<ServeAdQuery>, ServeAdQueryValidator>();
+        services.AddScoped<IValidator<CreateAdRequest>, CreateAdRequestValidator>();
+        services.AddScoped<IValidator<ReviewAdRequest>, ReviewAdRequestValidator>();
 
         // TimeProvider.System — register only if not already registered by another module.
         services.TryAddSingleton(TimeProvider.System);

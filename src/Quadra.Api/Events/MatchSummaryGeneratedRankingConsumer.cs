@@ -8,10 +8,11 @@ namespace Quadra.Api.Events;
 
 /// <summary>
 /// Consumes the <see cref="MatchSummaryGenerated"/> event — the single authoritative "finished
-/// match" signal for Gamification. For a <b>Recurring</b> match only, it composes a boundary-safe
+/// match" signal for Gamification. For every match it composes a boundary-safe
 /// <see cref="FinishedMatchPoints"/> (grouping key + type via <see cref="IMatchGroupReader"/>; each
 /// participant's team + win/loss via <see cref="IMatchResultReader"/>) and hands it to the
-/// Gamification-owned <see cref="IMatchPointsWriter"/>. For a OneOff match it awards nothing.
+/// Gamification-owned <see cref="IMatchPointsWriter"/>. A OneOff match's points are marked so they
+/// count for the season pass and stay out of the rankings (DECISIONS #104).
 /// Idempotent under at-least-once delivery.
 /// </summary>
 public sealed class MatchSummaryGeneratedRankingConsumer : IEventHandler<MatchSummaryGenerated>
@@ -46,15 +47,9 @@ public sealed class MatchSummaryGeneratedRankingConsumer : IEventHandler<MatchSu
             return;
         }
 
-        // Group ranking is only defined for recurring matches (SCOPE F2.3). OneOff matches award nothing.
-        if (!string.Equals(group.Type, "Recurring", StringComparison.Ordinal))
-        {
-            _logger.LogInformation(
-                "Skipping ranking points for match {MatchId}: match is {MatchType}, not Recurring.",
-                @event.MatchId,
-                group.Type);
-            return;
-        }
+        // Rankings only count recurring matches (SCOPE F2.3); a one-off match's points go to the
+        // ledger marked OneOff, so they count for the season pass only (DECISIONS #104).
+        var oneOff = !string.Equals(group.Type, "Recurring", StringComparison.Ordinal);
 
         var result = await _matchResultReader.GetMatchResultAsync(@event.MatchId, cancellationToken);
         if (result is null)
@@ -65,15 +60,16 @@ public sealed class MatchSummaryGeneratedRankingConsumer : IEventHandler<MatchSu
             return;
         }
 
-        // The participant set comes from the InGame team rosters (players who showed up). Each player's
-        // Won flag is derived from whether their team is the winning team.
+        // The participant set comes from the InGame team rosters (players who showed up). Each
+        // player's games won are the sets their team won (DECISIONS #95).
+        var votes = result.MvpVotesByPlayer ?? new Dictionary<Guid, int>();
         var players = new List<FinishedMatchPlayerPoints>();
         foreach (var team in result.Teams)
         {
-            var won = result.WinnerTeamId is not null && team.TeamId == result.WinnerTeamId;
+            var gamesWon = result.Sets.Count(s => s.WinnerTeamId == team.TeamId);
             foreach (var playerId in team.PlayerIds)
             {
-                players.Add(new FinishedMatchPlayerPoints(playerId, won));
+                players.Add(new FinishedMatchPlayerPoints(playerId, gamesWon, votes.GetValueOrDefault(playerId)));
             }
         }
 
@@ -83,7 +79,9 @@ public sealed class MatchSummaryGeneratedRankingConsumer : IEventHandler<MatchSu
             MatchDateTime: group.DateTime,
             MvpPlayerId: @event.MvpPlayerId,
             Players: players,
-            FinishedAt: @event.GeneratedAt);
+            FinishedAt: @event.GeneratedAt,
+            MvpTotalVotes: result.MvpTotalVotes,
+            OneOff: oneOff);
 
         await _pointsWriter.ApplyFinishedMatchPointsAsync(points, cancellationToken);
 

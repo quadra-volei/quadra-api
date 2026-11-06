@@ -37,7 +37,7 @@ public sealed class VenuesEndpointTests : IClassFixture<MatchesWebApplicationFac
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
-    public async Task Lists_the_area_arenas_with_todays_public_games_and_searches_google_once()
+    public async Task Lists_the_cached_arenas_with_todays_public_games_and_never_searches_google()
     {
         await ResetAsync();
         var source = new FixedVenueSource(
@@ -48,7 +48,14 @@ public sealed class VenuesEndpointTests : IClassFixture<MatchesWebApplicationFac
             },
             // Which of our searches finds each one decides its kind (DECISIONS #87).
             foundBy: new() { ["arena-a"] = "arena", ["arena-b"] = "praia" });
-        var client = Client(source);
+        var client = Client(source, out var services);
+        // The area is searched when the team asks (curation, DECISIONS #94), not by the map.
+        using (var scope = services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<VenueDiscovery>().DiscoverAroundAsync(Lat, Lon, 2, Ct);
+        }
+
+        var searchesBefore = source.Searches;
 
         var today = await SeedMatchAsync("Hoje", Lat + 0.0003, Lon); // ~33 m from arena A
         var live = await SeedMatchAsync("Agora", Lat, Lon + 0.0003, status: "InProgress");
@@ -57,8 +64,6 @@ public sealed class VenuesEndpointTests : IClassFixture<MatchesWebApplicationFac
         await SeedMatchAsync("Rua", Lat + 0.003, Lon); // ~330 m: a loose court, no arena
 
         var first = await GetAsync(client);
-        var searchesAfterFirst = source.Searches;
-        var second = await GetAsync(client);
 
         var a = first.Single(v => v.GetProperty("placeId").GetString() == "arena-a");
         a.GetProperty("matches").EnumerateArray().Select(m => m.GetProperty("id").GetGuid())
@@ -72,9 +77,8 @@ public sealed class VenuesEndpointTests : IClassFixture<MatchesWebApplicationFac
         first.Single(v => v.GetProperty("placeId").GetString() == "arena-b")
             .GetProperty("kind").GetString().Should().Be("Sand");
 
-        searchesAfterFirst.Should().BeGreaterThan(0);
-        second.Should().HaveCount(2);
-        source.Searches.Should().Be(searchesAfterFirst, "a fresh area is not searched again");
+        searchesBefore.Should().BeGreaterThan(0);
+        source.Searches.Should().Be(searchesBefore, "the map reads the cache only");
     }
 
     [Fact]
@@ -96,13 +100,14 @@ public sealed class VenuesEndpointTests : IClassFixture<MatchesWebApplicationFac
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
-    private HttpClient Client(IVenueSource source)
+    private HttpClient Client(IVenueSource source, out IServiceProvider services)
     {
-        var factory = _fx.Factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        var factory = _fx.Factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(s =>
         {
-            services.RemoveAll<IVenueSource>();
-            services.AddSingleton(source);
+            s.RemoveAll<IVenueSource>();
+            s.AddSingleton(source);
         }));
+        services = factory.Services;
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization =
             _fx.CreateAuthenticatedClient(Guid.NewGuid()).DefaultRequestHeaders.Authorization;
@@ -160,41 +165,5 @@ public sealed class VenuesEndpointTests : IClassFixture<MatchesWebApplicationFac
             $"UPDATE matches SET date_time = {now.AddDays(dayOffset)}, status = {status}, visibility = {visibility} WHERE id = {match.Id}",
             Ct);
         return match.Id;
-    }
-
-    private sealed class FixedVenueSource : IVenueSource
-    {
-        private readonly Dictionary<string, (double Latitude, double Longitude)> _places;
-        private readonly Dictionary<string, string> _foundBy;
-
-        /// <param name="foundBy">A place listed here is only found by searches containing that word.</param>
-        public FixedVenueSource(
-            Dictionary<string, (double Latitude, double Longitude)> places,
-            Dictionary<string, string>? foundBy = null)
-        {
-            _places = places;
-            _foundBy = foundBy ?? [];
-        }
-
-        private int _searches;
-
-        public int Searches => _searches;
-
-        public Task<IReadOnlyList<string>> SearchPlaceIdsAsync(
-            string text, double south, double west, double north, double east, CancellationToken cancellationToken)
-        {
-            // The three queries of a cell run in parallel.
-            Interlocked.Increment(ref _searches);
-            IReadOnlyList<string> ids = _places
-                .Where(p => p.Value.Latitude >= south && p.Value.Latitude < north
-                    && p.Value.Longitude >= west && p.Value.Longitude < east
-                    && (!_foundBy.TryGetValue(p.Key, out var word) || text.Contains(word, StringComparison.Ordinal)))
-                .Select(p => p.Key)
-                .ToList();
-            return Task.FromResult(ids);
-        }
-
-        public Task<(double Latitude, double Longitude)?> GetLocationAsync(string placeId, CancellationToken cancellationToken) =>
-            Task.FromResult<(double Latitude, double Longitude)?>(_places.TryGetValue(placeId, out var p) ? p : null);
     }
 }

@@ -130,8 +130,8 @@ public abstract class ScoreboardSetHandlerBase
 }
 
 /// <summary>
-/// Takes back the last point of the current set (a mis-tap). One level only: a point that
-/// already ended the set cannot be undone.
+/// Takes back the last point of the current set (a mis-tap), or, with a team, one point off that
+/// team — any number of times, down to zero. A point that already ended the set cannot be undone.
 /// </summary>
 public sealed class UndoPointHandler : ScoreboardSetHandlerBase
 {
@@ -148,11 +148,15 @@ public sealed class UndoPointHandler : ScoreboardSetHandlerBase
         Guid matchId,
         int setNumber,
         Guid callerId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? teamId = null)
     {
         var scoreboard = await LoadInProgressAsync(matchId, callerId, cancellationToken);
         var set = OpenCurrentSet(scoreboard, setNumber);
-        if (!set.UndoLastPoint(scoreboard.TeamAId, scoreboard.TeamBId))
+        var undone = teamId is { } team
+            ? set.RemovePoint(team, scoreboard.TeamAId, scoreboard.TeamBId)
+            : set.UndoLastPoint(scoreboard.TeamAId, scoreboard.TeamBId);
+        if (!undone)
         {
             throw new InvalidScoreboardStateException("There is no point to undo.");
         }

@@ -14,14 +14,20 @@ public sealed class CreateMatchHandler
     private readonly IEventPublisher _eventPublisher;
     private readonly TimeProvider _timeProvider;
     private readonly MatchWindowSynchronizer _windowSynchronizer;
+    private readonly MatchArenaResolver _arenaResolver;
+    private readonly IPresenceRepository _presenceRepository;
 
     public CreateMatchHandler(
         IMatchRepository repository,
         IEventPublisher eventPublisher,
         TimeProvider timeProvider,
-        MatchWindowSynchronizer windowSynchronizer)
+        MatchWindowSynchronizer windowSynchronizer,
+        MatchArenaResolver arenaResolver,
+        IPresenceRepository presenceRepository)
     {
+        _presenceRepository = presenceRepository;
         _windowSynchronizer = windowSynchronizer;
+        _arenaResolver = arenaResolver;
         _repository = repository;
         _eventPublisher = eventPublisher;
         _timeProvider = timeProvider;
@@ -30,6 +36,7 @@ public sealed class CreateMatchHandler
     public async Task<Match> HandleAsync(CreateMatchCommand command, CancellationToken cancellationToken)
     {
         var now = _timeProvider.GetUtcNow();
+        var arenaId = await _arenaResolver.ResolveAsync(command.ArenaId, command.PlaceId, cancellationToken);
 
         var type = Enum.Parse<Entities.MatchType>(command.Type, ignoreCase: true);
         Entities.MatchFrequency? frequency = command.Frequency is not null
@@ -72,14 +79,27 @@ public sealed class CreateMatchHandler
                 Visibility: command.Visibility is null
                     ? MatchVisibility.Open
                     : Enum.Parse<MatchVisibility>(command.Visibility, ignoreCase: true),
-                InviteMode: command.InviteMode is null
-                    ? null
-                    : Enum.Parse<MatchInviteMode>(command.InviteMode, ignoreCase: true),
+                // Every private match is joined by its invite code (link): "Somente convidados"
+                // left the organizer no way to bring a player in, so the invite never worked.
+                InviteMode: MatchInviteMode.Code,
                 PriceMonthly: command.PriceMonthly,
                 RecurrenceDays: command.RecurrenceDays,
-                CoverObjectKey: command.CoverObjectKey));
+                CoverObjectKey: command.CoverObjectKey,
+                Gender: command.Gender is null ? null : Enum.Parse<MatchGender>(command.Gender, ignoreCase: true),
+                Surface: command.Surface is null ? null : Enum.Parse<MatchSurface>(command.Surface, ignoreCase: true)));
+
+        if (arenaId is not null)
+        {
+            match.LinkArena(arenaId, now);
+        }
 
         await _repository.AddAsync(match, cancellationToken);
+
+        // Whoever creates the match plays in it: they start confirmed in a regular slot and can
+        // still step out with "Não vou jogar" (DECISIONS #104).
+        var organizerPresence = MatchPresence.Create(match.Id, match.OrganizerId, PlayerType.Regular, now);
+        organizerPresence.Confirm(now);
+        await _presenceRepository.AddAsync(organizerPresence, cancellationToken);
 
         var @event = new MatchCreated(
             MatchId: match.Id,

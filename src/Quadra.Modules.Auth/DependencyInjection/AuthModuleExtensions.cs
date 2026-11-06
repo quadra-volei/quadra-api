@@ -31,7 +31,6 @@ namespace Quadra.Modules.Auth.DependencyInjection;
 /// </summary>
 public static class AuthModuleExtensions
 {
-    private static readonly TimeSpan TwilioTimeout = TimeSpan.FromSeconds(10);
 
     /// <summary>
     /// Registers JWT bearer authentication for the tokens this API issues, plus the login
@@ -127,10 +126,6 @@ public static class AuthModuleExtensions
             .BindConfiguration(PhoneVerificationOptions.SectionName)
             .ValidateOnStart();
 
-        services
-            .AddHttpClient(TwilioVerifyPhoneVerificationService.HttpClientName)
-            .ConfigureHttpClient(static client => client.Timeout = TwilioTimeout);
-
         // SEC-07: per-IP limit on login/sms-otp (policy below), per-phone limits in the handler.
         services.AddOptions<AuthRateLimitOptions>().BindConfiguration(AuthRateLimitOptions.SectionName);
         services.AddSingleton<PhoneOtpThrottle>();
@@ -142,12 +137,9 @@ public static class AuthModuleExtensions
                 _ => new FixedWindowRateLimiterOptions { PermitLimit = limit, Window = TimeSpan.FromHours(1), QueueLimit = 0 });
         }));
 
-        services.AddSingleton<FakePhoneVerificationService>();
-        services.AddSingleton<TwilioVerifyPhoneVerificationService>();
-        services.AddSingleton<IPhoneVerificationService>(static sp =>
-            sp.GetRequiredService<IOptions<PhoneVerificationOptions>>().Value.UsesFake
-                ? sp.GetRequiredService<FakePhoneVerificationService>()
-                : sp.GetRequiredService<TwilioVerifyPhoneVerificationService>());
+        // login/sms-otp only runs with the fixed-code fake: with Firebase the route answers 410
+        // (Twilio Verify was removed, DECISIONS #104).
+        services.AddSingleton<IPhoneVerificationService, FakePhoneVerificationService>();
 
         // EF persistence — connection string comes from the standard ConnectionStrings:Auth slot,
         // falling back to ConnectionStrings:Default so tests with a single Postgres can share it.
@@ -186,7 +178,7 @@ public static class AuthModuleExtensions
         services.AddScoped<IValidator<RefreshRequest>, RefreshRequestValidator>();
         services.AddScoped<IValidator<LogoutRequest>, LogoutRequestValidator>();
 
-        // Default IEventPublisher (no-op) — replaced by the SQS publisher when that spec lands.
+        // Fallback IEventPublisher (no-op) when the host registered none; the API registers the in-process one.
         services.TryAddSingleton<IEventPublisher, NoOpEventPublisher>();
     }
 }

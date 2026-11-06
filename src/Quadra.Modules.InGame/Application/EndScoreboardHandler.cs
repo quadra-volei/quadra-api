@@ -70,7 +70,25 @@ public sealed class EndScoreboardHandler
 
         var now = _timeProvider.GetUtcNow();
 
-        // 5. Winner derived from sets won so far; null if equal.
+        // 5. The game on court when the organizer ends the match goes to whoever leads it (as
+        //    ending a set early does); only a tied one is left without a winner. Before, every
+        //    unfinished game ended without a winner and the summary showed "Empate 17-15".
+        var currentSet = scoreboard.Sets
+            .FirstOrDefault(s => s.SetNumber == scoreboard.CurrentSetNumber && s.Status == SetStatus.InProgress);
+        if (currentSet is not null
+            && scoreboard.Format != ScoreboardFormat.Free
+            && currentSet.TeamAPoints != currentSet.TeamBPoints)
+        {
+            var leader = currentSet.TeamAPoints > currentSet.TeamBPoints ? scoreboard.TeamAId : scoreboard.TeamBId;
+            currentSet.Finish(leader, now);
+            scoreboard.RegisterSetWon(leader);
+        }
+        else
+        {
+            currentSet?.Finish(winnerTeamId: null, now);
+        }
+
+        // 6. Winner derived from sets won, the one just closed included; null if equal.
         Guid? winnerTeamId = scoreboard.RotatesTeams
             ? scoreboard.LeaderBySets()
             : scoreboard.TeamASetsWon > scoreboard.TeamBSetsWon
@@ -78,11 +96,6 @@ public sealed class EndScoreboardHandler
                 : scoreboard.TeamBSetsWon > scoreboard.TeamASetsWon
                     ? scoreboard.TeamBId
                     : null;
-
-        // 6. Mark the current unfinished set (if any) as abandoned.
-        var currentSet = scoreboard.Sets
-            .FirstOrDefault(s => s.SetNumber == scoreboard.CurrentSetNumber && s.Status == SetStatus.InProgress);
-        currentSet?.Finish(winnerTeamId: null, now);
 
         // 6b. No fixed teams: whoever confirmed during the session also played.
         if (scoreboard.Format == ScoreboardFormat.Free)

@@ -11,7 +11,7 @@ namespace Quadra.IntegrationTests.SecurityAudit;
 
 /// <summary>
 /// Essential notifications (DECISIONS #77): the waiting list spot and the "tomorrow" reminder reach
-/// the right players once; each player reads and marks only their own; push token and preferences
+/// the right players once; each player reads, marks and clears only their own; push token and preferences
 /// are validated.
 /// </summary>
 [Trait("Category", "SecurityAudit")]
@@ -67,6 +67,44 @@ public sealed class NotificationsAuditTests : IClassFixture<AuditWebApplicationF
             "a player cannot touch someone else's notification");
         (await waiter.Client.PostAsync($"/api/v1/notifications/{id}/read", null, Ct)).StatusCode.Should().Be(HttpStatusCode.NoContent);
         (await UnreadAsync(waiter)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task A_player_clears_only_their_own_notifications_and_a_cleared_one_is_not_sent_again()
+    {
+        var organizer = await _fx.LoginAsync();
+        var player = await _fx.LoginAsync();
+        var matchId = await CreateMatchAsync(organizer, DateTimeOffset.UtcNow.AddHours(10), slots: 6);
+        (await Confirm(organizer, matchId)).IsSuccessStatusCode.Should().BeTrue();
+        (await Confirm(player, matchId)).IsSuccessStatusCode.Should().BeTrue();
+        var sweeper = _fx.Factory.Services.GetRequiredService<MatchReminderSweeper>();
+        await sweeper.SweepOnceAsync(Ct);
+
+        var mine = (await ListAsync(player)).Where(n => n.GetProperty("matchId").ValueKind != JsonValueKind.Null
+            && n.GetProperty("matchId").GetGuid() == matchId).ToArray();
+        mine.Should().ContainSingle();
+        var id = mine[0].GetProperty("id").GetGuid();
+
+        (await organizer.Client.DeleteAsync($"/api/v1/notifications/{id}", Ct)).StatusCode.Should().Be(HttpStatusCode.NotFound,
+            "a player cannot clear someone else's notification");
+        (await player.Client.DeleteAsync($"/api/v1/notifications/{id}", Ct)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await player.Client.DeleteAsync($"/api/v1/notifications/{id}", Ct)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await player.Client.PostAsync($"/api/v1/notifications/{id}/read", null, Ct)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await ListAsync(player)).Should().NotContain(n => n.GetProperty("id").GetGuid() == id);
+        (await UnreadAsync(player)).Should().Be(0);
+
+        await sweeper.SweepOnceAsync(Ct);
+        (await ListAsync(player)).Should().NotContain(n => n.GetProperty("matchId").ValueKind != JsonValueKind.Null
+            && n.GetProperty("matchId").GetGuid() == matchId, "a cleared reminder is not sent again");
+
+        (await ListAsync(organizer)).Should().NotBeEmpty("clearing is per player");
+        (await organizer.Client.DeleteAsync("/api/v1/notifications", Ct)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await ListAsync(organizer)).Should().BeEmpty();
+        (await UnreadAsync(organizer)).Should().Be(0);
+
+        var anonymous = _fx.Factory.CreateClient();
+        (await anonymous.DeleteAsync("/api/v1/notifications", Ct)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await anonymous.DeleteAsync($"/api/v1/notifications/{id}", Ct)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     [Fact]

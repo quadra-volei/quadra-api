@@ -100,4 +100,15 @@ public sealed class TeamRepository : ITeamRepository
         member.MoveTo(targetTeamId);
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task AddMemberAsync(TeamMember member, CancellationToken cancellationToken)
+    {
+        await _context.TeamMembers.AddAsync(member, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task RemoveMemberAsync(Guid memberId, CancellationToken cancellationToken) =>
+        _context.TeamMembers.Where(m => m.Id == memberId).ExecuteDeleteAsync(cancellationToken);
 }

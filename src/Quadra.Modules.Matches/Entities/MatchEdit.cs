@@ -18,4 +18,7 @@ public sealed record MatchEdit(
     decimal? PriceMonthly,
     IReadOnlyList<int>? RecurrenceDays,
     string? CoverObjectKey,
-    bool? FreeTeams = null);
+    bool? FreeTeams = null,
+    MatchVisibility? Visibility = null,
+    MatchGender? Gender = null,
+    MatchSurface? Surface = null);

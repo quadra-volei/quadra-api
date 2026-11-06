@@ -6,14 +6,15 @@ Cognito, Redis) is in `docs/archive/ARCHITECTURE-aws-original.md` for reference 
 ## Shape
 
 One ASP.NET Core process (API + SignalR hub) and one PostgreSQL/PostGIS database.
-Hosted test environment: a Docker container on Render (free plan, `Staging`) plus Neon.
+Hosted: Docker containers on Render plus Neon. `quadra-api-prd` follows `main`
+(`api.quadra-volei.app`); `quadra-api-dev` follows `dev` (`api-dev.quadra-volei.app`, used by the test APKs).
 The free plan sleeps when idle, so the first request after a pause can take up to a minute.
 
 External services, all behind interfaces and all optional at startup except the database:
 
 | Service | Used for | Interface / setting |
 | --- | --- | --- |
-| Twilio Verify | SMS code | `IPhoneVerificationService`, `Auth:PhoneVerification` |
+| Firebase Phone Auth | Phone login (the app sends the SMS, the API validates the Firebase ID token) | `IPhoneVerificationService`, `Auth:PhoneVerification` (`Provider=Firebase`; `Fake` for development and tests) |
 | Google Identity | Validating Google ID tokens | `Auth:Google` |
 | Cloudflare R2 (S3-compatible) | Profile and post photos by signed URL | `Aws:S3` |
 | Google Places / Photon | Address search; arena discovery (Google only) | `IPlaceSearchService`, `IVenueSource`, `Places` |
@@ -28,8 +29,8 @@ Each module is a project `src/Quadra.Modules.<Name>/` with its own DbContext and
 | Matches | Match lifecycle, presence, waiting list, guests, summary | `matches`, `match_presences`, `waiting_list`, `match_guests`, `match_summaries`, `match_summary_players`, `match_summary_sets` |
 | InGame | Teams, scoreboard, MVP vote | `teams`, `team_members`, `scoreboards`, `scoreboard_sets`, `mvp_votings`, `mvp_votes`, `player_match_stats` |
 | Profile | Player identity, stats, history, card, feedback, Rede (posts, likes, comments, follows), friends' activity | `player_profiles`, `player_stats`, `player_match_history`, `player_cards`, `feedback`, `posts`, `post_likes`, `post_comments`, `follows`, `activities` |
-| Gamification | Points and group ranking | `point_transactions`, `group_rankings` |
-| Geo | Nearby matches, address search, arenas on the map | `venues`, `venue_areas` (arena cache); reads `matches` read-only |
+| Gamification | Points, group ranking and the season pass (computed from `point_transactions`, no table of its own) | `point_transactions`, `group_rankings` |
+| Geo | Nearby matches, address search, arenas on the map, self-service ads | `venues`, `venue_areas` (Google candidate cache), `arenas`, `arena_places` (curated arenas), `ads`, `ad_views`; reads `matches` read-only |
 | Realtime | SignalR hub `/hubs/match` | none (groups in memory) |
 | Notifications | In-app notifications, push tokens and preferences; sends through Expo Push (`INotificationSender` for the other modules) | `notifications`, `push_tokens`, `notification_preferences` |
 
@@ -37,7 +38,11 @@ Each module is a project `src/Quadra.Modules.<Name>/` with its own DbContext and
 
 - A module never reads another module's tables; no cross-module JOINs. Geo's read-only access
   to `matches` is the only exception.
-- Modules talk through interfaces in `Quadra.Shared` (for example `IPlayerSummaryReader`) or
+- Cross-module foreign keys: only `matches.arena_id` → `arenas`. Matches owns the column; the key is
+  created by the Geo migration `CreateArenas`, which needs the Matches migration `AddMatchArena` first
+  (startup migrates Geo last). Neither EF model knows the key (DECISIONS #91).
+- Modules talk through interfaces in `Quadra.Shared` (for example `IPlayerSummaryReader`, or `IArenaReader`
+  for Matches to link a game to a Geo arena) or
   through events.
 
 ## Events
