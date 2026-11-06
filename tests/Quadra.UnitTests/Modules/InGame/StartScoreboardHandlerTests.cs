@@ -18,7 +18,7 @@ namespace Quadra.UnitTests.Modules.InGame;
 /// Covers (F1.4):
 ///   - Acceptance criterion "match state" — start transitions NotStarted → InProgress and opens set 1.
 ///   - Acceptance criterion "real-time" — a successful start broadcasts via NotifyScoreboardUpdatedAsync.
-///   - MatchStarted SQS event is published on start.
+///   - MatchStarted event is published on start.
 ///   - 404 when match not found; 403 when caller is not organizer.
 ///   - 404 when no scoreboard exists.
 ///   - 409 (invalid transition) when the scoreboard is not NotStarted.
@@ -170,7 +170,7 @@ public sealed class StartScoreboardHandlerTests
             Arg.Any<CancellationToken>());
     }
 
-    /// <summary>Covers: F1.4 — MatchStarted SQS event is published on start.</summary>
+    /// <summary>Covers: F1.4 — MatchStarted event is published on start.</summary>
     [Fact]
     public async Task HandleAsync_publishes_MatchStarted_event()
     {

@@ -182,7 +182,7 @@ public sealed class CreateMatchEndpointTests : IClassFixture<MatchesWebApplicati
     // ─── AC-8: MatchCreated event published ──────────────────────────────────
 
     /// <summary>
-    /// Covers: AC-8 — POST publishes a MatchCreated SQS event after commit (verified via mock IEventPublisher).
+    /// Covers: AC-8 — POST publishes a MatchCreated event after commit (verified via mock IEventPublisher).
     /// </summary>
     [Fact]
     public async Task Post_valid_OneOff_publishes_MatchCreated_event()

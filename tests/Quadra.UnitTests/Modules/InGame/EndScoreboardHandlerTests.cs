@@ -19,7 +19,7 @@ namespace Quadra.UnitTests.Modules.InGame;
 ///   - Acceptance criterion "match state": a forced end transitions InProgress → Ended; the winner is
 ///     derived from sets won so far (null when equal); the current unfinished set is abandoned.
 ///   - Acceptance criterion "real-time": a successful end broadcasts NotifyScoreboardUpdatedAsync.
-///   - MatchEnded SQS event is published on end.
+///   - MatchEnded event is published on end.
 ///   - 404 match / 403 non-organizer / 404 scoreboard / 409 when not InProgress.
 /// </summary>
 public sealed class EndScoreboardHandlerTests
@@ -193,7 +193,7 @@ public sealed class EndScoreboardHandlerTests
             Arg.Any<CancellationToken>());
     }
 
-    /// <summary>Covers: F1.4 — MatchEnded SQS event is published on forced end.</summary>
+    /// <summary>Covers: F1.4 — MatchEnded event is published on forced end.</summary>
     [Fact]
     public async Task HandleAsync_publishes_MatchEnded_event()
     {

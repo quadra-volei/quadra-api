@@ -2,7 +2,7 @@ namespace Quadra.Modules.Gamification.Entities;
 
 /// <summary>
 /// One immutable, append-only ledger row recording a single point award for a finished match.
-/// It is both the audit trail and the idempotency guard for at-least-once SQS delivery: rows are
+/// It is both the audit trail and the idempotency guard if the event is handled twice: rows are
 /// inserted idempotently on <c>(user_id, match_id, reason)</c> and never mutated. The materialized
 /// <c>group_rankings</c> standing is recomputed (summed) from these rows, never incremented blindly.
 /// </summary>

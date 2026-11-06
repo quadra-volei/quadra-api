@@ -13,7 +13,7 @@ namespace Quadra.UnitTests.Modules.Matches;
 
 /// <summary>
 /// Unit tests for <see cref="OpenMatchWindowHandler"/>.
-/// Covers: AC — OpenMatchWindowHandler publishes MatchWindowOpened SQS event after transitioning Draft → Open.
+/// Covers: AC — OpenMatchWindowHandler publishes MatchWindowOpened event after transitioning Draft → Open.
 /// </summary>
 public sealed class OpenMatchWindowHandlerTests
 {
@@ -60,7 +60,7 @@ public sealed class OpenMatchWindowHandlerTests
     // ─── AC: publishes MatchWindowOpened after Draft → Open ─────────────────
 
     /// <summary>
-    /// Covers: F1.2 — OpenMatchWindowHandler publishes MatchWindowOpened SQS event after
+    /// Covers: F1.2 — OpenMatchWindowHandler publishes MatchWindowOpened event after
     /// transitioning a match from Draft to Open.
     /// </summary>
     [Fact]

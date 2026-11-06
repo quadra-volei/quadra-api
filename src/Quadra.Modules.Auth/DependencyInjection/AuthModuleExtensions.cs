@@ -178,7 +178,7 @@ public static class AuthModuleExtensions
         services.AddScoped<IValidator<RefreshRequest>, RefreshRequestValidator>();
         services.AddScoped<IValidator<LogoutRequest>, LogoutRequestValidator>();
 
-        // Default IEventPublisher (no-op) — replaced by the SQS publisher when that spec lands.
+        // Fallback IEventPublisher (no-op) when the host registered none; the API registers the in-process one.
         services.TryAddSingleton<IEventPublisher, NoOpEventPublisher>();
     }
 }

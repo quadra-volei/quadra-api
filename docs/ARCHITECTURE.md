@@ -14,7 +14,7 @@ External services, all behind interfaces and all optional at startup except the 
 
 | Service | Used for | Interface / setting |
 | --- | --- | --- |
-| Firebase Phone Auth | Phone login (the app sends the SMS, the API validates the Firebase ID token) | `IPhoneVerificationService`, `Auth:PhoneVerification` (`Provider=Firebase`; the Twilio Verify provider is unused) |
+| Firebase Phone Auth | Phone login (the app sends the SMS, the API validates the Firebase ID token) | `IPhoneVerificationService`, `Auth:PhoneVerification` (`Provider=Firebase`; `Fake` for development and tests) |
 | Google Identity | Validating Google ID tokens | `Auth:Google` |
 | Cloudflare R2 (S3-compatible) | Profile and post photos by signed URL | `Aws:S3` |
 | Google Places / Photon | Address search; arena discovery (Google only) | `IPlaceSearchService`, `IVenueSource`, `Places` |
