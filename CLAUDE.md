@@ -42,7 +42,6 @@ treat it as current and do not read it by default.
 src/Quadra.Api/                 host, Program.cs, Events/ (cross-module event handlers)
 src/Quadra.Modules.<Name>/      Auth, Matches, InGame, Profile, Geo, Gamification, Realtime
 src/Quadra.Modules.Notifications/  in-app notifications + Expo Push (one file, Notifications.cs)
-src/Quadra.Workers.*/           empty placeholders, not deployed
 src/Quadra.Shared/              events and cross-module interfaces
 src/Quadra.Infrastructure/      EF helpers, event publisher, photo storage
 tests/Quadra.UnitTests/  tests/Quadra.IntegrationTests/
@@ -115,7 +114,7 @@ the workspace root `.claude/`, also outside git: start Claude from the workspace
 - Do not write secrets, keys, passwords or connection strings in any file. They live in the
   Render dashboard.
 - Do not bring back AWS-only pieces (Cognito, SQS, ECS workers) or add Redis, MongoDB or a
-  queue. The Redis packages and the `Quadra.Workers.*` projects still present are leftovers,
+  queue. The Redis packages still present are a leftover,
   not a direction.
 - Do not add a NuGet package, change the stack or add a feature listed as out of the MVP
   without asking.

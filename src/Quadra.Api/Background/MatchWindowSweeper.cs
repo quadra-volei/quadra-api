@@ -1,3 +1,4 @@
+using Quadra.Api.Observability;
 using Quadra.Modules.Matches.Application;
 
 namespace Quadra.Api.Background;
@@ -16,15 +17,18 @@ public sealed class MatchWindowSweeper : BackgroundService
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IConfiguration _configuration;
+    private readonly JobMonitor _jobMonitor;
     private readonly ILogger<MatchWindowSweeper> _logger;
 
     public MatchWindowSweeper(
         IServiceScopeFactory scopeFactory,
         IConfiguration configuration,
+        JobMonitor jobMonitor,
         ILogger<MatchWindowSweeper> logger)
     {
         _scopeFactory = scopeFactory;
         _configuration = configuration;
+        _jobMonitor = jobMonitor;
         _logger = logger;
     }
 
@@ -42,7 +46,7 @@ public sealed class MatchWindowSweeper : BackgroundService
         {
             while (await timer.WaitForNextTickAsync(stoppingToken))
             {
-                await SweepOnceAsync(stoppingToken);
+                await SweepOnceAsync(TimeSpan.FromSeconds(seconds), stoppingToken);
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -51,13 +55,18 @@ public sealed class MatchWindowSweeper : BackgroundService
         }
     }
 
-    private async Task SweepOnceAsync(CancellationToken cancellationToken)
+    private async Task SweepOnceAsync(TimeSpan interval, CancellationToken cancellationToken)
     {
         try
         {
-            await using var scope = _scopeFactory.CreateAsyncScope();
-            var synchronizer = scope.ServiceProvider.GetRequiredService<MatchWindowSynchronizer>();
-            await synchronizer.SyncDueAsync(cancellationToken);
+            await _jobMonitor.RunAsync("match-window-sweep", interval, async run =>
+            {
+                await using var scope = _scopeFactory.CreateAsyncScope();
+                var synchronizer = scope.ServiceProvider.GetRequiredService<MatchWindowSynchronizer>();
+                var result = await synchronizer.SyncDueAsync(cancellationToken);
+                run.SetItems(result.Examined);
+                run.SetOldestLag(result.OldestLag);
+            }, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

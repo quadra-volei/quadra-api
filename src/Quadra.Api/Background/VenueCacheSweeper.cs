@@ -1,3 +1,4 @@
+using Quadra.Api.Observability;
 using Quadra.Modules.Geo.Venues;
 
 namespace Quadra.Api.Background;
@@ -11,11 +12,13 @@ public sealed class VenueCacheSweeper : BackgroundService
     private static readonly TimeSpan Interval = TimeSpan.FromHours(6);
 
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly JobMonitor _jobMonitor;
     private readonly ILogger<VenueCacheSweeper> _logger;
 
-    public VenueCacheSweeper(IServiceScopeFactory scopeFactory, ILogger<VenueCacheSweeper> logger)
+    public VenueCacheSweeper(IServiceScopeFactory scopeFactory, JobMonitor jobMonitor, ILogger<VenueCacheSweeper> logger)
     {
         _scopeFactory = scopeFactory;
+        _jobMonitor = jobMonitor;
         _logger = logger;
     }
 
@@ -39,12 +42,16 @@ public sealed class VenueCacheSweeper : BackgroundService
     {
         try
         {
-            await using var scope = _scopeFactory.CreateAsyncScope();
-            var purged = await scope.ServiceProvider.GetRequiredService<VenueDiscovery>().PurgeExpiredAsync(cancellationToken);
-            if (purged > 0)
+            await _jobMonitor.RunAsync("venue-cache-sweep", Interval, async run =>
             {
-                _logger.LogInformation("Purged {Count} arena(s) with expired coordinates.", purged);
-            }
+                await using var scope = _scopeFactory.CreateAsyncScope();
+                var purged = await scope.ServiceProvider.GetRequiredService<VenueDiscovery>().PurgeExpiredAsync(cancellationToken);
+                run.SetItems(purged);
+                if (purged > 0)
+                {
+                    _logger.LogInformation("Purged {Count} arena(s) with expired coordinates.", purged);
+                }
+            }, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

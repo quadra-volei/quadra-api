@@ -17,13 +17,16 @@ public sealed class InProcessEventPublisher : IEventPublisher
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<InProcessEventPublisher> _logger;
+    private readonly IEventHandlerTracing? _tracing;
 
     public InProcessEventPublisher(
         IServiceScopeFactory scopeFactory,
-        ILogger<InProcessEventPublisher> logger)
+        ILogger<InProcessEventPublisher> logger,
+        IEventHandlerTracing? tracing = null)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _tracing = tracing;
     }
 
     public async Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken)
@@ -36,6 +39,7 @@ public sealed class InProcessEventPublisher : IEventPublisher
 
         foreach (var handler in handlers)
         {
+            using var trace = _tracing?.Start(typeof(TEvent).Name, handler.GetType().Name);
             try
             {
                 // Not the caller's token: these are follow-up effects of a write that has already
@@ -44,6 +48,7 @@ public sealed class InProcessEventPublisher : IEventPublisher
             }
             catch (Exception ex)
             {
+                trace?.Fail(ex);
                 _logger.LogError(
                     ex,
                     "Event handler {Handler} failed for {EventType}. Its side effect was not applied.",

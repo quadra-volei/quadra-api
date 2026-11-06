@@ -11,8 +11,6 @@
     <Project Path="src/Quadra.Modules.Profile/Quadra.Modules.Profile.csproj" />
     <Project Path="src/Quadra.Modules.Realtime/Quadra.Modules.Realtime.csproj" />
     <Project Path="src/Quadra.Shared/Quadra.Shared.csproj" />
-    <Project Path="src/Quadra.Workers.Background/Quadra.Workers.Background.csproj" />
-    <Project Path="src/Quadra.Workers.Notification/Quadra.Workers.Notification.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Quadra.IntegrationTests/Quadra.IntegrationTests.csproj" />
