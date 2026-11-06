@@ -106,4 +106,51 @@ public sealed class InProcessEventPublisherTests
 
         recorder.Calls.Should().BeEmpty();
     }
+
+    private sealed class RecordingTracing : IEventHandlerTracing
+    {
+        public List<string> Calls { get; } = [];
+
+        public IEventHandlerTrace Start(string eventType, string handler)
+        {
+            Calls.Add($"start:{eventType}:{handler}");
+            return new Trace(this, handler);
+        }
+
+        private sealed class Trace(RecordingTracing owner, string handler) : IEventHandlerTrace
+        {
+            public void Fail(Exception exception) => owner.Calls.Add($"fail:{handler}:{exception.Message}");
+
+            public void Dispose() => owner.Calls.Add($"end:{handler}");
+        }
+    }
+
+    /// <summary>
+    /// Covers: with a tracing hook registered, every handler run is wrapped in its own trace,
+    /// and a failing handler marks its trace as failed before it ends.
+    /// </summary>
+    [Fact]
+    public async Task Traces_each_handler_and_marks_failures()
+    {
+        var recorder = new Recorder();
+        var tracing = new RecordingTracing();
+        var services = new ServiceCollection();
+        services.AddSingleton(recorder);
+        services.AddScoped<IEventHandler<SomethingHappened>, FirstHandler>();
+        services.AddScoped<IEventHandler<SomethingHappened>, FailingHandler>();
+        var provider = services.BuildServiceProvider(validateScopes: true);
+        var sut = new InProcessEventPublisher(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<InProcessEventPublisher>.Instance,
+            tracing);
+
+        await sut.PublishAsync(new SomethingHappened(1), TestContext.Current.CancellationToken);
+
+        tracing.Calls.Should().Equal(
+            "start:SomethingHappened:FirstHandler",
+            "end:FirstHandler",
+            "start:SomethingHappened:FailingHandler",
+            "fail:FailingHandler:boom",
+            "end:FailingHandler");
+    }
 }

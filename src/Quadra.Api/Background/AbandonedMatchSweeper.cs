@@ -1,4 +1,5 @@
 using Quadra.Modules.InGame.Application;
+using Quadra.Api.Observability;
 using Quadra.Modules.Matches.Application;
 using Quadra.Modules.Matches.Persistence;
 using Quadra.Shared.Contracts;
@@ -23,17 +24,20 @@ public sealed class AbandonedMatchSweeper : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IConfiguration _configuration;
     private readonly TimeProvider _timeProvider;
+    private readonly JobMonitor _jobMonitor;
     private readonly ILogger<AbandonedMatchSweeper> _logger;
 
     public AbandonedMatchSweeper(
         IServiceScopeFactory scopeFactory,
         IConfiguration configuration,
         TimeProvider timeProvider,
+        JobMonitor jobMonitor,
         ILogger<AbandonedMatchSweeper> logger)
     {
         _scopeFactory = scopeFactory;
         _configuration = configuration;
         _timeProvider = timeProvider;
+        _jobMonitor = jobMonitor;
         _logger = logger;
     }
 
@@ -61,7 +65,13 @@ public sealed class AbandonedMatchSweeper : BackgroundService
     }
 
     /// <summary>One pass: closes every abandoned match found. Public for the integration tests.</summary>
-    public async Task SweepOnceAsync(CancellationToken cancellationToken)
+    public Task SweepOnceAsync(CancellationToken cancellationToken)
+    {
+        var interval = TimeSpan.FromMinutes(Math.Max(1, _configuration.GetValue(IntervalSettingKey, DefaultIntervalMinutes)));
+        return _jobMonitor.RunAsync("abandoned-match-sweep", interval, run => SweepAsync(run, cancellationToken), cancellationToken);
+    }
+
+    private async Task SweepAsync(JobRun run, CancellationToken cancellationToken)
     {
         var afterHours = _configuration.GetValue(AfterHoursSettingKey, DefaultAfterHours);
         IReadOnlyList<Modules.Matches.Entities.Match> matches;
@@ -81,6 +91,7 @@ public sealed class AbandonedMatchSweeper : BackgroundService
             return;
         }
 
+        run.SetItems(matches.Count);
         foreach (var match in matches)
         {
             try

@@ -49,16 +49,27 @@ public sealed class MatchWindowSynchronizer
         return match;
     }
 
-    /// <summary>Syncs every match whose window is due. Returns how many were examined.</summary>
-    public async Task<int> SyncDueAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Syncs every match whose window is due. Returns how many were examined and how long the
+    /// most overdue of them had been waiting (zero when none), so the sweep can tell it is late.
+    /// </summary>
+    public async Task<WindowSyncResult> SyncDueAsync(CancellationToken cancellationToken)
     {
-        var due = await _matchRepository.ListWindowDueAsync(_timeProvider.GetUtcNow(), cancellationToken);
+        var now = _timeProvider.GetUtcNow();
+        var due = await _matchRepository.ListWindowDueAsync(now, cancellationToken);
+        var oldestLag = TimeSpan.Zero;
         foreach (var match in due)
         {
+            var dueAt = match.Status == MatchStatus.Draft ? match.WindowOpensAt : match.WindowClosesAt;
+            if (now - dueAt > oldestLag)
+            {
+                oldestLag = now - dueAt;
+            }
+
             await SyncAsync(match, cancellationToken);
         }
 
-        return due.Count;
+        return new WindowSyncResult(due.Count, oldestLag);
     }
 
     private async Task<Match> TransitionAsync(
@@ -78,3 +89,6 @@ public sealed class MatchWindowSynchronizer
         return await _matchRepository.FindByIdAsync(match.Id, cancellationToken) ?? match;
     }
 }
+
+/// <summary>Outcome of <see cref="MatchWindowSynchronizer.SyncDueAsync"/>.</summary>
+public sealed record WindowSyncResult(int Examined, TimeSpan OldestLag);

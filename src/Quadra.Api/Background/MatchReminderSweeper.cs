@@ -1,3 +1,4 @@
+using Quadra.Api.Observability;
 using Quadra.Shared.Contracts;
 
 namespace Quadra.Api.Background;
@@ -17,17 +18,20 @@ public sealed class MatchReminderSweeper : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IConfiguration _configuration;
     private readonly TimeProvider _timeProvider;
+    private readonly JobMonitor _jobMonitor;
     private readonly ILogger<MatchReminderSweeper> _logger;
 
     public MatchReminderSweeper(
         IServiceScopeFactory scopeFactory,
         IConfiguration configuration,
         TimeProvider timeProvider,
+        JobMonitor jobMonitor,
         ILogger<MatchReminderSweeper> logger)
     {
         _scopeFactory = scopeFactory;
         _configuration = configuration;
         _timeProvider = timeProvider;
+        _jobMonitor = jobMonitor;
         _logger = logger;
     }
 
@@ -58,27 +62,33 @@ public sealed class MatchReminderSweeper : BackgroundService
     {
         try
         {
-            await using var scope = _scopeFactory.CreateAsyncScope();
-            var matches = scope.ServiceProvider.GetRequiredService<IUpcomingMatchReader>();
-            var sender = scope.ServiceProvider.GetRequiredService<INotificationSender>();
-            var now = _timeProvider.GetUtcNow();
-
-            foreach (var match in await matches.ListStartingBetweenAsync(now, now.AddHours(24), cancellationToken))
+            var interval = TimeSpan.FromSeconds(Math.Max(60, _configuration.GetValue(IntervalSettingKey, DefaultIntervalSeconds)));
+            await _jobMonitor.RunAsync("match-reminder-sweep", interval, async run =>
             {
-                var at = TimeZoneInfo.ConvertTime(match.StartsAt, Brasilia).ToString("HH'h'mm");
-                var pending = match.Players.Where(p => !p.Confirmed).Select(p => p.PlayerId).ToList();
-                var confirmed = match.Players.Where(p => p.Confirmed).Select(p => p.PlayerId).ToList();
-                await sender.SendAsync(
-                    pending,
-                    new NotificationRequest("ConfirmPresence", NotificationCategory.Reminders, "Vai jogar?",
-                        $"{match.Name} é às {at}. Confirme sua presença.", match.MatchId, $"tomorrow:{match.MatchId}"),
-                    cancellationToken);
-                await sender.SendAsync(
-                    confirmed,
-                    new NotificationRequest("MatchTomorrow", NotificationCategory.Reminders, "Tem jogo chegando",
-                        $"{match.Name} é às {at}. Te vejo na quadra!", match.MatchId, $"tomorrow:{match.MatchId}"),
-                    cancellationToken);
-            }
+                await using var scope = _scopeFactory.CreateAsyncScope();
+                var matches = scope.ServiceProvider.GetRequiredService<IUpcomingMatchReader>();
+                var sender = scope.ServiceProvider.GetRequiredService<INotificationSender>();
+                var now = _timeProvider.GetUtcNow();
+
+                var upcoming = await matches.ListStartingBetweenAsync(now, now.AddHours(24), cancellationToken);
+                run.SetItems(upcoming.Count);
+                foreach (var match in upcoming)
+                {
+                    var at = TimeZoneInfo.ConvertTime(match.StartsAt, Brasilia).ToString("HH'h'mm");
+                    var pending = match.Players.Where(p => !p.Confirmed).Select(p => p.PlayerId).ToList();
+                    var confirmed = match.Players.Where(p => p.Confirmed).Select(p => p.PlayerId).ToList();
+                    await sender.SendAsync(
+                        pending,
+                        new NotificationRequest("ConfirmPresence", NotificationCategory.Reminders, "Vai jogar?",
+                            $"{match.Name} é às {at}. Confirme sua presença.", match.MatchId, $"tomorrow:{match.MatchId}"),
+                        cancellationToken);
+                    await sender.SendAsync(
+                        confirmed,
+                        new NotificationRequest("MatchTomorrow", NotificationCategory.Reminders, "Tem jogo chegando",
+                            $"{match.Name} é às {at}. Te vejo na quadra!", match.MatchId, $"tomorrow:{match.MatchId}"),
+                        cancellationToken);
+                }
+            }, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
