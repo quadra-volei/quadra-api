@@ -1,4 +1,4 @@
-# Render Blueprint for the Quadra API — the free, always-reachable test environment.
+# Render Blueprint for the Quadra API — production (quadra-api-prd, branch main).
 #
 # First deploy: Render dashboard → New → Blueprint → pick this repository. Render reads
 # this file, asks for the values marked `sync: false`, builds the Dockerfile and deploys.
@@ -28,9 +28,11 @@ services:
       - key: PORT
         value: "8080"
 
-      # Staging, not Production: the fake SMS provider below is refused in Production.
+      # Production: the fixed-code Fake phone provider is refused at startup, so phone login can only
+      # go through Firebase (DECISIONS #110). The test service (quadra-api-dev) keeps Staging in its
+      # dashboard so the test APKs can still use the fixed code.
       - key: ASPNETCORE_ENVIRONMENT
-        value: Staging
+        value: Production
 
       # Take the client IP from the X-Forwarded-For entry Render's proxy appends (last hop only),
       # so the per-IP login rate limit sees each client instead of the proxy.
@@ -54,10 +56,9 @@ services:
       - key: Sentry__Dsn
         sync: false
 
-      # Phone login. Fake = no SMS, code always 123456: anyone can log in as any phone, so it
-      # is for testing only. Firebase = the app verifies the phone with Firebase Phone Auth and
-      # the fixed-code route is off (DECISIONS #78): switch to it once the APK with Firebase login
-      # is out and the Firebase project has Blaze + the Phone provider on. Set in the dashboard.
+      # Phone login. Firebase = the app verifies the phone with Firebase Phone Auth (DECISIONS #78);
+      # the only value Production accepts. Fake (fixed code, anyone logs in as any phone) is for the
+      # test service only.
       - key: Auth__PhoneVerification__Provider
         sync: false
       - key: Auth__PhoneVerification__Firebase__ProjectId
@@ -80,6 +81,17 @@ services:
       - key: Moderation__Images__Provider
         sync: false
       - key: Moderation__Images__GoogleVisionApiKey
+        sync: false
+
+      # Season pass sold on Google Play (DECISIONS #109). The JSON key of the Google Cloud service
+      # account invited to the Play Console (View financial data + Manage orders). Empty = billing off:
+      # the app offers nothing to buy. The price is set only on the Play Console product (passe_t1,
+      # or SeasonPass__Billing__ProductIds__T1 to use another id).
+      - key: SeasonPass__Billing__ServiceAccountJson
+        sync: false
+      # true = the paid track open to everyone (closed test without billing). false once the product
+      # is active in the Play Console and the key above is set: then only buyers get it.
+      - key: SeasonPass__PremiumForEveryone
         sync: false
 
       # Address search in "create match". Empty key = the free OpenStreetMap search (Photon).

@@ -87,4 +87,52 @@ public sealed class S3ProfilePhotoStorage : IProfilePhotoStorage
 
         return await _s3.GetPreSignedURLAsync(request);
     }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<string>> ListAsync(string prefix, CancellationToken cancellationToken)
+    {
+        EnsurePersonPrefix(prefix);
+        var keys = new List<string>();
+        var request = new ListObjectsV2Request { BucketName = _options.ProfilePhotosBucket, Prefix = prefix };
+        ListObjectsV2Response response;
+        do
+        {
+            response = await _s3.ListObjectsV2Async(request, cancellationToken);
+            keys.AddRange((response.S3Objects ?? []).Select(o => o.Key));
+            request.ContinuationToken = response.NextContinuationToken;
+        }
+        while (response.IsTruncated == true);
+
+        return keys;
+    }
+
+    /// <inheritdoc/>
+    public async Task<int> DeleteAllAsync(string prefix, CancellationToken cancellationToken)
+    {
+        var keys = await ListAsync(prefix, cancellationToken);
+
+        // DeleteObjects takes at most 1000 keys per call.
+        foreach (var chunk in keys.Chunk(1000))
+        {
+            await _s3.DeleteObjectsAsync(
+                new DeleteObjectsRequest
+                {
+                    BucketName = _options.ProfilePhotosBucket,
+                    Objects = chunk.Select(k => new KeyVersion { Key = k }).ToList(),
+                    Quiet = true,
+                },
+                cancellationToken);
+        }
+
+        return keys.Count;
+    }
+
+    // A prefix like "" or "profiles/" would reach other people's photos: only one person's folder.
+    private static void EnsurePersonPrefix(string prefix)
+    {
+        if (!System.Text.RegularExpressions.Regex.IsMatch(prefix, "^profiles/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}/$"))
+        {
+            throw new ArgumentException("Only one person's photo folder (profiles/{userId}/) may be listed or deleted.", nameof(prefix));
+        }
+    }
 }

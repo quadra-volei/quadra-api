@@ -22,6 +22,68 @@ namespace Quadra.Modules.Gamification.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Quadra.Modules.Gamification.Billing.SeasonPassPurchase", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("OrderId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("order_id");
+
+                    b.Property<string>("ProductId")
+                        .IsRequired()
+                        .HasMaxLength(140)
+                        .HasColumnType("character varying(140)")
+                        .HasColumnName("product_id");
+
+                    b.Property<string>("PurchaseTokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("purchase_token_hash");
+
+                    b.Property<DateTimeOffset>("PurchasedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("purchased_at");
+
+                    b.Property<string>("SeasonCode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("season_code");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("state");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTimeOffset>("VerifiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("verified_at");
+
+                    b.Property<DateTimeOffset?>("VoidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("voided_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PurchaseTokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "SeasonCode");
+
+                    b.ToTable("season_pass_purchases", (string)null);
+                });
+
             modelBuilder.Entity("Quadra.Modules.Gamification.Entities.GroupRanking", b =>
                 {
                     b.Property<Guid>("Id")

@@ -34,6 +34,18 @@ public interface IProfilePhotoStorage
     /// deleted. True when no storage is configured: no object can exist and no URL is ever served.
     /// </summary>
     Task<bool> IsWithinLimitsAsync(string objectKey, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Every object key under <paramref name="prefix"/> (e.g. <c>profiles/{userId}/</c>, where all of a
+    /// person's uploads live). Empty when no storage is configured.
+    /// </summary>
+    Task<IReadOnlyList<string>> ListAsync(string prefix, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Deletes every object under <paramref name="prefix"/> and answers how many went. Used by account
+    /// deletion (SEC-14). Does nothing when no storage is configured.
+    /// </summary>
+    Task<int> DeleteAllAsync(string prefix, CancellationToken cancellationToken);
 }
 
 /// <summary>

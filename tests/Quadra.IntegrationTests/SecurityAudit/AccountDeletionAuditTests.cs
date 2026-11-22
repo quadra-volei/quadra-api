@@ -69,6 +69,25 @@ public sealed class AccountDeletionAuditTests : IClassFixture<AuditWebApplicatio
     }
 
     [Fact]
+    public async Task Deleting_a_confirmed_player_hands_the_spot_to_the_waiting_list()
+    {
+        var organizer = await _fx.LoginAsync();
+        var leaving = await _fx.LoginAsync();
+        var waiting = await _fx.LoginAsync();
+        var matchId = await CreateMatchAsync(organizer, regularSlots: 2);
+        (await leaving.Client.PutAsJsonAsync($"/api/v1/matches/{matchId}/presences/me", new { status = "Confirmed" }, Ct))
+            .IsSuccessStatusCode.Should().BeTrue();
+        (await waiting.Client.PutAsJsonAsync($"/api/v1/matches/{matchId}/presences/me", new { status = "Confirmed" }, Ct))
+            .StatusCode.Should().Be(HttpStatusCode.Conflict, "the match is full, so the third player queues");
+
+        (await leaving.Client.DeleteAsync("/api/v1/auth/me", Ct)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var presences = await Read(await organizer.Client.GetAsync($"/api/v1/matches/{matchId}/presences", Ct));
+        presences.GetProperty("waitingList").GetArrayLength().Should().Be(0, "the first in line was promoted");
+        presences.ToString().Should().Contain(waiting.Id.ToString()).And.NotContain(leaving.Id.ToString());
+    }
+
+    [Fact]
     public async Task Anonymous_callers_cannot_export_or_delete()
     {
         var anon = _fx.Factory.CreateClient();
@@ -76,13 +95,13 @@ public sealed class AccountDeletionAuditTests : IClassFixture<AuditWebApplicatio
         (await anon.DeleteAsync("/api/v1/auth/me", Ct)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
-    private async Task<Guid> CreateMatchAsync(Actor organizer)
+    private async Task<Guid> CreateMatchAsync(Actor organizer, int regularSlots = 12)
     {
         var when = DateTimeOffset.UtcNow.AddDays(3);
         var response = await organizer.Client.PostAsJsonAsync("/api/v1/matches", new
         {
             name = "Racha", address = "Rua A", latitude = -23.5, longitude = -46.6, dateTime = when,
-            maxPlayers = 12, regularSlots = 12, type = "OneOff", confirmationOpensHoursBefore = 96,
+            maxPlayers = Math.Max(2, regularSlots), regularSlots, type = "OneOff", confirmationOpensHoursBefore = 96,
         }, Ct);
         return (await Read(response, HttpStatusCode.Created)).GetProperty("id").GetGuid();
     }

@@ -18,7 +18,9 @@ public sealed record SeasonPassResponse(
     int WeekPoints,             // this week's points that count; 0 while the season is not being played
     DateTimeOffset? WeekEndsAt, // when the weekly cap starts over; null while the season is not being played
     bool Premium,               // the paid track is open to the caller
-    IReadOnlyList<SeasonRewardResponse> Rewards);
+    IReadOnlyList<SeasonRewardResponse> Rewards,
+    string? ProductId,          // the Google Play product to buy the pass (DECISIONS #109); null = not on sale (billing off, already open, season over)
+    string? PurchaseAccountTag); // pass to Play Billing as obfuscatedAccountId when buying; null when ProductId is
 
 /// <summary><c>GET /api/v1/card-collection</c> (DECISIONS #99): a player's season cards, newest first.</summary>
 public sealed record CardCollectionResponse(Guid UserId, IReadOnlyList<CollectionCardResponse> Cards);
