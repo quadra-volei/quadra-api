@@ -10,6 +10,7 @@ internal static class TestPhotoStorage
     {
         var storage = Substitute.For<IProfilePhotoStorage>();
         storage.IsWithinLimitsAsync(default!, default).ReturnsForAnyArgs(true);
+        storage.ListAsync(default!, default).ReturnsForAnyArgs(Array.Empty<string>());
         return storage;
     }
 }

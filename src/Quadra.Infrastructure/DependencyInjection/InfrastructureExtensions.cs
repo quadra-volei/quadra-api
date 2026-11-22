@@ -103,6 +103,10 @@ public static class InfrastructureExtensions
                 : new UnconfiguredProfilePhotoStorage();
         });
 
+        // Account deletion removes the person's folder in the bucket (SEC-14). TryAddEnumerable: this
+        // method is called by more than one module.
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<Quadra.Shared.Contracts.IPersonalDataStore, PhotosPersonalData>());
+
         return services;
     }
 
