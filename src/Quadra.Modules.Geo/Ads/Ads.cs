@@ -785,7 +785,11 @@ public sealed class AdsPersonalData : IPersonalDataStore
         await _db.AdViews.Where(v => v.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await _db.Ads.Where(a => a.AdvertiserId == userId && a.PaidAt == null).ExecuteDeleteAsync(cancellationToken);
         await _db.Ads.Where(a => a.AdvertiserId == userId)
-            .ExecuteUpdateAsync(s => s.SetProperty(a => a.AdvertiserId, (Guid?)null), cancellationToken);
+            .ExecuteUpdateAsync(
+                s => s.SetProperty(a => a.AdvertiserId, (Guid?)null)
+                    // The photo file is deleted with the person's photo folder (SEC-14).
+                    .SetProperty(a => a.PhotoObjectKey, (string?)null),
+                cancellationToken);
     }
 }
 
