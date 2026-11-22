@@ -24,4 +24,14 @@ public sealed class UnconfiguredProfilePhotoStorage : IProfilePhotoStorage
     {
         return Task.FromResult(true);
     }
+
+    public Task<IReadOnlyList<string>> ListAsync(string prefix, CancellationToken cancellationToken)
+    {
+        return Task.FromResult<IReadOnlyList<string>>([]);
+    }
+
+    public Task<int> DeleteAllAsync(string prefix, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(0);
+    }
 }
