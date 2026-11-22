@@ -66,6 +66,16 @@ public static class GamificationModuleExtensions
             .Validate(o => o.IsValid(), "SeasonPass: unknown season code, a season that ends before it starts, overlapping seasons, or a TestLevels entry that is not a user id with a level from 0 to 12.")
             .ValidateOnStart();
         services.AddScoped<SeasonPassHandler>();
+
+        // Season pass sold on Google Play (DECISIONS #109): off until SeasonPass:Billing:ServiceAccountJson is set.
+        services.AddOptions<Billing.PlayBillingOptions>()
+            .BindConfiguration(Billing.PlayBillingOptions.SectionName)
+            .Validate(o => o.IsValid(), "SeasonPass:Billing: a product id that Google Play would refuse, the same product for two seasons, or a negative sweep interval.")
+            .ValidateOnStart();
+        services.AddHttpClient(Billing.GooglePlayPurchasesClient.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(15));
+        services.TryAddScoped<Billing.IGooglePlayPurchases, Billing.GooglePlayPurchasesClient>();
+        services.AddScoped<Billing.SeasonPassPurchases>();
+        services.AddScoped<IValidator<Billing.SeasonPassPurchaseRequest>, Billing.SeasonPassPurchaseRequestValidator>();
         services.AddScoped<ISeasonRewardReader>(sp => sp.GetRequiredService<SeasonPassHandler>());
 
         // TimeProvider.System — register only if not already registered.

@@ -15,17 +15,23 @@ public sealed class SeasonPassHandler : ISeasonRewardReader
     private readonly IPointTransactionRepository _points;
     private readonly IPremiumStatusReader _premium;
     private readonly SeasonPassOptions _options;
+    private readonly Billing.PlayBillingOptions _billing;
+    private readonly Billing.SeasonPassPurchases _purchases;
     private readonly TimeProvider _clock;
 
     public SeasonPassHandler(
         IPointTransactionRepository points,
         IPremiumStatusReader premium,
         IOptions<SeasonPassOptions> options,
+        IOptions<Billing.PlayBillingOptions> billing,
+        Billing.SeasonPassPurchases purchases,
         TimeProvider clock)
     {
         _points = points;
         _premium = premium;
         _options = options.Value;
+        _billing = billing.Value;
+        _purchases = purchases;
         _clock = clock;
     }
 
@@ -39,7 +45,8 @@ public sealed class SeasonPassHandler : ISeasonRewardReader
         }
 
         var progress = await ProgressAsync(userId, season, now, cancellationToken);
-        var premium = await IsPremiumAsync(userId, cancellationToken);
+        var premium = await IsPremiumAsync(userId, season, cancellationToken);
+        var productId = premium || now >= season.EndsAt ? null : _billing.ProductFor(season.Definition.Code);
         return new SeasonPassResponse(
             season.Definition.Code,
             season.Definition.Name,
@@ -56,7 +63,9 @@ public sealed class SeasonPassHandler : ISeasonRewardReader
             premium,
             SeasonPassRules.Rewards(season.Definition)
                 .Select(r => new SeasonRewardResponse(r.Level, r.Track, r.Kind, r.Code, SeasonPassRules.IsUnlocked(r, progress, premium)))
-                .ToList());
+                .ToList(),
+            productId,
+            productId is null ? null : Billing.SeasonPassPurchases.AccountTag(userId));
     }
 
     /// <summary>
@@ -66,10 +75,10 @@ public sealed class SeasonPassHandler : ISeasonRewardReader
     public async Task<CardCollectionResponse> GetCollectionAsync(Guid userId, CancellationToken cancellationToken)
     {
         var now = _clock.GetUtcNow();
-        var premium = await IsPremiumAsync(userId, cancellationToken);
         var cards = new List<CollectionCardResponse>();
         foreach (var season in SeasonPassRules.Seasons(_options).OrderByDescending(s => s.StartsAt))
         {
+            var premium = await IsPremiumAsync(userId, season, cancellationToken);
             var progress = await ProgressAsync(userId, season, now, cancellationToken);
             var rewards = SeasonPassRules.Rewards(season.Definition);
             cards.Add(new CollectionCardResponse(
@@ -103,7 +112,7 @@ public sealed class SeasonPassHandler : ISeasonRewardReader
             if (reward is not null)
             {
                 var progress = await ProgressAsync(userId, season, now, cancellationToken);
-                return SeasonPassRules.IsUnlocked(reward, progress, await IsPremiumAsync(userId, cancellationToken));
+                return SeasonPassRules.IsUnlocked(reward, progress, await IsPremiumAsync(userId, season, cancellationToken));
             }
         }
 
@@ -118,6 +127,10 @@ public sealed class SeasonPassHandler : ISeasonRewardReader
         return now >= season.StartsAt ? SeasonPassRules.WithTestLevel(progress, _options.TestLevel(userId)) : progress;
     }
 
-    private async Task<bool> IsPremiumAsync(Guid userId, CancellationToken cancellationToken) =>
-        _options.PremiumForEveryone || await _premium.IsPremiumAsync(userId, cancellationToken);
+    // The paid track of a season: open to everyone while PremiumForEveryone is on (closed test), or the
+    // season's pass bought on Google Play (DECISIONS #109).
+    private async Task<bool> IsPremiumAsync(Guid userId, Season season, CancellationToken cancellationToken) =>
+        _options.PremiumForEveryone
+        || await _premium.IsPremiumAsync(userId, cancellationToken)
+        || await _purchases.HasPassAsync(userId, season.Definition.Code, cancellationToken);
 }

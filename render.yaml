@@ -82,6 +82,17 @@ services:
       - key: Moderation__Images__GoogleVisionApiKey
         sync: false
 
+      # Season pass sold on Google Play (DECISIONS #109). The JSON key of the Google Cloud service
+      # account invited to the Play Console (View financial data + Manage orders). Empty = billing off:
+      # the app offers nothing to buy. The price is set only on the Play Console product (passe_t1,
+      # or SeasonPass__Billing__ProductIds__T1 to use another id).
+      - key: SeasonPass__Billing__ServiceAccountJson
+        sync: false
+      # true = the paid track open to everyone (closed test without billing). false once the product
+      # is active in the Play Console and the key above is set: then only buyers get it.
+      - key: SeasonPass__PremiumForEveryone
+        sync: false
+
       # Address search in "create match". Empty key = the free OpenStreetMap search (Photon).
       # Paste a Google Places API (New) key in the dashboard to switch to Google.
       - key: Places__GoogleApiKey
