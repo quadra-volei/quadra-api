@@ -251,3 +251,9 @@ Steps 4 to 7 of the Rede, approved together by Johny.
 | # | Decision | Why |
 | --- | --- | --- |
 | 107 | **Last AWS, Redis and Twilio leftovers removed.** `Quadra.Infrastructure` drops the unused `StackExchange.Redis` package, `appsettings.Development.json` drops the `Redis` section and `docker-compose.yml` no longer starts a Redis container. Comments that still described an SQS backbone or `Quadra.Workers.*` consumers now name the real in-process handlers (or say there is none), and `CLAUDE.md`/`docs/ARCHITECTURE.md` no longer say the Twilio provider is in the code. No behaviour change. `AWSSDK.S3` and `Aws:S3:*` stay: they are the Cloudflare R2 bucket. | Johny (06/11/2026): "está na hora de remover essas sobras da twilio e aws". |
+
+## 2026-11-22 — Production runs as Production
+
+| # | Decision | Why |
+| --- | --- | --- |
+| 110 | **`quadra-api-prd` runs with `ASPNETCORE_ENVIRONMENT=Production`** (`render.yaml`). Production refuses the fixed-code `Fake` phone provider at startup (#78, #104), so a forgotten test setting can never let anyone log in as any phone; Scalar and the OpenAPI document stay off as before (Development only). The test service `quadra-api-dev` keeps `Staging`. Before the deploy, the production dashboard must have `Auth__PhoneVerification__Provider=Firebase` (or nothing: Firebase is the default), otherwise the service does not start. The leftover `Aws__Sqs__*` variables of both services (#105) can be deleted in the dashboard at the same time. | Launch list of 04/11: "na API, trocar o ambiente para Production". The API ran as Staging only so the fake SMS could work, and Twilio is gone (#104). |
