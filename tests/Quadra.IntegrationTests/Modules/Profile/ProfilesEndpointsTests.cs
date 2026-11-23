@@ -1,6 +1,7 @@
 using NSubstitute;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Quadra.Modules.Profile.Abstractions;
@@ -302,7 +303,9 @@ public sealed class ProfilesEndpointsTests
         var response = await client.PutAsJsonAsync("/api/v1/profiles/me", Onboarding() with { PhotoObjectKey = bigKey }, Ct);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        (await response.Content.ReadAsStringAsync(Ct)).Should().Contain("larger than 10 MB");
+        var body = await response.Content.ReadAsStringAsync(Ct);
+        body.Should().Contain("larger than 10 MB");
+        JsonDocument.Parse(body).RootElement.GetProperty("code").GetString().Should().Be("photo_refused");
     }
 
     /// <summary>Covers: F2.1 PUT /profiles/me — 404 when the caller has no profile.</summary>

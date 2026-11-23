@@ -30,6 +30,11 @@ public sealed class ImageModerationTests
         GoogleVisionImageModerator.IsAllowed(Answer(adult, racy, violence)).Should().Be(allowed);
 
     [Fact]
+    public void The_ratings_are_read_for_the_log() =>
+        GoogleVisionImageModerator.ReadRatings(Answer("LIKELY", "VERY_LIKELY", "UNLIKELY"))
+            .Should().Be(new SafeSearchRatings("LIKELY", "VERY_LIKELY", "UNLIKELY"));
+
+    [Fact]
     public void An_answer_without_ratings_is_refused() =>
         GoogleVisionImageModerator.IsAllowed(JsonDocument.Parse("""{"responses":[{"error":{"code":7}}]}""").RootElement)
             .Should().BeFalse();
