@@ -92,7 +92,17 @@ public sealed class GoogleVisionImageModerator : IImageModerator
             }
 
             var json = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
-            return IsAllowed(json);
+            var ratings = ReadRatings(json);
+            if (ratings is null || !IsAllowed(ratings))
+            {
+                // Only the ratings: the read URL carries the owner's id, so it stays out of the log.
+                _logger.LogWarning(
+                    "Image refused by the content check: adult={Adult} racy={Racy} violence={Violence}.",
+                    ratings?.Adult ?? "NONE", ratings?.Racy ?? "NONE", ratings?.Violence ?? "NONE");
+                return false;
+            }
+
+            return true;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
@@ -102,21 +112,40 @@ public sealed class GoogleVisionImageModerator : IImageModerator
     }
 
     /// <summary>Reads a Vision <c>images:annotate</c> answer; anything unreadable is refused.</summary>
-    public static bool IsAllowed(JsonElement response)
+    public static bool IsAllowed(JsonElement response) =>
+        ReadRatings(response) is { } ratings && IsAllowed(ratings);
+
+    private static bool IsAllowed(SafeSearchRatings ratings) =>
+        ratings.Adult is not ("LIKELY" or "VERY_LIKELY")
+        && ratings.Racy != "VERY_LIKELY"
+        && ratings.Violence != "VERY_LIKELY";
+
+    /// <summary>The SafeSearch ratings of the first answer, or null when there are none.</summary>
+    public static SafeSearchRatings? ReadRatings(JsonElement response)
     {
         if (!response.TryGetProperty("responses", out var responses)
             || responses.GetArrayLength() == 0
             || !responses[0].TryGetProperty("safeSearchAnnotation", out var safe))
         {
-            return false;
+            return null;
         }
 
         static string Rating(JsonElement safe, string name) =>
             safe.TryGetProperty(name, out var value) ? value.GetString() ?? "UNKNOWN" : "UNKNOWN";
 
-        var adult = Rating(safe, "adult");
-        return adult is not ("LIKELY" or "VERY_LIKELY")
-            && Rating(safe, "racy") != "VERY_LIKELY"
-            && Rating(safe, "violence") != "VERY_LIKELY";
+        return new SafeSearchRatings(Rating(safe, "adult"), Rating(safe, "racy"), Rating(safe, "violence"));
     }
+}
+
+/// <summary>The SafeSearch likelihoods Quadra decides on (VERY_UNLIKELY … VERY_LIKELY, or UNKNOWN).</summary>
+public sealed record SafeSearchRatings(string Adult, string Racy, string Violence);
+
+/// <summary>
+/// The <c>code</c> a ProblemDetails carries when a photo key is refused (missing, over the size
+/// limit, or refused by the content check), so the app can tell it from the request's other errors.
+/// </summary>
+public static class PhotoProblem
+{
+    public const string CodeKey = "code";
+    public const string PhotoRefused = "photo_refused";
 }

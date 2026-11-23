@@ -112,10 +112,12 @@ public sealed class PostsEndpointsTests
             .StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await client.PostAsJsonAsync(Url, new { text = new string('a', Post.TextMaxLength + 1) }, Ct))
             .StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        (await client.PostAsJsonAsync(Url, new { photoObjectKey = $"profiles/{Guid.NewGuid()}/photo/x.jpg" }, Ct))
-            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-        (await client.PostAsJsonAsync(Url, new { text = "oi", matchId = Guid.NewGuid() }, Ct))
-            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        var foreignPhoto = await client.PostAsJsonAsync(Url, new { photoObjectKey = $"profiles/{Guid.NewGuid()}/photo/x.jpg" }, Ct);
+        foreignPhoto.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await foreignPhoto.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("code").GetString().Should().Be("photo_refused");
+        var notPlayed = await client.PostAsJsonAsync(Url, new { text = "oi", matchId = Guid.NewGuid() }, Ct);
+        notPlayed.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await notPlayed.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("code").GetString().Should().Be("match_not_allowed");
         (await _fx.CreateAnonymousClient().PostAsJsonAsync(Url, new { text = "oi" }, Ct))
             .StatusCode.Should().Be(HttpStatusCode.Unauthorized);
 

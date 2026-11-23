@@ -198,7 +198,9 @@ public sealed class CardStyleController : ControllerBase
             && !await photoStorage.IsWithinLimitsAsync(request.PhotoObjectKey, cancellationToken))
         {
             ModelState.AddModelError(nameof(request.PhotoObjectKey), "The photo is missing, larger than 10 MB or refused by the content check.");
-            return ValidationProblem(ModelState);
+            var refused = ProblemDetailsFactory.CreateValidationProblemDetails(HttpContext, ModelState);
+            refused.Extensions[PhotoProblem.CodeKey] = PhotoProblem.PhotoRefused;
+            return BadRequest(refused);
         }
 
         try
