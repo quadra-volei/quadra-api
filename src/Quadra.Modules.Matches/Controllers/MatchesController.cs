@@ -112,7 +112,9 @@ public sealed class MatchesController : ControllerBase
                 || !await photoStorage.IsWithinLimitsAsync(request.CoverObjectKey, cancellationToken)))
         {
             ModelState.AddModelError(nameof(request.CoverObjectKey), "The cover must be an image the caller uploaded, up to 10 MB, that passes the content check.");
-            return ValidationProblem(ModelState);
+            var refused = ProblemDetailsFactory.CreateValidationProblemDetails(HttpContext, ModelState);
+            refused.Extensions[PhotoProblem.CodeKey] = PhotoProblem.PhotoRefused;
+            return BadRequest(refused);
         }
 
         var command = new CreateMatchCommand(
@@ -251,7 +253,9 @@ public sealed class MatchesController : ControllerBase
                 || !await photoStorage.IsWithinLimitsAsync(request.CoverObjectKey, cancellationToken)))
         {
             ModelState.AddModelError(nameof(request.CoverObjectKey), "The cover must be an image the caller uploaded, up to 10 MB, that passes the content check.");
-            return ValidationProblem(ModelState);
+            var refused = ProblemDetailsFactory.CreateValidationProblemDetails(HttpContext, ModelState);
+            refused.Extensions[PhotoProblem.CodeKey] = PhotoProblem.PhotoRefused;
+            return BadRequest(refused);
         }
 
         try
