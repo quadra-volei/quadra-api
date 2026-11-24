@@ -28,7 +28,7 @@ public sealed class PlayBillingOptions
     public const string SectionName = "SeasonPass:Billing";
 
     /// <summary>The Android application id the products belong to.</summary>
-    public string PackageName { get; set; } = "com.quadra.app";
+    public string PackageName { get; set; } = "app.quadravolei";
 
     /// <summary>
     /// The JSON key of a Google Cloud service account invited to the Play Console with "View financial

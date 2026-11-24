@@ -29,7 +29,7 @@ public sealed class AppVersionTests : IClassFixture<AuthWebApplicationFactory>
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
         body.GetProperty("minimumVersion").GetString().Should().Be("1.2.0");
         body.GetProperty("recommendedVersion").GetString().Should().Be("1.3.0");
-        body.GetProperty("storeUrl").GetString().Should().Contain("com.quadra.app");
+        body.GetProperty("storeUrl").GetString().Should().Contain("app.quadravolei");
     }
 
     [Fact]
