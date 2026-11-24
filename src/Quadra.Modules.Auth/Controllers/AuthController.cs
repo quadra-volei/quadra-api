@@ -120,11 +120,9 @@ public sealed class AuthController : ControllerBase
     /// </summary>
     [HttpPost("login/firebase-phone")]
     [AllowAnonymous]
-    [EnableRateLimiting(PhoneOtpThrottle.PolicyName)]
     [ProducesResponseType(typeof(AuthTokensResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<IActionResult> LoginFirebasePhone(
         [FromBody] OidcLoginRequest request,
         CancellationToken cancellationToken)

@@ -31,7 +31,10 @@ public sealed class LogoutHandler
         var now = _timeProvider.GetUtcNow();
         var stored = await _refreshTokenRepository
             .FindByTokenHashAsync(RefreshTokenHasher.Hash(rawRefreshToken), cancellationToken);
-        if (stored is null || !stored.IsActive(now))
+        // A token already rotated still names its session: the app may log out with the token it
+        // held while a refresh was in flight, so the whole family is revoked either way
+        // (audit 2026-11-24, logout-refresh-race).
+        if (stored is null)
         {
             return;
         }

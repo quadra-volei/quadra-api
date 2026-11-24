@@ -47,7 +47,9 @@ public sealed class UpdateCardStyleRequestValidator : AbstractValidator<UpdateCa
     {
         RuleFor(x => x.Finish)
             .NotEmpty()
-            .Must(f => Enum.TryParse<CardFinish>(f, ignoreCase: false, out _) && !int.TryParse(f, out _))
+            // Exact names only: Enum.Parse also accepts "Ion,Eclipse" (= Pioneira) and padded names,
+            // which slipped past the season-pass lock (audit 2026-11-24, card-style-season-finish-lock-bypass).
+            .Must(f => f is not null && Enum.GetNames<CardFinish>().Contains(f, StringComparer.Ordinal))
             .WithMessage("Finish must be Prisma, Ion, Eclipse or a season pass finish.");
 
         // Whether a season title is the caller's is checked when saving (CardStyleHandler).
