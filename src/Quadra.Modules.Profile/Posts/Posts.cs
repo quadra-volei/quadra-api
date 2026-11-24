@@ -261,6 +261,7 @@ public sealed class PostsHandler
     private readonly IProfilePhotoStorage _photoStorage;
     private readonly IMatchInviteReader _matchInvites;
     private readonly IMatchCoverReader _matchCovers;
+    private readonly IMatchAccessReader _matchAccess;
     private readonly TimeProvider _timeProvider;
 
     public PostsHandler(
@@ -268,9 +269,11 @@ public sealed class PostsHandler
         IProfilePhotoStorage photoStorage,
         IMatchInviteReader matchInvites,
         IMatchCoverReader matchCovers,
+        IMatchAccessReader matchAccess,
         TimeProvider timeProvider)
     {
         _matchCovers = matchCovers;
+        _matchAccess = matchAccess;
         _context = context;
         _photoStorage = photoStorage;
         _matchInvites = matchInvites;
@@ -399,6 +402,17 @@ public sealed class PostsHandler
             posts.RemoveAt(take);
         }
 
+        // A post keeps the match it linked, but the match is shown only to whoever may see it now
+        // (CanViewMatch): a match that became private stops showing to strangers, and a share card
+        // with nothing else in it is dropped (audit 2026-11-24, posts-feed-private-match-exposure).
+        var linked = posts.Where(p => p.MatchId.HasValue).Select(p => p.MatchId!.Value).Distinct().ToArray();
+        IReadOnlySet<Guid> viewable = linked.Length == 0
+            ? new HashSet<Guid>()
+            : await _matchAccess.ListViewableAsync(linked, callerId, cancellationToken);
+        // The page cursor is taken before any card is dropped, so the next page starts after it.
+        DateTimeOffset? nextBefore = hasMore ? posts[^1].CreatedAt : null;
+        posts.RemoveAll(p => p.MatchId is { } m && !viewable.Contains(m) && p.Text is null && p.PhotoObjectKey is null);
+
         var authors = await PostAuthors.LoadAsync(
             _context, _photoStorage, posts.Select(p => p.AuthorId), cancellationToken);
 
@@ -413,7 +427,7 @@ public sealed class PostsHandler
             .Select(l => l.PostId)
             .ToListAsync(cancellationToken)).ToHashSet();
         var covers = await _matchCovers.GetCoverUrlsAsync(
-            posts.Where(p => p.MatchId.HasValue).Select(p => p.MatchId!.Value).Distinct().ToArray(),
+            viewable.ToArray(),
             cancellationToken);
         var commentCounts = await _context.PostComments.AsNoTracking()
             .Where(c => postIds.Contains(c.PostId))
@@ -432,10 +446,11 @@ public sealed class PostsHandler
                 likedByMe.Contains(post.Id),
                 commentCounts.GetValueOrDefault(post.Id),
                 cancellationToken,
-                post.MatchId is { } coverMatchId ? covers.GetValueOrDefault(coverMatchId) : null));
+                post.MatchId is { } coverMatchId ? covers.GetValueOrDefault(coverMatchId) : null,
+                showMatch: post.MatchId is not { } shownId || viewable.Contains(shownId)));
         }
 
-        return new PostFeedResponse(items, hasMore ? posts[^1].CreatedAt : null);
+        return new PostFeedResponse(items, nextBefore);
     }
 
     /// <returns>null when there is no such post, false when it is someone else's.</returns>
@@ -501,7 +516,8 @@ public sealed class PostsHandler
         bool likedByMe,
         int commentCount,
         CancellationToken cancellationToken,
-        string? matchCoverUrl = null)
+        string? matchCoverUrl = null,
+        bool showMatch = true)
     {
         var photoUrl = post.PhotoObjectKey is null
             ? null
@@ -512,7 +528,7 @@ public sealed class PostsHandler
             author,
             post.Text,
             photoUrl,
-            post.MatchId is { } matchId ? new PostMatchResponse(matchId, post.MatchName ?? string.Empty, post.MatchStartsAt, matchCoverUrl) : null,
+            showMatch && post.MatchId is { } matchId ? new PostMatchResponse(matchId, post.MatchName ?? string.Empty, post.MatchStartsAt, matchCoverUrl) : null,
             post.CreatedAt,
             Mine: post.AuthorId == callerId,
             likeCount,
