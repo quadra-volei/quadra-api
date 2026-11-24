@@ -387,7 +387,7 @@ public sealed class ProfilesEndpointsTests
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         var body = await response.Content.ReadFromJsonAsync<UploadUrlDto>(Ct);
         body!.UploadUrl.Should().Be(ProfileWebApplicationFactory.StubUploadUrl);
-        body.ObjectKey.Should().StartWith($"profiles/{userId}/photo/");
+        body.ObjectKey.Should().StartWith($"profiles/{userId}/upload/"); // published under photo/ once saved (PhotoKeys)
         body.ObjectKey.Should().EndWith(".png");
     }
 

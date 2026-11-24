@@ -26,6 +26,8 @@ namespace Quadra.Modules.Profile.DependencyInjection;
 /// </summary>
 public static class ProfileModuleExtensions
 {
+    public const string PhotoUploadRateLimitPolicy = "photo-upload";
+
     public static IServiceCollection AddProfileModule(
         this IServiceCollection services,
         IConfiguration configuration)
@@ -86,6 +88,18 @@ public static class ProfileModuleExtensions
         services.AddScoped<Quadra.Modules.Profile.Activities.ActivityWriter>();
         services.AddScoped<Quadra.Modules.Profile.Activities.ActivitiesHandler>();
         services.AddScoped<IPersonalDataStore, Quadra.Modules.Profile.Account.ProfilePersonalData>();
+
+        // Upload URLs per account per hour: each one lets the caller put an object in the bucket
+        // (audit 2026-11-24, unconfirmed-upload-unbounded-storage). In memory, one instance.
+        services.AddRateLimiter(options => options.AddPolicy(PhotoUploadRateLimitPolicy, context =>
+            System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous",
+                _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = context.RequestServices.GetRequiredService<IConfiguration>().GetValue("Profiles:PhotoUploadsPerHour", 30),
+                    Window = TimeSpan.FromHours(1),
+                    QueueLimit = 0,
+                })));
 
         // Finding a player by @handle (never by name), rate limited per account.
         services.AddScoped<Quadra.Modules.Profile.Search.PlayerSearchHandler>();

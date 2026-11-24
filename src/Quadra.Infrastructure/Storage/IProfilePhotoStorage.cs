@@ -46,6 +46,31 @@ public interface IProfilePhotoStorage
     /// deletion (SEC-14). Does nothing when no storage is configured.
     /// </summary>
     Task<int> DeleteAllAsync(string prefix, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Deletes the person's uploads that were never saved (still under <c>profiles/{userId}/upload/</c>)
+    /// and are older than <paramref name="olderThan"/>. Nothing to do when no storage is configured.
+    /// </summary>
+    Task<int> DeleteStaleUploadsAsync(Guid userId, TimeSpan olderThan, CancellationToken cancellationToken) =>
+        Task.FromResult(0);
+}
+
+/// <summary>
+/// Upload keys and the keys photos are served from (audit 2026-11-24, photo-check-bypass). The
+/// presigned PUT writes to <c>profiles/{id}/upload/{file}</c>; once checked, the object is copied
+/// to <c>profiles/{id}/photo/{file}</c> and the upload deleted. Reads always use the photo key, so
+/// another PUT to the still-valid upload URL can never replace a photo that passed the check.
+/// </summary>
+public static class PhotoKeys
+{
+    public const string UploadSegment = "/upload/";
+    public const string PhotoSegment = "/photo/";
+
+    public static bool IsUpload(string objectKey) => objectKey.Contains(UploadSegment, StringComparison.Ordinal);
+
+    /// <summary>The key a saved photo is served from (the same key when it is not an upload key).</summary>
+    public static string Published(string objectKey) =>
+        IsUpload(objectKey) ? objectKey.Replace(UploadSegment, PhotoSegment, StringComparison.Ordinal) : objectKey;
 }
 
 /// <summary>
