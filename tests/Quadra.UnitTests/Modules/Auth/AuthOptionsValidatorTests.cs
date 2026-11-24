@@ -89,13 +89,14 @@ public sealed class AuthOptionsValidatorTests
     // ---------------- Auth:PhoneVerification ----------------
 
     /// <summary>
-    /// Covers FA.3: the fake provider is refused in Production and allowed elsewhere.
+    /// Covers FA.3: the fake provider runs only in Development and Testing (allow-list).
     /// </summary>
     [Theory]
     [InlineData("Development", true)]
     [InlineData("Testing", true)]
     [InlineData("Production", false)]
-    public void Fake_provider_is_refused_in_production(string environment, bool accepted)
+    [InlineData("Staging", false)]
+    public void Fake_provider_runs_only_in_development_and_testing(string environment, bool accepted)
     {
         var options = new PhoneVerificationOptions { Provider = "fake" };
 

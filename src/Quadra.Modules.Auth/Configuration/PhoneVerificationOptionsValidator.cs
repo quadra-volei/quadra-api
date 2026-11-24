@@ -22,10 +22,12 @@ public sealed class PhoneVerificationOptionsValidator : IValidateOptions<PhoneVe
 
         if (options.UsesFake)
         {
-            if (_environment.IsProduction())
+            // Allow-list, not deny-list: any other environment name (Staging, a typo) would let anyone
+            // log in as any phone with the fixed code (audit 2026-11-24, fake-phone-provider-deny-list-gate).
+            if (!_environment.IsDevelopment() && !_environment.IsEnvironment("Testing"))
             {
                 return ValidateOptionsResult.Fail(
-                    "Auth:PhoneVerification:Provider 'Fake' is not allowed in Production.");
+                    "Auth:PhoneVerification:Provider 'Fake' is allowed only in Development and Testing.");
             }
 
             return string.IsNullOrWhiteSpace(options.Fake.Code)
