@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Threading.RateLimiting;
 using FluentValidation;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -73,6 +74,16 @@ public static class GeoModuleExtensions
                 context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous",
                 _ => new FixedWindowRateLimiterOptions { PermitLimit = limit, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 });
         }));
+        // One daily budget shared by every account for the paid Places lookups (PlacesOptions.MaxRequestsPerDay).
+        services.AddRateLimiter(options => options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+            context.Request.Path.StartsWithSegments("/api/v1/places")
+                ? RateLimitPartition.GetFixedWindowLimiter("places-day", _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = context.RequestServices.GetRequiredService<IOptions<PlacesOptions>>().Value.MaxRequestsPerDay,
+                    Window = TimeSpan.FromDays(1),
+                    QueueLimit = 0,
+                })
+                : RateLimitPartition.GetNoLimiter("other")));
 
         services
             .AddHttpClient(GooglePlaceSearchService.HttpClientName)

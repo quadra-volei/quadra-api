@@ -340,7 +340,17 @@ public sealed class NotificationsHandler
         await _db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO push_tokens (token, user_id, updated_at) VALUES ({token}, {userId}, {now}) ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id, updated_at = EXCLUDED.updated_at",
             cancellationToken);
+
+        // Only the account's most recent phones keep receiving: made-up tokens used to pile up and
+        // every push to that account sent them all to Expo inside other people's requests
+        // (audit 2026-11-24, push-token-per-account-cardinality).
+        await _db.Database.ExecuteSqlInterpolatedAsync(
+            $"DELETE FROM push_tokens WHERE user_id = {userId} AND token NOT IN (SELECT token FROM push_tokens WHERE user_id = {userId} ORDER BY updated_at DESC LIMIT {MaxPushTokensPerUser})",
+            cancellationToken);
     }
+
+    /// <summary>Phones per account that get pushes; the oldest token is dropped past it.</summary>
+    public const int MaxPushTokensPerUser = 5;
 
     public Task RemovePushTokenAsync(Guid userId, string token, CancellationToken cancellationToken) =>
         _db.PushTokens.Where(t => t.Token == token && t.UserId == userId).ExecuteDeleteAsync(cancellationToken);

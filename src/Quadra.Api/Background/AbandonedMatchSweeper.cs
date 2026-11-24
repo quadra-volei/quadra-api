@@ -71,7 +71,32 @@ public sealed class AbandonedMatchSweeper : BackgroundService
         return _jobMonitor.RunAsync("abandoned-match-sweep", interval, run => SweepAsync(run, cancellationToken), cancellationToken);
     }
 
+    /// <summary>
+    /// Batches per pass: the repository returns 50 at a time, so one pass drains up to 1,000 instead
+    /// of 50, and a burst of forgotten matches no longer keeps everyone else's waiting for days
+    /// (audit 2026-11-24, abandoned-sweep starvation).
+    /// </summary>
+    private const int MaxBatchesPerPass = 20;
+    private const int BatchSize = 50;
+
     private async Task SweepAsync(JobRun run, CancellationToken cancellationToken)
+    {
+        var total = 0;
+        for (var batch = 0; batch < MaxBatchesPerPass; batch++)
+        {
+            var found = await SweepBatchAsync(cancellationToken);
+            total += found;
+            if (found < BatchSize)
+            {
+                break;
+            }
+        }
+
+        run.SetItems(total);
+    }
+
+    /// <returns>How many abandoned matches the batch found (0 when listing failed).</returns>
+    private async Task<int> SweepBatchAsync(CancellationToken cancellationToken)
     {
         var afterHours = _configuration.GetValue(AfterHoursSettingKey, DefaultAfterHours);
         IReadOnlyList<Modules.Matches.Entities.Match> matches;
@@ -88,10 +113,9 @@ public sealed class AbandonedMatchSweeper : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Abandoned match sweep failed; it will run again on the next tick.");
-            return;
+            return 0;
         }
 
-        run.SetItems(matches.Count);
         foreach (var match in matches)
         {
             try
@@ -110,6 +134,8 @@ public sealed class AbandonedMatchSweeper : BackgroundService
                 _logger.LogError(ex, "Could not close abandoned match {MatchId}.", match.Id);
             }
         }
+
+        return matches.Count;
     }
 
     private async Task CloseAsync(IServiceProvider services, Guid matchId, Guid organizerId, CancellationToken cancellationToken)
