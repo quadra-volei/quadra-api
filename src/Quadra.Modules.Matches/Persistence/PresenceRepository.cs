@@ -15,8 +15,25 @@ public sealed class PresenceRepository : IPresenceRepository
         _context = context;
     }
 
+    /// <summary>
+    /// Adds the presence, replacing any older row of the same player in the match (one row per
+    /// player and match). A player who declined, or came Pending from the previous game, and then
+    /// joined the waiting list still has that row when promoted; inserting a second one broke the
+    /// unique index and rolled back the decline that freed the spot (audit 2026-11-24,
+    /// waitlist-promotion-duplicate-presence).
+    /// </summary>
     public async Task AddAsync(MatchPresence presence, CancellationToken cancellationToken)
     {
+        var older = await _context.Presences.FirstOrDefaultAsync(
+            p => p.MatchId == presence.MatchId && p.PlayerId == presence.PlayerId && p.Id != presence.Id,
+            cancellationToken);
+        if (older is not null)
+        {
+            _context.Presences.Remove(older);
+            // The delete must reach the database before the insert, or the unique index refuses it.
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
         await _context.Presences.AddAsync(presence, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
     }

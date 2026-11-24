@@ -36,9 +36,13 @@ public sealed class VoidedPurchaseSweeper : BackgroundService
         }
 
         var interval = TimeSpan.FromMinutes(_options.VoidedSweepMinutes);
+        // One sweep as soon as the API starts: the free plan restarts and sleeps the instance often,
+        // and a timer-only sweep could go more than the 30 days Google keeps voided purchases
+        // without running (audit 2026-11-24, voided-purchase-sweep-window-revocation-gap).
         using var timer = new PeriodicTimer(interval);
         try
         {
+            await SweepOnceAsync(interval, stoppingToken);
             while (await timer.WaitForNextTickAsync(stoppingToken))
             {
                 await SweepOnceAsync(interval, stoppingToken);

@@ -51,6 +51,65 @@ public sealed class S3ProfilePhotoStorage : IProfilePhotoStorage
     /// <inheritdoc/>
     public async Task<bool> IsWithinLimitsAsync(string objectKey, CancellationToken cancellationToken)
     {
+        if (!PhotoKeys.IsUpload(objectKey))
+        {
+            return await CheckAsync(objectKey, cancellationToken);
+        }
+
+        // A fresh upload: check it, then publish a copy the upload URL cannot reach and drop the upload.
+        var published = PhotoKeys.Published(objectKey);
+        if (await CheckAsync(objectKey, cancellationToken))
+        {
+            await _s3.CopyObjectAsync(_options.ProfilePhotosBucket, objectKey, _options.ProfilePhotosBucket, published, cancellationToken);
+            await _s3.DeleteObjectAsync(_options.ProfilePhotosBucket, objectKey, cancellationToken);
+            return true;
+        }
+
+        // Nothing at the upload key any more: the same key saved again after it was published.
+        return await ExistsAsync(objectKey, cancellationToken) is false && await CheckAsync(published, cancellationToken);
+    }
+
+    private async Task<bool> ExistsAsync(string objectKey, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _s3.GetObjectMetadataAsync(_options.ProfilePhotosBucket, objectKey, cancellationToken);
+            return true;
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return false;
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<int> DeleteStaleUploadsAsync(Guid userId, TimeSpan olderThan, CancellationToken cancellationToken)
+    {
+        var cutoff = _timeProvider.GetUtcNow() - olderThan;
+        var request = new ListObjectsV2Request { BucketName = _options.ProfilePhotosBucket, Prefix = $"profiles/{userId}{PhotoKeys.UploadSegment}" };
+        var stale = new List<string>();
+        ListObjectsV2Response response;
+        do
+        {
+            response = await _s3.ListObjectsV2Async(request, cancellationToken);
+            stale.AddRange((response.S3Objects ?? [])
+                .Where(o => o.LastModified is { } modified && new DateTimeOffset(modified.ToUniversalTime()) < cutoff)
+                .Select(o => o.Key));
+            request.ContinuationToken = response.NextContinuationToken;
+        }
+        while (response.IsTruncated == true);
+
+        foreach (var key in stale)
+        {
+            await _s3.DeleteObjectAsync(_options.ProfilePhotosBucket, key, cancellationToken);
+        }
+
+        return stale.Count;
+    }
+
+    /// <summary>The object exists, is small enough and passes the content check; else it is deleted.</summary>
+    private async Task<bool> CheckAsync(string objectKey, CancellationToken cancellationToken)
+    {
         GetObjectMetadataResponse metadata;
         try
         {
@@ -63,7 +122,7 @@ public sealed class S3ProfilePhotoStorage : IProfilePhotoStorage
 
         // Small enough, and (when a moderation provider is on) no adult content (DECISIONS #76).
         if (metadata.ContentLength <= _options.MaxPhotoBytes
-            && await _moderator.IsAllowedAsync((await GetReadUrlAsync(objectKey, cancellationToken))!, cancellationToken))
+            && await _moderator.IsAllowedAsync((await SignGetAsync(objectKey))!, cancellationToken))
         {
             return true;
         }
@@ -73,7 +132,10 @@ public sealed class S3ProfilePhotoStorage : IProfilePhotoStorage
     }
 
     /// <inheritdoc/>
-    public async Task<string?> GetReadUrlAsync(string objectKey, CancellationToken cancellationToken)
+    public async Task<string?> GetReadUrlAsync(string objectKey, CancellationToken cancellationToken) =>
+        await SignGetAsync(PhotoKeys.Published(objectKey));
+
+    private Task<string> SignGetAsync(string objectKey)
     {
         var expiresAt = _timeProvider.GetUtcNow().AddMinutes(_options.PhotoReadUrlTtlMinutes);
 
@@ -85,7 +147,7 @@ public sealed class S3ProfilePhotoStorage : IProfilePhotoStorage
             Expires = expiresAt.UtcDateTime,
         };
 
-        return await _s3.GetPreSignedURLAsync(request);
+        return _s3.GetPreSignedURLAsync(request);
     }
 
     /// <inheritdoc/>

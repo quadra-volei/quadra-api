@@ -24,6 +24,13 @@ public sealed class PlacesOptions
     /// <summary>Calls to <c>/places/*</c> per account per minute (SEC-07).</summary>
     public int RequestsPerMinute { get; set; } = 30;
 
+    /// <summary>
+    /// Calls to <c>/places/*</c> per day for ALL accounts together: accounts are self-service, so the
+    /// per-account limit alone does not bound the Google bill (audit 2026-11-24, places spend).
+    /// ponytail: in memory, resets when the instance restarts; enough with one instance.
+    /// </summary>
+    public int MaxRequestsPerDay { get; set; } = 1000;
+
     /// <summary>Server-side key for the Google Places API (New). Never sent to clients.</summary>
     public string GoogleApiKey { get; set; } = string.Empty;
 

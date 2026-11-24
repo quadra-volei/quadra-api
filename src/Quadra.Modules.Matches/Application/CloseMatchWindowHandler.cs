@@ -16,6 +16,7 @@ public sealed class CloseMatchWindowHandler
     private readonly IMatchRepository _matchRepository;
     private readonly IPresenceRepository _presenceRepository;
     private readonly IWaitingListRepository _waitingListRepository;
+    private readonly IMatchGuestRepository _guestRepository;
     private readonly IEventPublisher _eventPublisher;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<CloseMatchWindowHandler> _logger;
@@ -24,6 +25,7 @@ public sealed class CloseMatchWindowHandler
         IMatchRepository matchRepository,
         IPresenceRepository presenceRepository,
         IWaitingListRepository waitingListRepository,
+        IMatchGuestRepository guestRepository,
         IEventPublisher eventPublisher,
         TimeProvider timeProvider,
         ILogger<CloseMatchWindowHandler> logger)
@@ -31,6 +33,7 @@ public sealed class CloseMatchWindowHandler
         _matchRepository = matchRepository;
         _presenceRepository = presenceRepository;
         _waitingListRepository = waitingListRepository;
+        _guestRepository = guestRepository;
         _eventPublisher = eventPublisher;
         _timeProvider = timeProvider;
         _logger = logger;
@@ -47,7 +50,10 @@ public sealed class CloseMatchWindowHandler
         var confirmedRegulars = await _presenceRepository.CountConfirmedAsync(
             matchId, PlayerType.Regular, cancellationToken);
 
-        var releasedDropInSlots = Math.Max(0, match.RegularSlots - confirmedRegulars);
+        // Guests hold Regular slots too (DECISIONS #6): leaving them out released their slots as
+        // drop-ins and let the roster pass MaxPlayers (audit 2026-11-24, released-dropin-slots-ignore-guests).
+        var guests = await _guestRepository.CountByMatchAsync(matchId, cancellationToken);
+        var releasedDropInSlots = Math.Max(0, match.RegularSlots - confirmedRegulars - guests);
 
         // Throws InvalidMatchStatusTransitionException if not Open.
         match.CloseWindow(releasedDropInSlots, now);

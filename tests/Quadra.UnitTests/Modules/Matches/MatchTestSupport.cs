@@ -37,6 +37,7 @@ internal static class MatchTestSupport
                 matchRepository,
                 presenceRepository,
                 waitingListRepository,
+                Substitute.For<IMatchGuestRepository>(),
                 eventPublisher,
                 timeProvider,
                 NullLogger<CloseMatchWindowHandler>.Instance),

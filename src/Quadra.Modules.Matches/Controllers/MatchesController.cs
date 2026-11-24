@@ -3,9 +3,11 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Quadra.Infrastructure.Storage;
 using Quadra.Modules.Matches.Application;
+using Quadra.Modules.Matches.DependencyInjection;
 using Quadra.Modules.Matches.Contracts;
 using Quadra.Modules.Matches.Entities;
 using Quadra.Shared.Contracts;
@@ -84,6 +86,7 @@ public sealed class MatchesController : ControllerBase
 
     /// <summary>POST /api/v1/matches</summary>
     [HttpPost]
+    [EnableRateLimiting(MatchesModuleExtensions.CreateRateLimitPolicy)]
     public async Task<ActionResult<MatchResponse>> Create(
         [FromBody] CreateMatchRequest request,
         [FromServices] IProfilePhotoStorage photoStorage,

@@ -25,7 +25,7 @@ public sealed class AppVersionController : ControllerBase
     public AppVersionResponse Get() => new(
         Blank(_configuration["App:MinimumVersion"]),
         Blank(_configuration["App:RecommendedVersion"]),
-        _configuration["App:StoreUrl"] ?? "https://play.google.com/store/apps/details?id=com.quadra.app");
+        _configuration["App:StoreUrl"] ?? "https://play.google.com/store/apps/details?id=app.quadravolei");
 
     private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
