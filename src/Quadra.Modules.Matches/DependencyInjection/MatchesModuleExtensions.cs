@@ -1,4 +1,8 @@
+using System.Security.Claims;
+using System.Threading.RateLimiting;
 using FluentValidation;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,12 +25,27 @@ namespace Quadra.Modules.Matches.DependencyInjection;
 /// </summary>
 public static class MatchesModuleExtensions
 {
+    public const string CreateRateLimitPolicy = "match-create";
+
     public static IServiceCollection AddMatchesModule(
         this IServiceCollection services,
         IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
+
+        // New matches per organizer per day: accounts are self-service, and each forgotten recurring
+        // match renews itself into the abandoned sweep (audit 2026-11-24, sweeper starvation).
+        // ponytail: in memory, resets when the instance restarts; enough with one instance.
+        services.AddRateLimiter(options => options.AddPolicy(CreateRateLimitPolicy, context =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous",
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = context.RequestServices.GetRequiredService<IConfiguration>().GetValue("Matches:CreatePerDay", 20),
+                    Window = TimeSpan.FromDays(1),
+                    QueueLimit = 0,
+                })));
 
         // EF DbContext — reads from ConnectionStrings:Matches, falling back to ConnectionStrings:Default.
         services.AddDbContext<MatchesDbContext>((sp, builder) =>
