@@ -22,7 +22,12 @@ public sealed class CreatePhotoUploadUrlHandler
         CancellationToken cancellationToken)
     {
         var extension = ExtensionFor(contentType);
-        var objectKey = $"profiles/{callerId}/photo/{Guid.NewGuid()}.{extension}";
+        // The upload goes to an upload key; saving it publishes a checked copy (PhotoKeys).
+        var objectKey = $"profiles/{callerId}{PhotoKeys.UploadSegment}{Guid.NewGuid()}.{extension}";
+
+        // Uploads never saved are dropped once their URL has long expired, so they cannot pile up
+        // in the bucket (audit 2026-11-24, unconfirmed-upload-unbounded-storage).
+        await _photoStorage.DeleteStaleUploadsAsync(callerId, TimeSpan.FromHours(1), cancellationToken);
 
         var target = await _photoStorage.CreateUploadUrlAsync(objectKey, contentType, cancellationToken);
 

@@ -54,4 +54,41 @@ public sealed class PhotoSizeLimitTests
 
         (await CreateSut().IsWithinLimitsAsync(Key, TestContext.Current.CancellationToken)).Should().BeFalse();
     }
+
+    // Audit 2026-11-24, photo-check-bypass-by-presigned-put-reuse: the upload URL writes to an
+    // upload key; a checked upload is copied to the photo key that reads use, and the upload deleted.
+    private const string Upload = "profiles/u1/upload/a.jpg";
+    private const string Published = "profiles/u1/photo/a.jpg";
+
+    [Fact]
+    public async Task A_checked_upload_is_published_under_a_key_the_upload_url_cannot_reach()
+    {
+        _s3.GetObjectMetadataAsync("photos", Upload, Arg.Any<CancellationToken>())
+            .Returns(new GetObjectMetadataResponse { ContentLength = 10 });
+
+        (await CreateSut().IsWithinLimitsAsync(Upload, TestContext.Current.CancellationToken)).Should().BeTrue();
+
+        await _s3.Received(1).CopyObjectAsync("photos", Upload, "photos", Published, Arg.Any<CancellationToken>());
+        await _s3.Received(1).DeleteObjectAsync("photos", Upload, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Reads_of_an_upload_key_are_served_from_the_published_photo()
+    {
+        _s3.GetPreSignedURLAsync(Arg.Any<GetPreSignedUrlRequest>()).Returns(c => "signed:" + c.Arg<GetPreSignedUrlRequest>().Key);
+
+        (await CreateSut().GetReadUrlAsync(Upload, TestContext.Current.CancellationToken)).Should().Be("signed:" + Published);
+    }
+
+    [Fact]
+    public async Task Saving_the_same_upload_key_again_checks_the_published_photo()
+    {
+        _s3.GetObjectMetadataAsync("photos", Upload, Arg.Any<CancellationToken>())
+            .ThrowsAsync(new AmazonS3Exception("not found") { StatusCode = HttpStatusCode.NotFound });
+        _s3.GetObjectMetadataAsync("photos", Published, Arg.Any<CancellationToken>())
+            .Returns(new GetObjectMetadataResponse { ContentLength = 10 });
+
+        (await CreateSut().IsWithinLimitsAsync(Upload, TestContext.Current.CancellationToken)).Should().BeTrue();
+        await _s3.DidNotReceiveWithAnyArgs().CopyObjectAsync(default!, default!, default!, default!, TestContext.Current.CancellationToken);
+    }
 }

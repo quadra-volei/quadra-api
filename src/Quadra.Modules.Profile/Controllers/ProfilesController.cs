@@ -3,6 +3,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Quadra.Infrastructure.Storage;
 using Quadra.Modules.Profile.Application;
 using Quadra.Modules.Profile.Contracts;
@@ -162,6 +163,7 @@ public sealed class ProfilesController : ControllerBase
 
     /// <summary>POST /api/v1/profiles/me/photo/upload-url</summary>
     [HttpPost("me/photo/upload-url")]
+    [EnableRateLimiting(Quadra.Modules.Profile.DependencyInjection.ProfileModuleExtensions.PhotoUploadRateLimitPolicy)]
     public async Task<ActionResult<PhotoUploadUrlResponse>> CreatePhotoUploadUrl(
         [FromBody] PhotoUploadUrlRequest request,
         CancellationToken cancellationToken)
