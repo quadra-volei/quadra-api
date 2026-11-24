@@ -72,8 +72,9 @@ public sealed class PostsEndpointsTests
         item.GetProperty("photoUrl").GetString().Should().Be($"https://s3.test.local/read/{photoKey}");
         item.GetProperty("author").GetProperty("displayName").GetString().Should().Be("Ana Lima");
         item.GetProperty("author").GetProperty("handle").GetString().Should().Be("ana");
-        item.GetProperty("match").GetProperty("id").GetGuid().Should().Be(matchId);
-        item.GetProperty("match").GetProperty("name").GetString().Should().Be("Vôlei de quinta");
+        // The linked match shows only to readers who may see it (CanViewMatch); this one does not exist
+        // in the Matches schema, so the reader gets the post without it (PrivateMatchLeakAuditTests).
+        item.GetProperty("match").ValueKind.Should().Be(JsonValueKind.Null);
         item.GetProperty("mine").GetBoolean().Should().BeFalse();
         item.GetProperty("kind").GetString().Should().Be("Post");
         feed.GetProperty("nextBefore").ValueKind.Should().Be(JsonValueKind.Null);
